@@ -1,2 +1,0 @@
-#lang racket
-(define rs0 (open-input-file "./test0.r1cs" #:mode 'binary))
