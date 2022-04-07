@@ -1,0 +1,1 @@
+("8.3" ta6osx ("331ce1a994454c519434959455ae1c3c59234818" . "429da79c036ac5c2f4abc81888ffa573dc0e69a2") (collects #"errortrace" #"errortrace-key.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt"))
