@@ -20,12 +20,12 @@
 )
 
 ; r1cs structs
-(struct r1cs (magic version nsec header constraint w2l) #:mutable #:transparent #:reflection-name 'r1cs)
-    (struct header-section (field-size prime-number nwires npubout npubin nprvin nlabels mconstraints) #:mutable #:transparent #:reflection-name 'header-section)
-    (struct constraint-section (constraints) #:mutable #:transparent #:reflection-name 'constraint-section)
-        (struct constraint (a b c) #:mutable #:transparent #:reflection-name 'constraint) ; a, b and c are constraint-blocks
-            (struct constraint-block (nnz wids factors) #:mutable #:transparent #:reflection-name 'constraint-block)
-    (struct w2l-section (v) #:mutable #:transparent #:reflection-name 'w2l-section)
+(struct header-section (field-size prime-number nwires npubout npubin nprvin nlabels mconstraints) #:mutable #:transparent #:reflection-name 'header-section)
+(struct constraint-block (nnz wids factors) #:mutable #:transparent #:reflection-name 'constraint-block)
+(struct constraint (a b c) #:mutable #:transparent #:reflection-name 'constraint)
+(struct constraint-section (constraints) #:mutable #:transparent #:reflection-name 'constraint-section)
+(struct w2l-section (v) #:mutable #:transparent #:reflection-name 'w2l-section)
+(struct r1cs (magic version nsec sections) #:mutable #:transparent #:reflection-name 'r1cs)
 
 (define (extract-header-section arg-raw)
     (define field-size (bytes->number (subbytes arg-raw 0 4))) ; field size in bytes
@@ -40,6 +40,7 @@
     (define nprvin (bytes->number (subbytes arg-raw (+ 16 field-size) (+ 20 field-size))))
     (define nlabels (bytes->number (subbytes arg-raw (+ 20 field-size) (+ 28 field-size))))
     (define mconstraints (bytes->number (subbytes arg-raw (+ 28 field-size) (+ 32 field-size))))
+    (printf "mconstraints: ~a\n" mconstraints)
     ; return
     (header-section field-size prime-number nwires npubout npubin nprvin nlabels mconstraints)
 )
@@ -132,73 +133,92 @@
     (w2l-section map0)
 )
 
-; count the total number of sections
-; arg-raw: bytes of sections without meta zone
-(define (count-sections arg-raw)
-    (cond 
-        [(zero? (bytes-length arg-raw)) 0]
-        [else
-            (define section0-type (bytes->number (subbytes arg-raw 0 4)))
-            (define section0-size (bytes->number (subbytes arg-raw 4 12)))
-            (define bs0 (+ 12 section0-size)) ; next section start position
-            (+ 1 (count-sections (subbytes arg-raw bs0)))
-        ]
-    )
-)
-
-(define (extract-section-types arg-raw)
-    (cond 
-        [(zero? (bytes-length arg-raw)) (list)]
-        [else
-            (define section0-type (bytes->number (subbytes arg-raw 0 4)))
-            (define section0-size (bytes->number (subbytes arg-raw 4 12)))
-            (define bs0 (+ 12 section0-size)) ; next section start position
-            (cons section0-type (extract-section-types (subbytes arg-raw bs0)))
-        ]
-    )
-)
-
-; remove sections with unrecognized section type
-; currently the spec only mentions types of 1, 2 and 3
-(define (filter-sections arg-raw)
-    (define accepted-types (list 1 2 3))
-    (cond
-        [(zero? (bytes-length arg-raw)) (bytes)]
-        [else
-            (define section0-type (bytes->number (subbytes arg-raw 0 4)))
-            (define section0-size (bytes->number (subbytes arg-raw 4 12)))
-            (define bs0 (+ 12 section0-size)) ; next section start position
-            (if (contains? accepted-types section0-type)
-                ; yes, include this section
-                (bytes-append (subbytes arg-raw 0 bs0) (filter-sections (subbytes arg-raw bs0)))
-                ; no, drop this section
-                (filter-sections (subbytes arg-raw bs0))
-            )
-        ]
-    )
-)
-
-; find section start pos and size of designated section type
-; arg-raw: bytes of sections without meta zone
-(define (find-section arg-raw arg-type)
+; sections have dependencies (e.g., constraint section requires field size and mconstraints from header section),
+; this reorder the sections to respect such dependencies
+(define (find-header-pos arg-raw)
     (cond 
         [(zero? (bytes-length arg-raw))
-            (println-and-exit (format "# [exception][find-section-pos] cannot find position of section given type: ~a." arg-type))
+            (println-and-exit "# [exception][find-header-pos] cannot find position of header section.")
         ]
         [else
-            (define section0-type (bytes->number (subbytes arg-raw 0 4)))
-            (define section0-size (bytes->number (subbytes arg-raw 4 12)))
+            ;recursive
+            (define section0-type (bytes->number (subbytes arg-raw 0 4))) ; top section type
+            (define section0-size (bytes->number (subbytes arg-raw 4 12))) ; top section size, number of bytes
+            (printf "# [debug] section type: ~a, section size: ~a\n" section0-type section0-size)
+            
             (cond
-                [(equal? arg-type section0-type) (values 0 section0-size)] ; found
+                [(equal? 1 section0-type) 0]
                 [else
-                    (define offset (+ 12 section0-size))
-                    (define-values (pos0 size0) (find-section (subbytes arg-raw offset) arg-type))
-                    (values (+ offset pos0) size0)
+                    (define bs0 (+ 12 section0-size))
+                    (+ bs0 (find-header-pos (subbytes arg-raw bs0)))
                 ]
             )
         ]
     )
 )
+
+(define (extract-sections arg-raw arg-fs arg-m)
+    (cond 
+        [(zero? (bytes-length arg-raw))
+            ; base
+            (list )
+        ]
+        [else
+            ;recursive
+            (define section0-type (bytes->number (subbytes arg-raw 0 4))) ; top section type
+            (define section0-size (bytes->number (subbytes arg-raw 4 12))) ; top section size, number of bytes
+            
+            (cond
+                [(equal? 1 section0-type) 
+                    (define section0 (extract-header-section (subbytes arg-raw 12 (+ 12 section0-size))))
+                    (define fs0 (header-section-field-size section0))
+                    (define m0 (header-section-mconstraints section0))
+                    (printf "defined arg-fs: ~a, arg-m: ~a\n" fs0 m0)
+                    ; recursive return
+                    (cons 
+                        section0 
+                        (extract-sections 
+                            (subbytes arg-raw (+ 12 section0-size))
+                            (header-section-field-size section0) ; provide field size
+                            (header-section-mconstraints section0) ; provide mconstraints
+                        )
+                    )
+                ]
+                [(equal? 2 section0-type) 
+                    (printf "arg-fs: ~a, arg-m: ~a\n" arg-fs arg-m)
+                    (define section0 (extract-constraint-section (subbytes arg-raw 12 (+ 12 section0-size)) arg-fs arg-m))
+                    ; recursive return
+                    (cons 
+                        section0 
+                        (extract-sections
+                            (subbytes arg-raw (+ 12 section0-size))
+                            arg-fs
+                            arg-m
+                        )
+                    )
+                ]
+                [(equal? 3 section0-type) 
+                    (define section0 (extract-w2l-section (subbytes arg-raw 12 (+ 12 section0-size))))
+                    ; recursive return
+                    (cons 
+                        section0 
+                        (extract-sections 
+                            (subbytes arg-raw (+ 12 section0-size))
+                            arg-fs
+                            arg-m
+                        )
+                    )
+                ]
+                [else
+                    ; if containing other types, they should be ignored
+                    (printf "# [warning][extract-sections] section type is not supported, got: ~a, will ignore according to spec.\n" section0-type)
+                    (void)
+                ]
+            )
+        ]
+    )
+)
+
 
 ; format spec: https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md
 (define (read-r1cs arg-path)
@@ -214,29 +234,16 @@
 
     (define nsec (bytes->number (subbytes raw 8 12)))
 
-    (define raw-sections (subbytes raw 12)) ; 12=4+4+4, remove the meta zone
-    (define fraw-sections (filter-sections raw-sections)) ; remove sections with undefined section types
-    (when (not (equal? 3 (count-sections fraw-sections)))
-        (println-and-exit (format "# [exception][read-r1cs] r1cs needs to contain 3 sections, got: ~a." (count-sections fraw-sections))))
+    (define raw-sections (subbytes raw 12)) ; 12=4+4+4
+    (define raw-header-pos (find-header-pos raw-sections))
+    (define raw-sections-reordered
+        (bytes-append
+            (subbytes raw-sections raw-header-pos)
+            (subbytes raw-sections 0 raw-header-pos)
+        )
+    )
 
+    (define sections (extract-sections raw-sections-reordered null null))
 
-    ; find aand process header section, +12 to skip section meta zone
-    (define-values (hs-pos hs-size) (find-section fraw-sections 1))
-    (define hs0 (extract-header-section (subbytes fraw-sections (+ 12 hs-pos) (+ 12 hs-pos hs-size))))
-    (define fs0 (header-section-field-size hs0))
-    (define m0 (header-section-mconstraints hs0))
-
-    ; find and process constraint section, +12 to skip section meta zone
-    (define-values (cs-pos cs-size) (find-section fraw-sections 2))
-    (define cs0 (extract-constraint-section 
-        (subbytes fraw-sections (+ 12 cs-pos) (+ 12 cs-pos cs-size))
-        fs0 m0
-    ))
-
-    ; find and process w2l section, +12 to skip section meta zone
-    (define-values (ws-pos ws-size) (find-section fraw-sections 3))
-    (define ws0 (extract-w2l-section (subbytes fraw-sections (+ 12 ws-pos) (+ 12 ws-pos ws-size))))
-
-    ; return
-    (r1cs magic-number version nsec hs0 cs0 ws0)
+    (r1cs magic-number version nsec sections)
 )
