@@ -29,6 +29,12 @@
 
 ; quick functions
 (define (get-mconstraints arg-r1cs) (header-section-mconstraints (r1cs-header arg-r1cs)))
+(define (get-nwires arg-r1cs) (header-section-nwires (r1cs-header arg-r1cs)))
+(define (get-npubout arg-r1cs) (header-section-npubout (r1cs-header arg-r1cs)))
+(define (get-npubin arg-r1cs) (header-section-npubin (r1cs-header arg-r1cs)))
+(define (get-nprvin arg-r1cs) (header-section-nprvin (r1cs-header arg-r1cs)))
+(define (get-nlabels arg-r1cs) (header-section-nlabels (r1cs-header arg-r1cs)))
+(define (get-constraints arg-r1cs) (constraint-section-constraints (r1cs-constraint arg-r1cs)))
 
 (define (extract-header-section arg-raw)
     (define field-size (bytes->number (subbytes arg-raw 0 4))) ; field size in bytes
