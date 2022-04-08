@@ -2,6 +2,8 @@
 (require "./utils.rkt")
 (provide (all-defined-out))
 
+; notes: this version of r1cs utils aligns with Ecne's/Julia's indexing scheme, i.e., 1-based index
+
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L10
 (define big-prime 21888242871839275222246405745257275088548364400416034343698204186575808495617)
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L13
@@ -52,7 +54,10 @@
         (define tmp-wids
             (for/list ([i arg-n])
                 (define s0 (* i (+ 4 arg-fs)))
-                (bytes->number (subbytes arg-block s0 (+ 4 s0)))
+                ; (bytes->number (subbytes arg-block s0 (+ 4 s0)))
+                ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L1683
+                ; also see notes for why
+                (+ 1 (bytes->number (subbytes arg-block s0 (+ 4 s0))))
             )
         )
         (define tmp-factors
@@ -243,15 +248,13 @@
     ; compute the list of input variables (aka `knowns` in Ecne) and output variables (aka `outputs` in Ecne)
     (define istart (+ 2 (header-section-npubout hs0))) ; inclusive
     (define iend (+ 1 (header-section-npubout hs0) (header-section-npubin hs0) (header-section-nprvin hs0))) ; inclusive
-    (define input-list-ecne (cons 1 
+    (define input-list (cons 1 
         (for/list ([i (range istart (+ 1 iend))]) i)
     ))
-    (define input-list (for/list ([i input-list-ecne]) (- i 1))) ; translate back to 0-based index
 
     (define ostart 2) ; inclusive
     (define oend (+ 1 (header-section-npubout hs0))) ; inclusive
-    (define output-list-ecne (for/list ([i (range ostart (+ 1 oend))]) i))
-    (define output-list (for/list ([i output-list-ecne]) (- i 1))) ; translate back to 0-based index
+    (define output-list (for/list ([i (range ostart (+ 1 oend))]) i))
 
     ; return
     (r1cs magic-number version nsec hs0 cs0 ws0 input-list output-list)

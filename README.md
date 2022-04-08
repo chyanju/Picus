@@ -29,7 +29,11 @@ julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1
 ## Resources
 
 - R1CS Binary Format: [https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md](https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md)
+  - Wire 0 must be always mapped to label 0 and it's an input forced to value "1" implicitly
+  - --> Here the current impl. follows Ecne (in Julia), so it starts from 1.
 - GF example meaning: [https://discourse.julialang.org/t/new-type-definition-galois-field-in-julia-1-x/17123/7](https://discourse.julialang.org/t/new-type-definition-galois-field-in-julia-1-x/17123/7)
+- Ecne's benchmarks
+  - [https://github.com/franklynwang/EcneProject/tree/master/ecne_circomlib_tests](https://github.com/franklynwang/EcneProject/tree/master/ecne_circomlib_tests)
 - Ecne's `readR1CS`: [https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L1626](https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L1626)
 
 - Ecne's `printEquation`: [https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L424](https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L424)
