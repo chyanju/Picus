@@ -1,5 +1,5 @@
 # Picus
-Symbolic Virtual Machine for R1CS Verification
+Symbolic Virtual Machine for Automated R1CS Verification
 
 ## Requirements
 
