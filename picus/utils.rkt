@@ -19,27 +19,12 @@
 (define (slice l offset n) (take (drop l offset) n))
 
 ; (note) this is little endian (i.e., little bytes come first)
-; (define (bytes->number b)
-;     (define (accu p0 rb0) 
-;         (if (null? rb0)
-;             0 ; done
-;             (+ (* p0 (car rb0)) (accu (* 256 p0) (cdr rb0))) ; (note) a byte contains 8 bits, which is 2^8=256
-;         )
-;     )
-;     (accu 1 (bytes->list b))
-; )
-
 (define (bytes->number b)
-    (define (do-bn)
-        (define (accu p0 rb0) 
-            (if (null? rb0)
-                0 ; done
-                (+ (* p0 (car rb0)) (accu (* 256 p0) (cdr rb0))) ; (note) a byte contains 8 bits, which is 2^8=256
-            )
+    (define (accu p0 rb0) 
+        (if (null? rb0)
+            0 ; done
+            (+ (* p0 (car rb0)) (accu (* 256 p0) (cdr rb0))) ; (note) a byte contains 8 bits, which is 2^8=256
         )
-        (accu 1 (bytes->list b))
     )
-    (define ret0 (do-bn))
-    ; (printf "from: ~a, to: ~a\n" (bytes->list b) ret0)
-    ret0
+    (accu 1 (bytes->list b))
 )

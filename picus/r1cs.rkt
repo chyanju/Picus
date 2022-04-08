@@ -20,12 +20,15 @@
 )
 
 ; r1cs structs
-(struct r1cs (magic version nsec header constraint w2l) #:mutable #:transparent #:reflection-name 'r1cs)
+(struct r1cs (magic version nsec header constraint w2l inputs outputs) #:mutable #:transparent #:reflection-name 'r1cs)
     (struct header-section (field-size prime-number nwires npubout npubin nprvin nlabels mconstraints) #:mutable #:transparent #:reflection-name 'header-section)
     (struct constraint-section (constraints) #:mutable #:transparent #:reflection-name 'constraint-section)
         (struct constraint (a b c) #:mutable #:transparent #:reflection-name 'constraint) ; a, b and c are constraint-blocks
             (struct constraint-block (nnz wids factors) #:mutable #:transparent #:reflection-name 'constraint-block)
     (struct w2l-section (v) #:mutable #:transparent #:reflection-name 'w2l-section)
+
+; quick functions
+(define (get-mconstraints arg-r1cs) (header-section-mconstraints (r1cs-header arg-r1cs)))
 
 (define (extract-header-section arg-raw)
     (define field-size (bytes->number (subbytes arg-raw 0 4))) ; field size in bytes
@@ -49,7 +52,10 @@
         (define tmp-wids
             (for/list ([i arg-n])
                 (define s0 (* i (+ 4 arg-fs)))
-                (bytes->number (subbytes arg-block s0 (+ 4 s0)))
+                ; (bytes->number (subbytes arg-block s0 (+ 4 s0)))
+                ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L1683
+                ; also see notes for why
+                (+ 1 (bytes->number (subbytes arg-block s0 (+ 4 s0))))
             )
         )
         (define tmp-factors
@@ -237,11 +243,22 @@
     (define-values (ws-pos ws-size) (find-section fraw-sections 3))
     (define ws0 (extract-w2l-section (subbytes fraw-sections (+ 12 ws-pos) (+ 12 ws-pos ws-size))))
 
+    ; compute the list of input variables (aka `knowns` in Ecne) and output variables (aka `outputs` in Ecne)
+    (define istart (+ 2 (header-section-npubout hs0))) ; inclusive
+    (define iend (+ 1 (header-section-npubout hs0) (header-section-npubin hs0) (header-section-nprvin hs0))) ; inclusive
+    (define input-list (cons 1 
+        (for/list ([i (range istart (+ 1 iend))]) i)
+    ))
+
+    (define ostart 2) ; inclusive
+    (define oend (+ 1 (header-section-npubout hs0))) ; inclusive
+    (define output-list (for/list ([i (range ostart (+ 1 oend))]) i))
+
     ; return
-    (r1cs magic-number version nsec hs0 cs0 ws0)
+    (r1cs magic-number version nsec hs0 cs0 ws0 input-list output-list)
 )
 
-; returns a human readable list of strings of equations
+; returns a human readable string of one specified equation
 ; original form is A*B-C=0, but we do A*B=C
 (define (r1cs->string arg-r1cs arg-id)
     (define w2l (w2l-section-v (r1cs-w2l arg-r1cs))) ; w2l mapping, a list
@@ -262,7 +279,7 @@
                 "("
                 (number->string f0)
                 " * x"
-                (number->string (list-ref w2l w0))
+                (number->string w0)
                 ")"
             ) "")
         )
@@ -279,7 +296,7 @@
                 "("
                 (number->string f0)
                 " * x"
-                (number->string (list-ref w2l w0))
+                (number->string w0)
                 ")"
             ) "")
         )
@@ -296,7 +313,6 @@
                 "("
                 (number->string f0)
                 " * x"
-                ; (number->string (list-ref w2l w0))
                 (number->string w0)
                 ")"
             ) "")
