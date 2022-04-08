@@ -4,6 +4,11 @@ Equivalence Verification for R1CS
 ## Commands
 
 ```bash
+# build circom parser
+cd parser
+cargo build
+./target/debug/parser ../../examples/test0.circom
+
 # example test for the r1cs utilities
 racket ./test-read-r1cs.rkt
 
