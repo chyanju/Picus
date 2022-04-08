@@ -1,8 +1,8 @@
 #lang racket
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
-; (define r0 (read-r1cs "./test0.r1cs"))
-(define r0 (read-r1cs "./bigmod_5_2.r1cs"))
+; (define r0 (read-r1cs "./examples/test0.r1cs"))
+(define r0 (read-r1cs "./examples/bigmod_5_2.r1cs"))
 (define t0 (get-mconstraints r0))
 (define inputs0 (r1cs-inputs r0))
 (define outputs0 (r1cs-outputs r0))
