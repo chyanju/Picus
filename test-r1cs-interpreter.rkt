@@ -10,11 +10,14 @@
 
 ; restrict reasoning precision
 ; (current-bitwidth 8) ; fast
-(current-bitwidth 16) ; kind of instant
-; (current-bitwidth 32) ; hmm...
+; (current-bitwidth 16) ; kind of instant
+(current-bitwidth 32) ; hmm...
+; (current-bitwidth 64) ; hmm...
 
 (define nwires (get-nwires r0))
 (printf "# number of wires: ~a\n" nwires)
+(printf "# number of constraints: ~a\n" (get-mconstraints r0))
+; (printf "# number of constraints: ~a\n" (length (get-constraints r0)))
 
 (printf "# interpreting original r1cs...\n")
 (define-values (xlist sconstraints) (interpret-r1cs r0 null)) ; interpret the constraint system

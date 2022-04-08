@@ -12,6 +12,9 @@ cargo build
 # example test for the r1cs utilities
 racket ./test-read-r1cs.rkt
 
+# automatic uniqueness checking
+racket ./test-r1cs-interpreter.rkt
+
 # simple circom compilation command
 circom ./test0.circom --r1cs --wasm --sym --c
 
