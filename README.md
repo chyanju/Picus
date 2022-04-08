@@ -1,5 +1,14 @@
 # Picus
-Equivalence Verification for R1CS
+Symbolic Virtual Machine for R1CS Verification
+
+## Requirements
+
+- Racket (8.0+): [https://racket-lang.org/](https://racket-lang.org/)
+  - Rosette (4.0+): [https://github.com/emina/rosette](https://github.com/emina/rosette)
+    - `raco pkg install rosette`
+  - csv-reading: [https://www.neilvandyke.org/racket/csv-reading/](https://www.neilvandyke.org/racket/csv-reading/)
+    - `raco pkg install csv-reading`
+- Circom 2: [https://docs.circom.io/](https://docs.circom.io/)
 
 ## Commands
 
@@ -13,7 +22,10 @@ cargo build
 racket ./test-read-r1cs.rkt
 
 # automatic uniqueness checking
-racket ./test-r1cs-interpreter.rkt
+racket ./test-uniqueness.rkt
+
+# automatic equivalence checking
+racket ./test-equivalence.rkt
 
 # simple circom compilation command
 circom ./test0.circom --r1cs --wasm --sym --c
@@ -21,6 +33,11 @@ circom ./test0.circom --r1cs --wasm --sym --c
 # grab Ecne's readable constraints only
 julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1cs > Circom_Functions/benchmarks/bigmod_5_2.txt
 ```
+
+## Known Issues
+
+- `NOT@gates.circom` is generating a potentially buggy r1cs file.
+- `MultiAND@gates.circom`: pending.
 
 ## Notes
 

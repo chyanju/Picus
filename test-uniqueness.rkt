@@ -2,8 +2,8 @@
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 (require "./picus/r1cs-interpreter.rkt")
-;(define r0 (read-r1cs "./examples/test0.r1cs"))
-(define r0 (read-r1cs "./examples/bigmod_5_2.r1cs"))
+(define r0 (read-r1cs "./examples/test0.r1cs"))
+;(define r0 (read-r1cs "./examples/bigmod_5_2.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmod_10_2.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmod_86_3.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmult_86_3.r1cs"))
@@ -17,6 +17,7 @@
 (define nwires (get-nwires r0))
 (printf "# number of wires: ~a\n" nwires)
 (printf "# number of constraints: ~a\n" (get-mconstraints r0))
+(printf "# field size (how many bytes): ~a\n" (get-field-size r0))
 ; (printf "# number of constraints: ~a\n" (length (get-constraints r0)))
 
 (printf "# interpreting original r1cs...\n")
