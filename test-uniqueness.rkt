@@ -2,17 +2,14 @@
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 (require "./picus/r1cs-interpreter.rkt")
-(define r0 (read-r1cs "./examples/test0.r1cs"))
-;(define r0 (read-r1cs "./examples/bigmod_5_2.r1cs"))
+;(define r0 (read-r1cs "./examples/test0.r1cs"))
+(define r0 (read-r1cs "./examples/bigmod_5_2.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmod_10_2.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmod_86_3.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmult_86_3.r1cs"))
 
 ; restrict reasoning precision
-; (current-bitwidth 8) ; fast
-; (current-bitwidth 16) ; kind of instant
-(current-bitwidth 32) ; hmm...
-; (current-bitwidth 64) ; hmm...
+(current-bitwidth 16) ; hmm...
 
 (define nwires (get-nwires r0))
 (printf "# number of wires: ~a\n" nwires)

@@ -6,17 +6,14 @@
 (require "./picus/circomlib/gates.rkt")
 
 ; restrict reasoning precision
-; (current-bitwidth 8) ; fast
-; (current-bitwidth 16) ; kind of instant
-; (current-bitwidth 32) ; hmm...
-; (current-bitwidth 64) ; hmm...
+; (current-bitwidth 16) ; hmm...
 
 ; you need to compile the circuit first
 ; run: circom "./AND@gates.circom" --r1cs --sym
-(define sym-path "./examples/ecne_circomlib_tests/AND@gates.sym")
-(define r1cs-path "./examples/ecne_circomlib_tests/AND@gates.r1cs")
+(define sym-path "./examples/ecne_circomlib_tests/OR@gates.sym")
+(define r1cs-path "./examples/ecne_circomlib_tests/OR@gates.r1cs")
 (define (circom-program)
-  (circomlib:AND "main")
+  (circomlib:OR "main")
   ; (circomlib:MultiAND "main" 2)
 )
 
