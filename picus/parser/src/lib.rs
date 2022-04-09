@@ -2,6 +2,7 @@ extern crate num_bigint_dig as num_bigint;
 extern crate num_traits;
 extern crate serde;
 extern crate serde_derive;
+extern crate serde_json;
 #[macro_use]
 extern crate lalrpop_util;
 
@@ -33,6 +34,9 @@ pub fn run_parser(file: String, version: &str) -> Result<(ProgramArchive, Report
         let file_id = file_library.add_file(path.clone(), src.clone());
         let program = 
             parser_logic::parse_file(&src, file_id).map_err(|e| (file_library.clone(), vec![e]))?;
+        // println!("traverse AST...");
+        let prog_ast = serde_json::to_string(&program).unwrap();
+        println!("{:?}", prog_ast);
 
         if let Some(main) = program.main_component {
             main_components.push((file_id, main));
@@ -62,7 +66,6 @@ pub fn run_parser(file: String, version: &str) -> Result<(ProgramArchive, Report
                 Err((lib, rep))
             }
             Ok(program_archive) => {
-                println!("success!");
                 Ok((program_archive, warnings))
             }
         }
