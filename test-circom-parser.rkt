@@ -4,5 +4,4 @@
 (require "./picus/tokamak.rkt")
 
 (define jj (string->jsexpr (file->string "./examples/test1.json")))
-(define sym0 (tokamak:symbolic* 'sb 'integer))
-(define sym1 (tokamak:symbolic* 'sb 'integer))
+(define jnode (parse-circom-json jj))

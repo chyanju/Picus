@@ -10,3 +10,4 @@
 (send test1-vm deploy test1-node)
 ; (get-field variable-book test1-vm)
 (send test1-vm interpret test1-node)
+(vc)

@@ -1,7 +1,7 @@
 # Picus
 
 <div align="left">
-    The symbolic compilation follows the <img src="https://img.shields.io/badge/tokamak-0.1-blueviolet?labelColor=blueviolet&color=3d3d3d"> pattern.
+    The symbolic compilation in Picus follows the <img src="https://img.shields.io/badge/tokamak-0.1-blueviolet?labelColor=blueviolet&color=3d3d3d"> design pattern.
 </div>
 
 ## Requirements
@@ -60,7 +60,6 @@ julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1
 - Parsing a circuit into AST: [https://circom.party/](https://circom.party/)
 - R1CS Binary Format: [https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md](https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md)
   - Wire 0 must be always mapped to label 0 and it's an input forced to value "1" implicitly
-  - ~~--> Here the current impl. follows Ecne (in Julia), so it starts from 1.~~ Now this tool starts from 0 following the original r1cs spec.
 - GF example meaning: [https://discourse.julialang.org/t/new-type-definition-galois-field-in-julia-1-x/17123/7](https://discourse.julialang.org/t/new-type-definition-galois-field-in-julia-1-x/17123/7)
 - Ecne's benchmarks
   - [https://github.com/franklynwang/EcneProject/tree/master/ecne_circomlib_tests](https://github.com/franklynwang/EcneProject/tree/master/ecne_circomlib_tests)
