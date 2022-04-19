@@ -1,12 +1,6 @@
 #lang racket
 (provide (all-defined-out))
 
-; used for forced break out of the execution
-(define (println-and-exit msg)
-    (printf "~a\n" msg)
-    (exit 0)
-)
-
 (define (contains? l e)
     (if (null? l)
         #f

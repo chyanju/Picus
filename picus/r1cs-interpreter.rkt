@@ -1,4 +1,5 @@
 #lang rosette
+(require "./tokamak.rkt")
 (require "./utils.rkt")
 (require "./r1cs.rkt")
 (provide (all-defined-out))

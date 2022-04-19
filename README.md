@@ -1,5 +1,8 @@
 # Picus
-Symbolic Virtual Machine for Automated R1CS Verification
+
+<div align="left">
+    The symbolic compilation follows the <img src="https://img.shields.io/badge/tokamak-0.1-blueviolet?labelColor=blueviolet&color=3d3d3d"> pattern.
+</div>
 
 ## Requirements
 
@@ -9,14 +12,20 @@ Symbolic Virtual Machine for Automated R1CS Verification
   - csv-reading: [https://www.neilvandyke.org/racket/csv-reading/](https://www.neilvandyke.org/racket/csv-reading/)
     - `raco pkg install csv-reading`
 - Circom 2: [https://docs.circom.io/](https://docs.circom.io/)
+- Rust: [https://www.rust-lang.org/](https://www.rust-lang.org/)
+  - for circom parser
+
 
 ## Commands
 
 ```bash
 # build circom parser
-cd parser
+cd circom-parser
 cargo build
-./target/debug/parser ../../examples/test0.circom
+
+# use circom parser
+./circom-parser/target/debug/parser ./examples/test1.circom
+./circom-parser/target/debug/parser ./examples/test1.circom > ./examples/test1.json
 
 # example test for the r1cs utilities
 racket ./test-read-r1cs.rkt
@@ -28,7 +37,8 @@ racket ./test-uniqueness.rkt
 racket ./test-equivalence.rkt
 
 # simple circom compilation command
-circom ./test0.circom --r1cs --wasm --sym --c
+# circom ./test0.circom --r1cs --wasm --sym --c
+circom -o ./examples/ ./examples/test1.circom --r1cs --sym
 
 # grab Ecne's readable constraints only
 julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1cs > Circom_Functions/benchmarks/bigmod_5_2.txt

@@ -1,4 +1,5 @@
 #lang rosette
+(require "./picus/tokamak.rkt")
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 (require "./picus/r1cs-interpreter.rkt")

@@ -8,7 +8,6 @@ extern crate lalrpop_util;
 
 lalrpop_mod!(pub lang);
 
-
 mod errors;
 mod include_logic;
 mod parser_logic;
@@ -36,7 +35,7 @@ pub fn run_parser(file: String, version: &str) -> Result<(ProgramArchive, Report
             parser_logic::parse_file(&src, file_id).map_err(|e| (file_library.clone(), vec![e]))?;
         // println!("traverse AST...");
         let prog_ast = serde_json::to_string(&program).unwrap();
-        println!("{:?}", prog_ast);
+        println!("{}", prog_ast);
 
         if let Some(main) = program.main_component {
             main_components.push((file_id, main));

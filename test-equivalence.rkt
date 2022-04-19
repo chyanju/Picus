@@ -1,9 +1,10 @@
 #lang rosette
 (require csv-reading)
+(require "./picus/tokamak.rkt")
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 (require "./picus/r1cs-interpreter.rkt")
-(require "./picus/circomlib/gates.rkt")
+(require "./circomlib/gates.rkt")
 
 ; restrict reasoning precision
 ; (current-bitwidth 16) ; hmm...

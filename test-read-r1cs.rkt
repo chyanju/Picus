@@ -1,4 +1,5 @@
 #lang racket
+(require "./picus/tokamak.rkt")
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 ; (define r0 (read-r1cs "./examples/test0.r1cs"))

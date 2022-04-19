@@ -1,4 +1,5 @@
 #lang racket
+(require "./tokamak.rkt")
 (require "./utils.rkt")
 (provide (all-defined-out))
 
@@ -40,7 +41,7 @@
 (define (extract-header-section arg-raw)
     (define field-size (bytes->number (subbytes arg-raw 0 4))) ; field size in bytes
     (when (not (zero? (remainder field-size 8)))
-        (println-and-exit "# [exception][extract-header-section] field size should be a multiple of 8, got: ~a.") field-size)
+        (tokamak:exit "# [exception][extract-header-section] field size should be a multiple of 8, got: ~a.") field-size)
     ; (fixme) is the prime number in little endian?
     ; (fixme) it's still in bytes type
     (define prime-number (subbytes arg-raw 4 (+ 4 field-size))) ; prime number
@@ -120,7 +121,7 @@
     )
     (define clist (do-extract arg-raw))
     (when (not (equal? arg-m (length clist)))
-        (println-and-exit 
+        (tokamak:exit 
             (format "# [exception][extract-constraint-section] number of constraints is not equal to mconstraints, got: ~a and ~a." (length clist) arg-m)))
     ; return
     (constraint-section clist)
@@ -129,7 +130,7 @@
 (define (extract-w2l-section arg-raw)
     ; every label id takes 8 bytes
     (when (not (zero? (remainder (bytes-length arg-raw) 8)))
-        (println-and-exit 
+        (tokamak:exit 
             (format "# [exception][extract-w2l-section] bytes length should be a multiple of 8, got: ~a." (bytes-length arg-raw))))
     (define n (/ (bytes-length arg-raw) 8))
     (define map0 
@@ -193,7 +194,7 @@
 (define (find-section arg-raw arg-type)
     (cond 
         [(zero? (bytes-length arg-raw))
-            (println-and-exit (format "# [exception][find-section-pos] cannot find position of section given type: ~a." arg-type))
+            (tokamak:exit (format "# [exception][find-section-pos] cannot find position of section given type: ~a." arg-type))
         ]
         [else
             (define section0-type (bytes->number (subbytes arg-raw 0 4)))
@@ -216,18 +217,18 @@
 
     (define magic-number (subbytes raw 0 4)) ; should be #x72 #x31 #x63 #x72
     (when (not (equal? magic-number (bytes #x72 #x31 #x63 #x73)))
-        (println-and-exit (format "# [exception][read-r1cs] magic number is incorrect, got: ~a." magic-number)))
+        (tokamak:exit (format "# [exception][read-r1cs] magic number is incorrect, got: ~a." magic-number)))
 
     (define version (bytes->number (subbytes raw 4 8)))
     (when (not (equal? 1 version ))
-        (println-and-exit (format "# [exception][read-r1cs] version is not supported, got: ~a." version)))
+        (tokamak:exit (format "# [exception][read-r1cs] version is not supported, got: ~a." version)))
 
     (define nsec (bytes->number (subbytes raw 8 12)))
 
     (define raw-sections (subbytes raw 12)) ; 12=4+4+4, remove the meta zone
     (define fraw-sections (filter-sections raw-sections)) ; remove sections with undefined section types
     (when (not (equal? 3 (count-sections fraw-sections)))
-        (println-and-exit (format "# [exception][read-r1cs] r1cs needs to contain 3 sections, got: ~a." (count-sections fraw-sections))))
+        (tokamak:exit (format "# [exception][read-r1cs] r1cs needs to contain 3 sections, got: ~a." (count-sections fraw-sections))))
 
 
     ; find aand process header section, +12 to skip section meta zone
