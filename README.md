@@ -25,7 +25,7 @@ cargo build
 
 # use circom parser
 ./circom-parser/target/debug/parser ./examples/test1.circom
-./circom-parser/target/debug/parser ./examples/test1.circom > ./examples/test1.json
+./circom-parser/target/debug/parser ./examples/test2.circom > ./examples/test2.json
 
 # simple circom compilation command
 # circom ./test0.circom --r1cs --wasm --sym --c

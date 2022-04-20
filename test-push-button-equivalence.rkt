@@ -9,7 +9,8 @@
 (require "./picus/circom-vm.rkt")
 
 ; set the example
-(define json-path "./examples/test1.json")
+; (define json-path "./examples/test1a.json") ; not equivalent
+(define json-path "./examples/test1.json") ; equivalent
 (define r1cs-path "./examples/test1.r1cs")
 (define sym-path "./examples/test1.sym")
 
