@@ -4,7 +4,7 @@
 
 Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 
-## Requirements
+## Dependencies
 
 - Racket (8.0+): [https://racket-lang.org/](https://racket-lang.org/)
   - Rosette (4.0+): [https://github.com/emina/rosette](https://github.com/emina/rosette)
