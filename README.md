@@ -1,8 +1,8 @@
 # Picus
 
-<div align="left">
-    The symbolic compilation in Picus follows the <img src="https://img.shields.io/badge/tokamak-0.1-blueviolet?labelColor=blueviolet&color=3d3d3d"> design pattern.
-</div>
+<div align="left"><img src="https://img.shields.io/badge/tokamak-0.1-blueviolet?labelColor=blueviolet&color=3d3d3d"></div>
+
+Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 
 ## Requirements
 
@@ -27,6 +27,13 @@ cargo build
 ./circom-parser/target/debug/parser ./examples/test1.circom
 ./circom-parser/target/debug/parser ./examples/test1.circom > ./examples/test1.json
 
+# simple circom compilation command
+# circom ./test0.circom --r1cs --wasm --sym --c
+circom -o ./examples/ ./examples/test1.circom --r1cs --sym
+
+# push-button example for equivalence checking
+racket ./test-push-button-equivalence.rkt
+
 # example test for the r1cs utilities
 racket ./test-read-r1cs.rkt
 
@@ -35,10 +42,6 @@ racket ./test-uniqueness.rkt
 
 # automatic equivalence checking
 racket ./test-equivalence.rkt
-
-# simple circom compilation command
-# circom ./test0.circom --r1cs --wasm --sym --c
-circom -o ./examples/ ./examples/test1.circom --r1cs --sym
 
 # grab Ecne's readable constraints only
 julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1cs > Circom_Functions/benchmarks/bigmod_5_2.txt

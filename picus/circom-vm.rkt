@@ -15,8 +15,8 @@
             [builtin-operators null] ; stores all builtin operators
 
             ; stateful members
-            [input-list null]
-            [output-list null]
+            [input-book null] ; hash mapping from string to symbolic variable
+            [output-book null] ; hash mapping from string to symbolic variable
 
             ; default setting
             [scope-cap 100]
@@ -56,8 +56,8 @@
         ; symbolic
         (define/public (interpret arg-node)
             ; first clear all stateful vars
-            (set! input-list (list))
-            (set! output-list (list))
+            (set! input-book (make-hash))
+            (set! output-book (make-hash))
             (do-interpret arg-node (list variable-book) "")
         )
 
@@ -103,8 +103,8 @@
                             ; update states
                             (define signal-type (circom:signal-s xtype0))
                             (cond
-                                [(equal? 'output signal-type) (set! input-list (cons sym input-list))]
-                                [(equal? 'input signal-type) (set! output-list (cons sym output-list))]
+                                [(equal? 'output signal-type) (hash-set! input-book vname sym)]
+                                [(equal? 'input signal-type) (hash-set! output-book vname sym)]
                                 [else (tokamak:exit "[do-interpret] unknown signal type, got: ~a." signal-type)]
                             )
                             ; this returns the newly created symbolic variables, sicne caller may want to do type conversion

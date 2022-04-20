@@ -7,8 +7,8 @@
 
 ; (fixme) currently you can only name it "x"
 (define (next-symbolic-integer)
-    (define-symbolic* x integer?)
-    x
+    (define-symbolic* r1cs.x integer?)
+    r1cs.x
 )
 
 (define (interpret-r1cs arg-r1cs arg-xlist)
