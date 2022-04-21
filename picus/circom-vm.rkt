@@ -17,13 +17,14 @@
             ; stateful members
             [input-book null] ; hash mapping from string to symbolic variable
             [output-book null] ; hash mapping from string to symbolic variable
+            [intermediate-book null] ; hash mapping from string to symbolic variable
 
             ; default setting
             [scope-cap 100]
         )
 
-        ; concrete
         ; also do initializations
+        ; (concrete:top) arg-node
         (define/public (deploy arg-node)
             (set! variable-book (make-mhash scope-cap))
             (set! template-book (make-hash))
@@ -31,20 +32,28 @@
             (do-deploy arg-node)
         )
 
-        ; concrete
         ; store all the templates into template book
+        ; (concrete:top) arg-node
         (define (do-deploy arg-node)
             (destruct arg-node
-                [(circom:circom m-meta m-version m-includes m-definitions m-components)
+                [(circom:circom m-meta m-ver m-incs m-defs m-main)
                     ; set root node
                     (set! circom-root arg-node)
                     ; continue to find out all template definitions
-                    (for ([node0 m-definitions])
+                    (for ([node0 m-defs])
                         (do-deploy node0)
                     )
                 ]
 
-                [(circom:template m-meta m-name m-args m-argloc m-body)
+                ; pass on
+                [(circom:definition v) 
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 circom:template? circom:function?)
+                        (do-deploy v)
+                    )
+                ]
+
+                [(circom:template m-meta m-name m-args m-argloc m-body m-parallel)
                     ; add template definition
                     (hash-set! template-book m-name arg-node)
                 ]
@@ -53,243 +62,426 @@
             )
         )
 
-        ; symbolic
+        ; (concrete:top) arg-node
         (define/public (interpret arg-node)
             ; first clear all stateful vars
             (set! input-book (make-hash))
             (set! output-book (make-hash))
+            (set! intermediate-book (make-hash))
             (do-interpret arg-node (list variable-book) "")
         )
 
-        ; symbolic
-        ; (note) this procedure assumes all input nodes are well typed; see grammar for typing
-        ; arg-scopes: a stacked list of scopes
-        ; arg-prefix: the prefix attached to every variable interacted (esp. when applied to template)
+        ; (concrete:top) arg-node
+        ; (symbolic:top) arg-scopes: a stacked list of scopes
+        ; (symbolic:top) arg-prefix: the prefix attached to every variable interacted (esp. when applied to template)
         (define (do-interpret arg-node arg-scopes arg-prefix)
-            (for*/all ([scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
-                (tokamak:typed scopes0 list?)
-                (tokamak:typed prefix0 string?)
-                (destruct arg-node
+            (tokamak:typed arg-node circom:lang?)
 
-                    [(circom:circom m-meta m-version m-includes m-definitions m-components)
-                        ; (fixme) definitions should be processed and stored using the deploy procedure
-                        ;         is this true?
-                        (for/all ([components0 m-components #:exhaustive])
-                            (tokamak:typed components0 list?)
-                            (for ([c components0])
-                                (for/all ([c0 c #:exhaustive])
-                                    ; (fixme) this can only be "main" here
-                                    (do-interpret c0 scopes0 (string-append "main." prefix0))
-                                )
-                            )
-                        )
-                    ]
+            ; still use destruct to not lose track of vc
+            (destruct arg-node
 
-                    [(circom:template m-meta m-name m-args m-argloc m-body)
-                        (tokamak:exit "[do-interpret] a template node should not be directly interpreted.")
-                    ]
+                [(circom:setype v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 symbol?)
+                        (tokamak:typed v0 circom:setype:terminal?)
 
-                    ; this creates new symbolic variables
-                    [(circom:declaration m-meta m-name m-constant m-xtype m-dimensions)
-                        (for*/all ([name0 m-name #:exhaustive] [xtype0 m-xtype #:exhaustive])
-                            (tokamak:typed name0 string?)
-                            (tokamak:typed xtype0 circom:signal?)
-                            ; (fixme) you may want to interpret the specific xtype info to determine the type
-                            ; dynamically create symbolic variable
-                            (define vname (string-append prefix0 name0))
-                            (define sym (tokamak:symbolic* (string->symbol vname) 'integer))
-                            ; register in the scope
-                            (make-var scopes0 vname sym)
-                            ; update states
-                            (define signal-type (circom:signal-s xtype0))
-                            (cond
-                                [(equal? 'output signal-type) (hash-set! input-book vname sym)]
-                                [(equal? 'input signal-type) (hash-set! output-book vname sym)]
-                                [else (tokamak:exit "[do-interpret] unknown signal type, got: ~a." signal-type)]
-                            )
-                            ; this returns the newly created symbolic variables, sicne caller may want to do type conversion
-                            sym
-                        )
-                    ]
+                        v0
+                    )
+                ]
 
-                    ; this creates assertions
-                    [(circom:substitution m-meta m-var m-op m-access m-rhe)
-                        (for*/all ([rhe0 m-rhe #:exhaustive] [var0 m-var #:exhaustive] [op0 m-op #:exhaustive])
-                            (tokamak:typed var0 string?)
-                            (tokamak:typed op0 symbol?)
-                            (define tmp-rhe (do-interpret rhe0 scopes0 prefix0))
-                            (define tmp-var (read-var scopes0 (string-append prefix0 var0))) ; don't forget the prefix
-                            (cond
-                                [(equal? 'AssignConstraintSignal op0)
-                                    (assert (equal? tmp-var tmp-rhe))
-                                ]
-                                [else (tokamak:exit "[do-interpret] unsupported operator in substitution, got: ~a." op0)]
-                            )
-                        )
-                    ]
+                [(circom:stype v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 symbol?)
+                        (tokamak:typed v0 circom:stype:terminal?)
 
-                    [(circom:block m-meta m-stmts)
-                        (for/all ([stmts0 m-stmts #:exhaustive])
-                            (tokamak:typed stmts0 list?)
-                            (for ([s stmts0])
-                                (for/all ([s0 s #:exhaustive])
-                                    (do-interpret s0 scopes0 prefix0)
-                                )
-                            )
-                        )
-                    ]
+                        v0
+                    )
+                ]
 
-                    [(circom:initblock m-meta m-xtype m-inits)
-                        ; (fixme) you may want to interpret the specific xtype info to determine the type
-                        (for/all ([inits0 m-inits #:exhaustive])
-                            (tokamak:typed inits0 list?)
-                            (for ([i inits0])
-                                (for/all ([i0 i #:exhaustive])
-                                    (do-interpret i0 scopes0 prefix0)
-                                )
-                            )
-                        )
-                    ]
+                [(circom:signal first second)
+                    (for*/all ([first0 first #:exhaustive] [second0 second #:exhaustive])
+                        (tokamak:typed first0 circom:stype?)
+                        (tokamak:typed second0 circom:setype?)
 
-                    [(circom:call m-meta m-id m-args)
-                        (for*/all ([id0 m-id #:exhaustive] [args0 m-args #:exhaustive])
-                            (tokamak:typed id0 string?)
-                            (tokamak:typed args0 list?)
-                            ; grab args
-                            (define tmp-args (for/list ([arg args0])
-                                (for/all ([arg0 arg #:exhaustive])
-                                    (do-interpret arg0 scopes0 prefix0)
-                                )
-                            ))
-                            ; call and return
-                            (call-template scopes0 prefix0 id0 tmp-args)
-                        )
-                    ]
+                        (define tmp-first (do-interpret first0 arg-scopes arg-prefix))
+                        (define tmp-second (do-interpret second0 arg-scopes arg-prefix))
+                        (for*/all ([first1 tmp-first #:exhaustive] [second1 tmp-second #:exhaustive])
+                            (tokamak:typed first1 symbol?)
+                            (tokamak:typed second1 symbol?)
 
-                    [(circom:infix m-meta m-op m-lhe m-rhe)
-                        (for*/all ([lhe0 m-lhe #:exhaustive] [rhe0 m-rhe #:exhaustive] [op0 m-op #:exhaustive])
-                            (tokamak:typed op0 symbol?)
-                            (define tmp-lhe (do-interpret lhe0 scopes0 prefix0))
-                            (define tmp-rhe (do-interpret rhe0 scopes0 prefix0))
-                            (define tmp-result (apply (hash-ref builtin-operators op0) (list tmp-lhe tmp-rhe)))
-                            tmp-result
-                        )
-                    ]
-
-                    [(circom:number v)
-                        (for/all ([v0 v #:exhaustive])
-                            (tokamak:typed v0 number?)
                             ; return
-                            v
+                            (cons first1 second1)
                         )
-                    ]
+                    )
+                ]
 
-                    [(circom:signal s e)
-                        (tokamak:exit "[do-interpret] a signal node should not be directly interpreted.")
-                    ]
+                [(circom:vtype v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 symbol? circom:signal?)
 
-                    [(circom:variable m-meta m-name m-access)
-                        (for/all ([name0 m-name #:exhaustive])
-                            (read-var scopes0 (string-append prefix0 name0))
+                        (cond
+                            [(symbol? v0) v0]
+                            [(circom:signal? v0) (do-interpret v0 arg-scopes arg-prefix)]
+                            [else (tokamak:exit "[do-interpret] you can't reach here.")]
                         )
-                    ]
+                    )
+                ]
 
-                    [_ (tokamak:exit "[do-interpret] unsupported node, got: ~a." arg-node)]
-                )
+                [(circom:assignop v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 symbol?)
+                        (tokamak:typed v0 circom:assignop:terminal?)
+
+                        v0
+                    )
+                ]
+
+                [(circom:infixop v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 symbol?)
+                        (tokamak:typed v0 circom:infixop:terminal?)
+
+                        v0
+                    )
+                ]
+
+                [(circom:circom m-meta m-ver m-incs m-defs m-main)
+                    (for/all ([main0 m-main #:exhaustive])
+                        (tokamak:typed main0 circom:component? null?)
+
+                        (cond
+                            [(null? main0) (void)] ; do nothing
+                            [else (do-interpret main0 arg-scopes arg-prefix)]
+                        )
+                    )
+                ]
+
+                [(circom:component m-public m-call)
+                    ; just execute the expression in m-call
+                    (for*/all ([call0 m-call #:exhaustive] [prefix0 arg-prefix #:exhaustive])
+                        (tokamak:typed call0 circom:expression?)
+                        (tokamak:typed prefix0 string?)
+
+                        ; (fixme) the prefix seems to only be "main.", otherwise circom complains
+                        (do-interpret call0 arg-scopes (string-append "main." prefix0))
+                    )
+                ]
+
+                [(circom:template m-meta m-name m-args m-argloc m-body m-parallel)
+                    (tokamak:exit "[do-interpret] [template.0] a template node should not be directly interpreted.")
+                ]
+
+                ; pass on
+                [(circom:statement v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 circom:itestmt? circom:whilestmt? circom:retstmt? circom:declstmt? circom:substmt?
+                                          circom:ceqstmt? circom:logcallstmt? circom:assertstmt? circom:initblock? circom:block?)
+
+                        (do-interpret v0 arg-scopes arg-prefix)
+                    )
+                ]
+
+                ; this creates new symbolic variables
+                [(circom:declstmt m-meta m-xtype m-name m-dims m-constant)
+                    (for*/all ([xtype0 m-xtype #:exhaustive] [name0 m-name #:exhaustive] [prefix0 arg-prefix #:exhaustive])
+                        (tokamak:typed xtype0 circom:vtype?)
+                        (tokamak:typed name0 string?)
+                        (tokamak:typed prefix0 string?)
+
+                        ; dynamically create symbolic variable
+                        (define vname (string-append prefix0 name0))
+                        (define sym (tokamak:symbolic* (string->symbol vname) 'integer))
+
+                        ; register in the scope
+                        (make-var arg-scopes vname sym)
+
+                        ; update states
+                        (define v (do-interpret xtype0 arg-scopes prefix0))
+                        (for/all ([v0 v #:exhaustive])
+                            (tokamak:typed v0 symbol? pair?)
+
+                            (cond
+                                [(pair? v0)
+                                    (let ([first (car v0)])
+                                        (for/all ([first0 first #:exhaustive])
+                                            (tokamak:typed first0 symbol?)
+
+                                            (cond
+                                                [(equal? 'output first0) (hash-set! input-book vname sym)]
+                                                [(equal? 'input first0) (hash-set! output-book vname sym)]
+                                                [(equal? 'intermediate first0) (hash-set! intermediate-book vname sym)]
+                                                [else (tokamak:exit "[do-interpret] [declstmt.0] unsupported first0, got: ~a." first0)]
+                                            )
+                                        )
+                                    )
+                                ]
+                                [(symbol? v0)
+                                    (tokamak:exit "[do-interpret] [declstmt.1] unsupported v0, got: ~a." v0)
+                                ]
+                                [else (tokamak:exit "[do-interpret] [declstmt.2] you can't reach here.")]
+                            )
+                        )
+                        ; this returns the newly created symbolic variables, sicne caller may want to do type conversion
+                        sym
+                    )
+                ]
+
+                ; this creates assertions
+                [(circom:substmt m-meta m-var m-access m-op m-rhe)
+                    (for*/all ([var0 m-var #:exhaustive] [op0 m-op #:exhaustive]
+                               [rhe0 m-rhe #:exhaustive] [prefix0 arg-prefix #:exhaustive])
+                        (tokamak:typed var0 string?)
+                        (tokamak:typed op0 circom:assignop?)
+                        (tokamak:typed rhe0 circom:expression?)
+                        (tokamak:typed prefix0 string?)
+
+                        (define tmp-rhe (do-interpret rhe0 arg-scopes prefix0))
+                        (define tmp-var (read-var arg-scopes (string-append prefix0 var0))) ; don't forget the prefix
+                        (define tmp-op (do-interpret op0 arg-scopes prefix0))
+                        (for/all ([op1 tmp-op #:exhaustive])
+                            (tokamak:typed op1 symbol?)
+
+                            (cond
+                                [(equal? 'csig op1) (assert (equal? tmp-var tmp-rhe))]
+                                [else (tokamak:exit "[do-interpret] [substmt.0] unsupported op1 in substmt, got: ~a." op1)]
+                            )
+                        )
+                    )
+                ]
+
+                [(circom:block m-meta m-stmts)
+                    (for/all ([stmts0 m-stmts #:exhaustive])
+                        (tokamak:typed stmts0 list?)
+
+                        (for ([s stmts0])
+                            (for/all ([s0 s #:exhaustive])
+                                (tokamak:typed s0 circom:statement?)
+
+                                (do-interpret s0 arg-scopes arg-prefix)
+                            )
+                        )
+                    )
+                ]
+
+                [(circom:initblock m-meta m-xtype m-inits)
+                    (for/all ([inits0 m-inits #:exhaustive])
+                        (tokamak:typed inits0 list?)
+
+                        (for ([i inits0])
+                            (for/all ([i0 i #:exhaustive])
+                                (tokamak:typed i0 circom:statement?)
+
+                                (do-interpret i0 arg-scopes arg-prefix)
+                            )
+                        )
+                    )
+                ]
+
+                ; pass on
+                [(circom:expression v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 circom:infix? circom:prefix? circom:inlineswitch? 
+                                          circom:variable? circom:call? circom:arrayinline? circom:number?)
+
+                        (do-interpret v0 arg-scopes arg-prefix)
+                    )
+                ]
+
+                [(circom:call m-meta m-id m-args)
+                    (for*/all ([id0 m-id #:exhaustive] [args0 m-args #:exhaustive])
+                        (tokamak:typed id0 string?)
+                        (tokamak:typed args0 list?)
+
+                        ; grab args
+                        (define tmp-args (for/list ([arg args0])
+                            (for/all ([arg0 arg #:exhaustive])
+                                (tokamak:typed arg0 circom:expression?)
+
+                                (do-interpret arg0 arg-scopes arg-prefix)
+                            )
+                        ))
+
+                        ; call and return
+                        (for*/all ([args1 tmp-args #:exhaustive] [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
+                            (tokamak:typed args1 list?)
+                            (tokamak:typed scopes0 list?)
+                            (tokamak:typed prefix0 string?)
+
+                            (call-template scopes0 prefix0 id0 args1)
+                        )
+                    )
+                ]
+
+                [(circom:infix m-meta m-lhe m-op m-rhe)
+                    (for*/all ([lhe0 m-lhe #:exhaustive] [op0 m-op #:exhaustive] [rhe0 m-rhe #:exhaustive])
+                        (tokamak:typed lhe0 circom:expression?)
+                        (tokamak:typed op0 circom:infixop?)
+                        (tokamak:typed rhe0 circom:expression?)
+
+                        (define tmp-lhe (do-interpret lhe0 arg-scopes arg-prefix))
+                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix))
+                        (define tmp-op (do-interpret op0 arg-scopes arg-prefix))
+                        ; (note) `apply` is not listed as rosette's lifted form (but can be found in rosette/safe)
+                        ;        for safety we still manually lift it here
+                        (define tmp-result (for*/all ([lhe1 tmp-lhe #:exhaustive] [op1 tmp-op #:exhaustive] [rhe1 tmp-rhe #:exhaustive])
+                            ; (fixme) lhe1 is indecomposable, for all ops here, it's good to go (no type checking required)
+                            ; (fixme) rhe1 is indecomposable, for all ops here, it's good to go (no type checking required)
+                            (tokamak:typed op1 symbol?)
+
+                            (apply (hash-ref builtin-operators op1) (list lhe1 rhe1))
+                        ))
+                        ; return
+                        tmp-result
+                    )
+                ]
+
+                [(circom:number m-meta v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 integer?)
+
+                        v0
+                    )
+                ]
+
+                [(circom:variable m-meta m-name m-access)
+                    (for*/all ([name0 m-name #:exhaustive] [prefix0 arg-prefix #:exhaustive])
+                        (tokamak:typed name0 string?)
+                        (tokamak:typed prefix0 string?)
+
+                        (read-var arg-scopes (string-append prefix0 name0))
+                    )
+                ]
+
+                [_ (tokamak:exit "[do-interpret] unsupported node, got: ~a." arg-node)]
             )
         )
 
-        ; symbolic
+        ; (concrete:top) arg-scopes
+        ; (concrete:top) arg-prefix
+        ; (concrete:top) arg-name
+        ; (concrete:top) arg-args
         (define/public (call-template arg-scopes arg-prefix arg-name arg-args)
-            (for*/all ([scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive] 
-                      [name0 arg-name #:exhaustive] [args0 arg-args #:exhaustive])
-                (tokamak:typed scopes0 list?)
-                (tokamak:typed prefix0 string?)
-                (tokamak:typed name0 string?)
-                (tokamak:typed args0 list?)
-                (define tmp-template (hash-ref template-book name0)) ; fetch the template node
-                (define tmp-args (circom:template-args tmp-template)) ; fetch the template args
-                (define tmp-body (circom:template-body tmp-template)) ; fetch the template body
-                ; check arity
-                (when (not (equal? (length tmp-args) (length args0)))
-                    (tokamak:exit "[call-template] argument arities mismatch, template requires ~a, but ~a is provided."
-                        (length tmp-args) (length args0)))
-                ; create a local scope
-                (define local-scope (make-mhash scope-cap))
-                ; initialize local scope with argument values
-                (for ([local-id tmp-args] [local-val args0])
-                    ; (make-var (cons local-scope scopes0) local-id local-val)
-                    ; (fixme) ideally local variables from arguments should not have additional prefix
-                    ;         but we don't want to spend more efforts separating them, so let's add the prefix
-                    ;         for now so it fits the current call model
-                    (make-var (cons local-scope scopes0) (string-append prefix0 local-id) local-val)
+            (tokamak:typed arg-scopes list?)
+            (tokamak:typed arg-prefix string?)
+            (tokamak:typed arg-name string?)
+            (tokamak:typed arg-args list?)
+
+            (define tmp-template (hash-ref template-book arg-name)) ; fetch the template node
+            ; you could've stored a symbolic template, couldn't you?
+            (for/all ([template0 tmp-template #:exhaustive])
+                (tokamak:typed template0 circom:template?)
+
+                (define tmp-args (circom:template-args template0)) ; fetch the template args
+                (define tmp-body (circom:template-body template0)) ; fetch the template body
+
+                (for*/all ([args0 tmp-args #:exhaustive] [body0 tmp-body #:exhaustive])
+                    (tokamak:typed args0 list?)
+                    (tokamak:typed body0 circom:statement?)
+
+                    ; check arity
+                    (when (not (equal? (length args0) (length arg-args)))
+                        (tokamak:exit "[call-template] argument arities mismatch, template requires ~a, but ~a is provided."
+                            (length args0) (length arg-args)))
+
+                    ; create a local scope
+                    (define local-scope (make-mhash scope-cap))
+                    ; initialize local scope with argument values
+                    (for ([local-id args0] [local-val arg-args])
+                        ; (make-var (cons local-scope scopes0) local-id local-val)
+                        ; (fixme) ideally local variables from arguments should not have additional prefix
+                        ;         but we don't want to spend more efforts separating them, so let's add the prefix
+                        ;         for now so it fits the current call model
+                        (make-var (cons local-scope arg-scopes) (string-append arg-prefix local-id) local-val)
+                    )
+
+                    ; interpret template body
+                    (do-interpret body0 (cons local-scope arg-scopes) arg-prefix)
                 )
-                ; interpret template body
-                (do-interpret tmp-body (cons local-scope scopes0) prefix0)
-            )
+            )  
         )
 
-        ; partly symbolic
         ; create a variable in the nearest scope
+        ; (symbolic:top) arg-stack
+        ; (concrete:top) arg-id
+        ; (symbolic:top) arg-val
         (define (make-var arg-stack arg-id arg-val)
-            (tokamak:typed arg-stack list?)
             (tokamak:typed arg-id string?)
-            ; arg-val can be symbolic
-            (when (null? arg-stack) (tokamak:exit "[make-var] arg-stack is empty."))
-            (let ([scope (car arg-stack)])
-                (tokamak:typed scope mhash?)
-                (mhash-set! scope arg-id arg-val)
-            )
-        )
+            (for/all ([stack0 arg-stack #:exhaustive])
+                (tokamak:typed stack0 list?)
 
-        ; concrete
-        ; read a variable from the stack of scopes, from nearest to farthest (top)
-        (define (read-var arg-stack arg-id)
-            (tokamak:typed arg-stack list?)
-            (tokamak:typed arg-id string?)
-            (let ([scope (car arg-stack)] [stack0 (cdr arg-stack)])
-                (tokamak:typed scope mhash?)
-                (cond 
-                    [(mhash-has-key? scope arg-id)
-                        (mhash-ref scope arg-id)
-                    ]
-                    [(null? stack0)
-                        (tokamak:exit "[read-var] cannot find variable in all scopes, got: ~a." arg-id)
-                    ]
-                    [else
-                        (read-var stack0 arg-id)
-                    ]
+                (when (null? stack0) (tokamak:exit "[make-var] stack0 is empty."))
+                (let ([scope (car stack0)])
+                    (for/all ([scope0 scope #:exhaustive])
+                        (tokamak:typed scope0 mhash?)
+
+                        (mhash-set! scope arg-id arg-val)
+                    )
                 )
             )
         )
 
-        ; partly symbolic
+        ; read a variable from the stack of scopes, from nearest to farthest (top)
+        ; (symbolic:top) arg-stack
+        ; (concrete:top) arg-id
+        (define (read-var arg-stack arg-id)
+            (tokamak:typed arg-id string?)
+            (for/all ([stack0 arg-stack #:exhaustive])
+                (tokamak:typed stack0 list?)
+
+                (let ([scope (car stack0)] [stack-res (cdr stack0)])
+                    (for/all ([scope0 scope #:exhaustive])
+                        (tokamak:typed scope0 mhash?)
+
+                        (cond 
+                            [(mhash-has-key? scope0 arg-id)
+                                (mhash-ref scope0 arg-id)
+                            ]
+                            [(null? stack-res)
+                                (tokamak:exit "[read-var] cannot find variable in all scopes, got: ~a." arg-id)
+                            ]
+                            [else
+                                (read-var stack-res arg-id)
+                            ]
+                        )
+                    ) 
+                )
+            )
+        )
+
         ; write a variable to the stack of scopes, nearest first
         ; this requires the variable to exist before writing
+        ; (symbolic:top) arg-stack
+        ; (concrete:top) arg-id
+        ; (symbolic:top) arg-val
         (define (write-var arg-stack arg-id arg-val)
-            (tokamak:typed arg-stack list?)
             (tokamak:typed arg-id string?)
-            ; arg-val can be symbolic
-            (let ([scope (car arg-stack)] [stack0 (cdr arg-stack)])
-                (tokamak:typed scope mhash?)
-                (cond
-                    [(mhash-has-key? scope arg-id)
-                        (mhash-set! scope arg-id arg-val)
-                    ]
-                    [(null? stack0)
-                        (tokamak:exit "[write-var] cannot find variable in all scopes, got: ~a." arg-id)
-                    ]
-                    [else
-                        (write-var stack0 arg-id arg-val)
-                    ]
+            (for/all ([stack0 arg-stack #:exhaustive])
+                (tokamak:typed stack0 list?)
+
+                (let ([scope (car stack0)] [stack-res (cdr stack0)])
+                    (for/all ([scope0 scope #:exhaustive])
+                        (tokamak:typed scope0 mhash?)
+
+                        (cond
+                            [(mhash-has-key? scope0 arg-id)
+                                (mhash-set! scope0 arg-id arg-val)
+                            ]
+                            [(null? stack-res)
+                                (tokamak:exit "[write-var] cannot find variable in all scopes, got: ~a." arg-id)
+                            ]
+                            [else
+                                (write-var stack-res arg-id arg-val)
+                            ]
+                        )
+                    )
                 )
             )
         )
 
-        ; concrete
         (define (init-builtin-operators)
             (set! builtin-operators (make-hash))
 
+            ; all arguments should be concrete
             (hash-set! builtin-operators 'mul (lambda (x y) (* x y)))
             (hash-set! builtin-operators 'add (lambda (x y) (+ x y)))
         )

@@ -1,12 +1,13 @@
 #lang rosette
 (require rackunit)
+(require racket/trace)
 (require/expose rosette/base/form/define (index!))
 ; (provide (prefix-out tokamak: (all-defined-out)))
 (provide (rename-out
     [println-and-exit tokamak:exit]
     [assert-type tokamak:typed]
     [fresh-symbolic-variable* tokamak:symbolic*]
-    [decomposible? tokamak:decomposible?]
+    [decomposable? tokamak:decomposable?]
     [concrete-integer? tokamak:cinteger?]
     [concrete-natural? tokamak:cnatural?]
 ))
@@ -18,6 +19,9 @@
 ; )
 (define (println-and-exit msg . fmts)
     (printf "[tokamak] ~a\n" (apply format (cons msg fmts)))
+    (printf "[trace] ~a\n" (trace msg)) ; (fixme) this is wrong, but only used to print the trace
+    ; (printf "~a\n" (trace (current-namespace)))
+    ; (error 'failed)
     (exit 0)
 )
 
@@ -39,6 +43,7 @@
 
 ; usually for debugging, asserting obj is one of types, otherwise print and exit
 ; typs is a list of type predicates
+; (note) as long as there's a path that returns false **for all typs**, the exit function will be triggered
 (define (assert-type-helper obj typs)
     (if (null? typs)
         #f
@@ -60,14 +65,14 @@
 
 ; decide whether the given value can be decomposed by `for/all`
 ; (note) decomposible here means whether `for/all` will reveal new values or not, see comments for more details
-(define (decomposible? v)
+(define (decomposable? v)
     (if (symbolic? v)
         ; symbolic
         (cond 
-            ; a union is decomposible
+            ; a union is decomposable
             [(union? v) #t]
 
-            ; symbolic constant is not decomposible
+            ; symbolic constant is not decomposable
             [(constant? v) #f]
 
             ; for expression, it could be `ite` or other forms (e.g., +/-)
@@ -92,7 +97,7 @@
             ; this category does not require decomposing because `for/all` reveals no new values
             [else #f]
         )
-        ; not symbolic, so not decomposible
+        ; not symbolic, so not decomposable
         #f
     )
 )
