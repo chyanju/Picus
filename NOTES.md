@@ -17,7 +17,7 @@ access: string | expression
 assignop: 'var | 'sig | 'csig
 infixop: 'mul | 'div | 'add | 'sub | 'pow | 'intdiv | 'mod | 'shl | 'shr
        | 'leq | 'geq | 'lt | 'gt | 'eq | 'neq | 'or | 'and | 'bor | 'band | 'bxor
-prefixop: 'sub | 'not | 'comp
+prefixop: 'neg | 'not | 'comp
 treduction: 'var | 'comp | 'sig
 
 fileloc

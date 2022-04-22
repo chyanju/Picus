@@ -30,6 +30,7 @@ cargo build
 # simple circom compilation command
 # circom ./test0.circom --r1cs --wasm --sym --c
 circom -o ./examples/ ./examples/test1.circom --r1cs --sym
+circom -o ./examples/ ./examples/test2.circom --r1cs --sym
 
 # push-button example for equivalence checking
 racket ./test-push-button-equivalence.rkt

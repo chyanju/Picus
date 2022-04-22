@@ -10,9 +10,9 @@
 
 ; set the example
 ; (define json-path "./examples/test1a.json") ; not equivalent
-(define json-path "./examples/test1.json") ; equivalent
-(define r1cs-path "./examples/test1.r1cs")
-(define sym-path "./examples/test1.sym")
+(define json-path "./examples/test2.json") ; equivalent
+(define r1cs-path "./examples/test2.r1cs")
+(define sym-path "./examples/test2.sym")
 
 ; =======================
 ; load and interpret r1cs
@@ -40,11 +40,13 @@
 ; print some basic circuit info
 (define input-book (get-field input-book vm))
 (define output-book (get-field output-book vm))
+(define intermediate-book (get-field intermediate-book vm))
 (printf "  # vc: ~a\n" (vc))
 (printf "  # inputs: ~a\n" input-book)
 (printf "  # outputs: ~a\n" output-book)
+(printf "  # intermediates: ~a\n" intermediate-book)
 ; combine two books
-(define io-book (make-hash (append (hash->list input-book) (hash->list output-book))))
+(define io-book (make-hash (append (hash->list input-book) (hash->list output-book) (hash->list intermediate-book))))
 
 ; =====================
 ; construct symbol link
@@ -61,18 +63,22 @@
   (cond
     [(contains? input-list w0)
       ; only bind inputs
-      (printf "  # [input, bind] key=~a, r1cs=~a, circom=~a\n" k var-left var-right)
+      (printf "  # [input, eq] key=~a, r1cs=~a, circom=~a\n" k var-left var-right)
       ; binding constraint
       (assert (equal? var-left var-right))
     ]
     [(contains? output-list w0)
-      ; outputs or others are not bound
-      (printf "  # [output, detected] key=~a, r1cs=~a, circom=~a\n" k var-left var-right)
+      ; outputs are not bound, but go with negation constaint
+      (printf "  # [output, neq] key=~a, r1cs=~a, circom=~a\n" k var-left var-right)
       ; negation constraint
       (assert (not (equal? var-left var-right)))
     ]
     [else
-     (printf "  # [nothing] key=~a, r1cs=~a, circom=~a\n" k var-left var-right)
+     (if (hash-has-key? intermediate-book k)
+       ; intermediates are not bound, and we have no constraints on them
+       (printf "  # [intermediate, nothing] key=~a, r1cs=~a, circom=~a\n" k var-left var-right)
+       (printf "  # [something is wrong] key=~a, r1cs=~a, circom=~a\n" k var-left var-right)
+     )
     ]
   )
 )

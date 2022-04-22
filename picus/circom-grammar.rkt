@@ -82,7 +82,7 @@
 ))
 
 (define (prefixop:terminal? x) (or
-    (equal? 'sub x) (equal? 'not x) (equal? 'comp x)
+    (equal? 'neg x) (equal? 'not x) (equal? 'comp x)
 ))
 
 (define (treduction:terminal x) (or

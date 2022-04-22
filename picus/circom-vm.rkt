@@ -145,6 +145,15 @@
                     )
                 ]
 
+                [(circom:prefixop v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 symbol?)
+                        (tokamak:typed v0 circom:prefixop:terminal?)
+
+                        v0
+                    )
+                ]
+
                 [(circom:circom m-meta m-ver m-incs m-defs m-main)
                     (for/all ([main0 m-main #:exhaustive])
                         (tokamak:typed main0 circom:component? null?)
@@ -207,16 +216,28 @@
                                             (tokamak:typed first0 symbol?)
 
                                             (cond
-                                                [(equal? 'output first0) (hash-set! input-book vname sym)]
-                                                [(equal? 'input first0) (hash-set! output-book vname sym)]
-                                                [(equal? 'intermediate first0) (hash-set! intermediate-book vname sym)]
+                                                [(equal? 'output first0) 
+                                                    (hash-set! input-book vname sym)
+                                                    ; var is made before
+                                                ]
+                                                [(equal? 'input first0) 
+                                                    (hash-set! output-book vname sym)
+                                                    ; var is made before
+                                                ]
+                                                [(equal? 'intermediate first0) 
+                                                    (hash-set! intermediate-book vname sym)
+                                                    ; var is made before
+                                                ]
                                                 [else (tokamak:exit "[do-interpret] [declstmt.0] unsupported first0, got: ~a." first0)]
                                             )
                                         )
                                     )
                                 ]
                                 [(symbol? v0)
-                                    (tokamak:exit "[do-interpret] [declstmt.1] unsupported v0, got: ~a." v0)
+                                    (cond
+                                        [(equal? 'var v0) (void)] ; var is made before
+                                        [else (tokamak:exit "[do-interpret] [declstmt.1] unsupported v0, got: ~a." v0)]
+                                    )
                                 ]
                                 [else (tokamak:exit "[do-interpret] [declstmt.2] you can't reach here.")]
                             )
@@ -236,16 +257,43 @@
                         (tokamak:typed prefix0 string?)
 
                         (define tmp-rhe (do-interpret rhe0 arg-scopes prefix0))
-                        (define tmp-var (read-var arg-scopes (string-append prefix0 var0))) ; don't forget the prefix
+                        (define tmp-var (string-append prefix0 var0)) ; don't forget the prefix
+                        (define tmp-val (read-var arg-scopes tmp-var))
                         (define tmp-op (do-interpret op0 arg-scopes prefix0))
                         (for/all ([op1 tmp-op #:exhaustive])
                             (tokamak:typed op1 symbol?)
+                            ; (note) no need to decompose tmp-rhe, sicne union assertion is also acceptable
 
                             (cond
-                                [(equal? 'csig op1) (assert (equal? tmp-var tmp-rhe))]
+                                [(equal? 'csig op1) 
+                                    ; `<==` symbol: assert and then update
+                                    (assert (equal? tmp-val tmp-rhe))
+                                    (write-var arg-scopes tmp-var tmp-rhe)
+                                ]
+                                [(equal? 'var op1)
+                                    ; `=` symbol: only update
+                                    (write-var arg-scopes tmp-var tmp-rhe)
+                                ]
+                                [(equal? 'sig op1)
+                                    ; `<--` symbol: only assert
+                                    (assert (equal? tmp-val tmp-rhe))
+                                ]
                                 [else (tokamak:exit "[do-interpret] [substmt.0] unsupported op1 in substmt, got: ~a." op1)]
                             )
                         )
+                    )
+                ]
+
+                [(circom:ceqstmt m-meta m-lhe m-rhe)
+                    (for*/all ([lhe0 m-lhe #:exhaustive] [rhe0 m-rhe #:exhaustive])
+                        (tokamak:typed lhe0 circom:expression?)
+                        (tokamak:typed rhe0 circom:expression?)
+
+                        (define tmp-lhe (do-interpret lhe0 arg-scopes arg-prefix))
+                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix))
+                        ; ceqstmt has default operator: ===, we will do assertion only here
+                        ; (note) no need to decompose tmp-lhe or tmp-rhe, sicne union assertion is also acceptable
+                        (assert (equal? tmp-lhe tmp-rhe))
                     )
                 ]
 
@@ -329,6 +377,26 @@
                             (tokamak:typed op1 symbol?)
 
                             (apply (hash-ref builtin-operators op1) (list lhe1 rhe1))
+                        ))
+                        ; return
+                        tmp-result
+                    )
+                ]
+
+                [(circom:prefix m-meta m-op m-rhe)
+                    (for*/all ([op0 m-op #:exhaustive] [rhe0 m-rhe #:exhaustive])
+                        (tokamak:typed op0 circom:prefixop?)
+                        (tokamak:typed rhe0 circom:expression?)
+
+                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix))
+                        (define tmp-op (do-interpret op0 arg-scopes arg-prefix))
+                        ; (note) `apply` is not listed as rosette's lifted form (but can be found in rosette/safe)
+                        ;        for safety we still manually lift it here
+                        (define tmp-result (for*/all ([rhe1 tmp-rhe #:exhaustive] [op1 tmp-op #:exhaustive])
+                            ; (fixme) rhe1 is indecomposable, for all ops here, it's good to go (no type checking required)
+                            (tokamak:typed op1 symbol?)
+
+                            (apply (hash-ref builtin-operators op1) (list rhe1))
                         ))
                         ; return
                         tmp-result
@@ -482,8 +550,14 @@
             (set! builtin-operators (make-hash))
 
             ; all arguments should be concrete
+            ; arity=2, infix ops
             (hash-set! builtin-operators 'mul (lambda (x y) (* x y)))
             (hash-set! builtin-operators 'add (lambda (x y) (+ x y)))
+            (hash-set! builtin-operators 'div (lambda (x y) (/ x y)))
+            (hash-set! builtin-operators 'sub (lambda (x y) (- x y)))
+
+            ; arity=2, prefix ops
+            (hash-set! builtin-operators 'neg (lambda (x) (- x)))
         )
 
     )

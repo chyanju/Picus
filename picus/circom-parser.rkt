@@ -2,7 +2,7 @@
 (require "./tokamak.rkt")
 (require "./circom-grammar.rkt")
 (provide (all-defined-out))
-; (note) null is parsed from the caller
+; (note) all arguments should be concrete; this module doesn't accept any symbolic values
 
 ; natural
 (define (nat? x) (and (integer? x) (>= x 0)))
@@ -136,7 +136,7 @@
 (define (parse-prefixop arg-node)
     (tokamak:typed arg-node string?)
     (define tmp-v (cond
-        [(equal? "Sub" arg-node) 'sub]
+        [(equal? "Sub" arg-node) 'neg] ; (note) to not confuse with subtraction in infix op, we use 'neg for negation here
         [(equal? "BoolNot" arg-node) 'not]
         [(equal? "Complement" arg-node) 'comp]
         [else (tokamak:exit "[parse-prefixop] unsupported prefixop, got: ~a." arg-node)]
@@ -311,6 +311,7 @@
     (when (not (equal? 1 (hash-count arg-node)))
         (tokamak:exit "[parse-statement] statement node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
+        [(hash-has-key? arg-node 'ConstraintEquality) (parse-ceqstmt (hash-ref arg-node 'ConstraintEquality))]
         [(hash-has-key? arg-node 'Block) (parse-block (hash-ref arg-node 'Block))]
         [(hash-has-key? arg-node 'InitializationBlock) (parse-initblock (hash-ref arg-node 'InitializationBlock))]
         [(hash-has-key? arg-node 'Declaration) (parse-declstmt (hash-ref arg-node 'Declaration))]
@@ -360,7 +361,16 @@
     (circom:substmt tmp-meta tmp-var tmp-access tmp-op tmp-rhe)
 )
 
-(define (parse-ceqstmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+(define (parse-ceqstmt arg-node)
+    (tokamak:typed arg-node hash?)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-lhe (parse-expression (hash-ref arg-node 'lhe)))
+    (define tmp-rhe (parse-expression (hash-ref arg-node 'rhe)))
+    ; return
+    (circom:ceqstmt tmp-meta tmp-lhe tmp-rhe)
+)
+
+
 (define (parse-logcallstmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
 (define (parse-assertstmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
 
@@ -391,6 +401,7 @@
         (tokamak:exit "[parse-expression] expression node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
         [(hash-has-key? arg-node 'InfixOp) (parse-infix (hash-ref arg-node 'InfixOp))]
+        [(hash-has-key? arg-node 'PrefixOp) (parse-prefix (hash-ref arg-node 'PrefixOp))]
         [(hash-has-key? arg-node 'Variable) (parse-variable (hash-ref arg-node 'Variable))]
         [(hash-has-key? arg-node 'Call) (parse-call (hash-ref arg-node 'Call))]
         [(hash-has-key? arg-node 'Number) (parse-number (hash-ref arg-node 'Number))]
@@ -410,7 +421,15 @@
     (circom:infix tmp-meta tmp-lhe tmp-op tmp-rhe)
 )
 
-(define (parse-prefix arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+(define (parse-prefix arg-node)
+    (tokamak:typed arg-node hash?)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-op (parse-prefixop (hash-ref arg-node 'prefix_op)))
+    (define tmp-rhe (parse-expression (hash-ref arg-node 'rhe)))
+    ; return
+    (circom:prefix tmp-meta tmp-op tmp-rhe)
+)
+
 (define (parse-inlineswitch arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
 
 (define (parse-variable arg-node)
