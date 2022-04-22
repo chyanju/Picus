@@ -21,6 +21,15 @@
 
             ; default setting
             [scope-cap 100]
+            ; (fixme) this is 254-bit, right? --- according to (implied by) the circom docs
+            [default-bvsym 'bv254] ; typesym is for tokamak:symbolic*
+            [default-bv (bitvector 254)] ; type is for direct creation of variables
+            ; yes this magic prime p is within 256 bits!
+            [magic-p (bv 21888242871839275222246405745257275088548364400416034343698204186575808495617 (bitvector 254))]
+            ; b is the number of significant bits of p, which is 254
+            [magic-b (bv 254 (bitvector 254))]
+            ; mask = b^254 - 1
+            [magic-mask (bv 28948022309329048855892746252171976963317496166410141009864396001978282409983 (bitvector 254))]
         )
 
         ; also do initializations
@@ -127,6 +136,20 @@
                     )
                 ]
 
+                [(circom:access v)
+                    (for/all ([v0 v #:exhaustive])
+                        (tokamak:typed v0 string? circom:expression?)
+                        ; cond and return
+                        (cond
+                            [(string? v0) v0] ; direct return
+                            [(circom:expression? v0)
+                                ; get the value
+                                (do-interpret v0 arg-scopes arg-prefix)
+                            ]
+                        )
+                    )
+                ]
+
                 [(circom:assignop v)
                     (for/all ([v0 v #:exhaustive])
                         (tokamak:typed v0 symbol?)
@@ -190,42 +213,93 @@
                     )
                 ]
 
+                ; (note) it seems that the while construct here doesn't open up new scope
+                [(circom:whilestmt m-meta m-cond m-stmt)
+                    (for*/all ([cond0 m-cond #:exhaustive] [stmt0 m-stmt #:exhaustive])
+                        (tokamak:typed cond0 circom:expression?)
+                        (tokamak:typed stmt0 circom:statement?)
+
+                        ; define a recursive loop
+                        (define (do-while lscopes lprefix)
+                            (define tmp-cond (do-interpret cond0 lscopes lprefix))
+                            (for/all ([cond1 tmp-cond #:exhaustive])
+                                ; (note) this has to be both concrete and boolean
+                                (tokamak:typed cond1 concrete?)
+                                (tokamak:typed cond1 boolean?)
+
+                                (cond
+                                    [cond1 
+                                        ; cond is true, go to statement
+                                        (do-interpret stmt0 lscopes lprefix)
+                                        (do-while lscopes lprefix)
+                                    ]
+                                    ; cond is false, do nothing and exit the loop
+                                    [else (void)]
+                                )
+                            )
+                        )
+
+                        ; initiate the loop
+                        (do-while arg-scopes arg-prefix)
+                        
+                    )
+                ]
+
                 ; this creates new symbolic variables
+                ; (fixme) you need to properly deal with dims
                 [(circom:declstmt m-meta m-xtype m-name m-dims m-constant)
-                    (for*/all ([xtype0 m-xtype #:exhaustive] [name0 m-name #:exhaustive] [prefix0 arg-prefix #:exhaustive])
+                    (for*/all ([xtype0 m-xtype #:exhaustive] [name0 m-name #:exhaustive] 
+                               [dims0 m-dims #:exhaustive] [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
                         (tokamak:typed xtype0 circom:vtype?)
                         (tokamak:typed name0 string?)
+                        (tokamak:typed dims0 list?)
+                        (tokamak:typed scopes0 list?)
                         (tokamak:typed prefix0 string?)
 
                         ; dynamically create symbolic variable
-                        (define vname (string-append prefix0 name0))
-                        (define sym (tokamak:symbolic* (string->symbol vname) 'integer))
+                        (define dimstrs (assemble-dims scopes0 prefix0 dims0)) ; (fixme) currently it's concrete, but it could be symbolic
+                        (define vnames (for/list ([ds dimstrs])
+                            (string-append prefix0 name0 ds)
+                        ))
 
+                        (define syms (for/list ([vv vnames])
+                            (tokamak:symbolic* (string->symbol vv) default-bvsym)
+                        ))
+                        
                         ; register in the scope
-                        (make-var arg-scopes vname sym)
+                        (for ([vname vnames] [sym syms])
+                            (make-var scopes0 vname sym)
+                        )
 
                         ; update states
-                        (define v (do-interpret xtype0 arg-scopes prefix0))
+                        (define v (do-interpret xtype0 scopes0 prefix0))
                         (for/all ([v0 v #:exhaustive])
                             (tokamak:typed v0 symbol? pair?)
 
                             (cond
                                 [(pair? v0)
-                                    (let ([first (car v0)])
-                                        (for/all ([first0 first #:exhaustive])
+                                    (let ([first (car v0)] [second (cdr v0)])
+                                        (for*/all ([first0 first #:exhaustive] [second0 second #:exhaustive])
                                             (tokamak:typed first0 symbol?)
+                                            (tokamak:typed second0 symbol?) ; (fixme) need to consider 2nd pos here
 
                                             (cond
                                                 [(equal? 'output first0) 
-                                                    (hash-set! input-book vname sym)
+                                                    (for ([vname vnames] [sym syms])
+                                                        (hash-set! input-book vname sym)
+                                                    )
                                                     ; var is made before
                                                 ]
                                                 [(equal? 'input first0) 
-                                                    (hash-set! output-book vname sym)
+                                                    (for ([vname vnames] [sym syms])
+                                                        (hash-set! output-book vname sym)
+                                                    )
                                                     ; var is made before
                                                 ]
                                                 [(equal? 'intermediate first0) 
-                                                    (hash-set! intermediate-book vname sym)
+                                                    (for ([vname vnames] [sym syms])
+                                                        (hash-set! intermediate-book vname sym)
+                                                    )
                                                     ; var is made before
                                                 ]
                                                 [else (tokamak:exit "[do-interpret] [declstmt.0] unsupported first0, got: ~a." first0)]
@@ -242,24 +316,26 @@
                                 [else (tokamak:exit "[do-interpret] [declstmt.2] you can't reach here.")]
                             )
                         )
-                        ; this returns the newly created symbolic variables, sicne caller may want to do type conversion
-                        sym
                     )
                 ]
 
                 ; this creates assertions
+                ; (fixme) you need to properly deal with access
                 [(circom:substmt m-meta m-var m-access m-op m-rhe)
-                    (for*/all ([var0 m-var #:exhaustive] [op0 m-op #:exhaustive]
-                               [rhe0 m-rhe #:exhaustive] [prefix0 arg-prefix #:exhaustive])
+                    (for*/all ([var0 m-var #:exhaustive] [access0 m-access #:exhaustive] [op0 m-op #:exhaustive]
+                               [rhe0 m-rhe #:exhaustive] [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
                         (tokamak:typed var0 string?)
+                        (tokamak:typed access0 list?)
                         (tokamak:typed op0 circom:assignop?)
                         (tokamak:typed rhe0 circom:expression?)
+                        (tokamak:typed scopes0 list?)
                         (tokamak:typed prefix0 string?)
 
-                        (define tmp-rhe (do-interpret rhe0 arg-scopes prefix0))
-                        (define tmp-var (string-append prefix0 var0)) ; don't forget the prefix
-                        (define tmp-val (read-var arg-scopes tmp-var))
-                        (define tmp-op (do-interpret op0 arg-scopes prefix0))
+                        (define tmp-rhe (do-interpret rhe0 scopes0 prefix0))
+                        (define tmp-accstr (assemble-access scopes0 prefix0 access0))
+                        (define tmp-var (string-append prefix0 var0 tmp-accstr)) ; don't forget the prefix
+                        (define tmp-val (read-var scopes0 tmp-var))
+                        (define tmp-op (do-interpret op0 scopes0 prefix0))
                         (for/all ([op1 tmp-op #:exhaustive])
                             (tokamak:typed op1 symbol?)
                             ; (note) no need to decompose tmp-rhe, sicne union assertion is also acceptable
@@ -268,11 +344,11 @@
                                 [(equal? 'csig op1) 
                                     ; `<==` symbol: assert and then update
                                     (assert (equal? tmp-val tmp-rhe))
-                                    (write-var arg-scopes tmp-var tmp-rhe)
+                                    (write-var scopes0 tmp-var tmp-rhe)
                                 ]
                                 [(equal? 'var op1)
                                     ; `=` symbol: only update
-                                    (write-var arg-scopes tmp-var tmp-rhe)
+                                    (write-var scopes0 tmp-var tmp-rhe)
                                 ]
                                 [(equal? 'sig op1)
                                     ; `<--` symbol: only assert
@@ -407,16 +483,21 @@
                     (for/all ([v0 v #:exhaustive])
                         (tokamak:typed v0 integer?)
 
-                        v0
+                        (bv v0 default-bv) ; wrap into bitvector
                     )
                 ]
 
+                ; (fixme) you need to properly deal with access
                 [(circom:variable m-meta m-name m-access)
-                    (for*/all ([name0 m-name #:exhaustive] [prefix0 arg-prefix #:exhaustive])
+                    (for*/all ([name0 m-name #:exhaustive] [access0 m-access #:exhaustive]
+                               [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
                         (tokamak:typed name0 string?)
+                        (tokamak:typed access0 list?)
+                        (tokamak:typed scopes0 list?)
                         (tokamak:typed prefix0 string?)
 
-                        (read-var arg-scopes (string-append prefix0 name0))
+                        (define tmp-accstr (assemble-access scopes0 prefix0 access0))
+                        (read-var scopes0 (string-append prefix0 name0 tmp-accstr))
                     )
                 ]
 
@@ -466,6 +547,80 @@
                     (do-interpret body0 (cons local-scope arg-scopes) arg-prefix)
                 )
             )  
+        )
+
+        ; (concrete:top) arg-scopes
+        ; (concrete:top) arg-prefix
+        ; (concrete:top) arg-dims
+        ; (note) this method returns a list of all dims strings
+        ; (fixme) you need to properly deal with symbolic case
+        (define (assemble-dims arg-scopes arg-prefix arg-dims)
+            (tokamak:typed arg-scopes list?)
+            (tokamak:typed arg-prefix string?)
+            (tokamak:typed arg-dims list?)
+
+            (cond
+                [(null? arg-dims) (list "")] ; no dims
+                [else
+                    ; generate concrete dims
+                    (define tmp-dims (for/list ([dim arg-dims])
+                        (tokamak:typed dim circom:expression?)
+
+                        (define tmp-dim (do-interpret dim arg-scopes arg-prefix))
+                        ; (note) dim must be concrete, and you need to convert it to integer
+                        (tokamak:typed tmp-dim concrete?)
+                        (tokamak:typed tmp-dim bv?)
+
+                        (bitvector->integer tmp-dim)
+                    ))
+                    (define tmp-lls (for/list ([d tmp-dims])
+                        ; create a range
+                        (for/list ([i (range d)])
+                            (string-append "[" (number->string i) "]")
+                        )
+                    ))
+                    ; then do a cartesian product
+                    (define tmp-strs (apply cartesian-product tmp-lls))
+                    ; (printf "tmp-strs: ~a\n" tmp-strs)
+
+                    ; assemble and return
+                    (for/list ([s tmp-strs])
+                        (apply string-append s)
+                    )
+                ]
+            )
+        )
+
+        ; (concrete:top) arg-scopes
+        ; (concrete:top) arg-prefix
+        ; (concrete:top) arg-access
+        ; (fixme) you need to properly deal with symbolic case
+        (define (assemble-access arg-scopes arg-prefix arg-access)
+            (tokamak:typed arg-scopes list?)
+            (tokamak:typed arg-prefix string?)
+            (tokamak:typed arg-access list?)
+
+            (cond
+                [(null? arg-access) ""] ; no access
+                [else
+                    ; generate concrete access, like dims
+                    (define tmp-access (for/list ([acc arg-access])
+                        (tokamak:typed acc circom:access?)
+
+                        (define tmp-acc (do-interpret acc arg-scopes arg-prefix))
+                        (tokamak:typed tmp-acc concrete?)
+                        (tokamak:typed tmp-acc bv? string?)
+                        ; convert to formatted string
+                        (cond
+                            [(string? tmp-acc) (string-append "[" tmp-acc "]")]
+                            [(bv? tmp-acc) (string-append "[" (number->string (bitvector->integer tmp-acc)) "]")]
+                        )
+                    ))
+
+                    ; assemble and return
+                    (apply string-append tmp-access)
+                ]
+            )
         )
 
         ; create a variable in the nearest scope
@@ -547,17 +702,115 @@
         )
 
         (define (init-builtin-operators)
+            ; (note) (fixme) all arguments should be concrete, you are not checking them all
             (set! builtin-operators (make-hash))
 
-            ; all arguments should be concrete
-            ; arity=2, infix ops
-            (hash-set! builtin-operators 'mul (lambda (x y) (* x y)))
-            (hash-set! builtin-operators 'add (lambda (x y) (+ x y)))
-            (hash-set! builtin-operators 'div (lambda (x y) (/ x y)))
-            (hash-set! builtin-operators 'sub (lambda (x y) (- x y)))
+            ; borrowed from ecne for speed up
+            (define (circom-mod x k)
+                (if (bvugt x k)
+                    (bvsub x k)
+                    x
+                )
+            )
 
-            ; arity=2, prefix ops
-            (hash-set! builtin-operators 'neg (lambda (x) (- x)))
+            ; helper functions
+            (define (circom-pow x k)
+                ; (tokamak:exit "[debug] circom-pow x=~a k=~a" x k)
+                (tokamak:typed x bv?)
+                ; (note) k needs to be both concrete and bv
+                (tokamak:typed k bv?)
+                (tokamak:typed k concrete?)
+
+                (if (bvzero? k)
+                    (bv 1 default-bv)
+                    (bvmul x (circom-pow x (bvsub k (bv 1 default-bv))))
+                )
+            )
+
+            ; ref: https://docs.circom.io/circom-language/basic-operators/#bitwise-operators
+            (define (circom-shr x k)
+                (tokamak:typed x bv?)
+                ; (note) k needs to be both concrete and bv
+                (tokamak:typed k bv?)
+                (tokamak:typed k concrete?)
+
+                (cond
+                    ; 0=< k <= p/2
+                    [(and
+                        (bvsle (bv 0 default-bv) k)
+                        (bvsle k (bvudiv magic-p (bv 2 default-bv)))
+                     )
+                        ; equals to: x/(2**k)
+                        (bvudiv x (circom-pow (bv 2 default-bv) k))
+                    ]
+                    ; p/2 +1<= k < p
+                    [(and
+                        (bvsle (bvadd (bv 1 default-bv) (bvudiv magic-p (bv 2 default-bv))) k)
+                        (bvslt k magic-p)
+                     )
+                        ; equals to: x << (p-k)
+                        (circom-shl x (bvsub magic-p k))
+                    ]
+                    [else (tokamak:exit "[circom-shr] you can't reach here.")]
+                )
+            )
+
+            ; ref: https://docs.circom.io/circom-language/basic-operators/#bitwise-operators
+            (define (circom-shl x k)
+                (tokamak:typed x bv?)
+                ; (note) k needs to be both concrete and bv
+                (tokamak:typed k bv?)
+                (tokamak:typed k concrete?)
+
+                (cond
+                    ; 0=< k <= p/2
+                    [(and
+                        (bvsle (bv 0 default-bv) k)
+                        (bvsle k (bvudiv magic-p (bv 2 default-bv)))
+                     )
+                        ; equals to: (x*(2{**}k)~ & ~mask) % p
+                        (circom-mod
+                            (bvand
+                                (bvmul x (circom-pow (bv 2 default-bv) k))
+                                (bvnot magic-mask)
+                            )
+                            magic-p
+                        )
+                    ]
+                    ; p/2 +1<= k < p
+                    [(and
+                        (bvsle (bvadd (bv 1 default-bv) (bvudiv magic-p (bv 2 default-bv))) k)
+                        (bvslt k magic-p)
+                     )
+                        ; equals to: x >> (p-k)
+                        (circom-shr x (bvsub magic-p k))
+                    ]
+                    [else (tokamak:exit "[circom-shl] you can't reach here.")]
+                )
+            )
+
+            ; arithmethc operators (returns bitvector)
+            ; (fixme) should it be `bvsrem` or `bvurem` or others?
+            ;         i know it's definitely not `bvsmod`
+            ; (fixme) to avoid overflow, we are doing: (a*b)%m = ((a%m)*(b%m))%m
+            (hash-set! builtin-operators 'mul (lambda (x y) (circom-mod (bvmul x y) magic-p)))
+            (hash-set! builtin-operators 'add (lambda (x y) (circom-mod (bvadd x y) magic-p)))
+            ; (hash-set! builtin-operators 'mul (lambda (x y) (bvmul x y)))
+            ; (hash-set! builtin-operators 'add (lambda (x y) (bvadd x y)))
+            (hash-set! builtin-operators 'div (lambda (x y) (circom-mod (bvudiv x y) magic-p)))
+            (hash-set! builtin-operators 'sub (lambda (x y) (circom-mod (bvsub x y) magic-p)))
+            (hash-set! builtin-operators 'pow (lambda (x y) (circom-mod (circom-pow x y) magic-p)))
+            (hash-set! builtin-operators 'neg (lambda (x) (bvneg x)))
+
+            ; boolean operators (returns boolean)
+            (hash-set! builtin-operators 'lt (lambda (x y) (bvslt x y)))
+
+            ; bitwise operators
+            ; ref: https://docs.circom.io/circom-language/basic-operators/#bitwise-operators
+            (hash-set! builtin-operators 'band (lambda (x y) (circom-mod (bvand x y) magic-p)))
+            (hash-set! builtin-operators 'shr (lambda (x k) (circom-shr x k)))
+            (hash-set! builtin-operators 'shl (lambda (x k) (circom-shl x k)))
+
         )
 
     )

@@ -90,7 +90,18 @@
     (circom:version tmp-v0 tmp-v1 tmp-v2)
 )
 
-(define (parse-access arg-node) null) ; (fixme)
+; (fixme) haven't seen a string cases, only the expreesion case
+(define (parse-access arg-node)
+    (tokamak:typed arg-node hash?)
+    (when (not (equal? 1 (hash-count arg-node)))
+        (tokamak:exit "[parse-access] access node needs to have only 1 key, got: ~a." (hash-count arg-node)))
+    (define tmp-v (cond
+        [(hash-has-key? arg-node 'ArrayAccess) (parse-expression (hash-ref arg-node 'ArrayAccess))]
+        [else (tokamak:exit "[parse-access] unsupported access type, got: ~a." (hash-keys arg-node))]
+    ))
+    ; return
+    (circom:access tmp-v)
+)
 
 (define (parse-assignop arg-node)
     (tokamak:typed arg-node string?)
@@ -177,9 +188,17 @@
         (tokamak:exit "[parse-component] component node needs to have only 2 elements, got: ~a." arg-node))
     (define tmp-meta (parse-meta (list-ref arg-node 0)))
     ; (fixme) there are some unknown structures in the actual json, but I know where the value is
-    (define tmp-v (let ([node0 (list-ref (list-ref (list-ref arg-node 1) 1) 0)])
-        (tokamak:typed node0 integer?)
-        node0
+    ; (define tmp-v (let ([node0 (list-ref (list-ref (list-ref arg-node 1) 1) 0)])
+    ;     (tokamak:typed node0 integer?)
+    ;     node0
+    ; ))
+    (define tmp-v (let ([node0 (list-ref (list-ref arg-node 1) 1)] [nn0 (list-ref arg-node 1)])
+        (tokamak:typed node0 list?)
+        (tokamak:typed nn0 list?)
+        (if (equal? 0 (length node0))
+            (list-ref nn0 0)
+            (list-ref node0 0)
+        )
     ))
     ; return
     (circom:number tmp-meta tmp-v)
@@ -311,6 +330,7 @@
     (when (not (equal? 1 (hash-count arg-node)))
         (tokamak:exit "[parse-statement] statement node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
+        [(hash-has-key? arg-node 'While) (parse-whilestmt (hash-ref arg-node 'While))]
         [(hash-has-key? arg-node 'ConstraintEquality) (parse-ceqstmt (hash-ref arg-node 'ConstraintEquality))]
         [(hash-has-key? arg-node 'Block) (parse-block (hash-ref arg-node 'Block))]
         [(hash-has-key? arg-node 'InitializationBlock) (parse-initblock (hash-ref arg-node 'InitializationBlock))]
@@ -323,7 +343,15 @@
 )
 
 (define (parse-itestmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
-(define (parse-whilestmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+
+(define (parse-whilestmt arg-node)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-cond (parse-expression (hash-ref arg-node 'cond)))
+    (define tmp-stmt (parse-statement (hash-ref arg-node 'stmt)))
+    ; return
+    (circom:whilestmt tmp-meta tmp-cond tmp-stmt)
+)
+
 (define (parse-retstmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
 
 (define (parse-declstmt arg-node)

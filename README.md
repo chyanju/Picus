@@ -24,16 +24,17 @@ cd circom-parser
 cargo build
 
 # use circom parser
-./circom-parser/target/debug/parser ./examples/test1.circom
-./circom-parser/target/debug/parser ./examples/test2.circom > ./examples/test2.json
+# ./circom-parser/target/debug/parser ./examples/test1.circom
+./circom-parser/target/debug/parser ./examples/test3.circom > ./examples/test3.json
 
 # simple circom compilation command
 # circom ./test0.circom --r1cs --wasm --sym --c
-circom -o ./examples/ ./examples/test1.circom --r1cs --sym
-circom -o ./examples/ ./examples/test2.circom --r1cs --sym
+circom -o ./examples/ ./examples/test3.circom --r1cs --sym
 
 # push-button example for equivalence checking
 racket ./test-push-button-equivalence.rkt
+# turn on error tracing (for debugging)
+racket -l errortrace -t ./test-push-button-equivalence.rkt
 
 # example test for the r1cs utilities
 racket ./test-read-r1cs.rkt
