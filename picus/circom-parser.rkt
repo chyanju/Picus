@@ -349,6 +349,7 @@
     (when (not (equal? 1 (hash-count arg-node)))
         (tokamak:exit "[parse-statement] statement node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
+        [(hash-has-key? arg-node 'Assert) (parse-assertstmt (hash-ref arg-node 'Assert))]
         [(hash-has-key? arg-node 'Return) (parse-retstmt (hash-ref arg-node 'Return))]
         [(hash-has-key? arg-node 'IfThenElse) (parse-itestmt (hash-ref arg-node 'IfThenElse))]
         [(hash-has-key? arg-node 'While) (parse-whilestmt (hash-ref arg-node 'While))]
@@ -442,7 +443,14 @@
 
 
 (define (parse-logcallstmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
-(define (parse-assertstmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+
+(define (parse-assertstmt arg-node)
+    (tokamak:typed arg-node hash?)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-arg (parse-expression (hash-ref arg-node 'arg)))
+    ; return
+    (circom:assertstmt tmp-meta tmp-arg)
+)
 
 (define (parse-initblock arg-node)
     (tokamak:typed arg-node hash?)
@@ -470,6 +478,7 @@
     (when (not (equal? 1 (hash-count arg-node)))
         (tokamak:exit "[parse-expression] expression node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
+        [(hash-has-key? arg-node 'InlineSwitchOp) (parse-inlineswitch (hash-ref arg-node 'InlineSwitchOp))]
         [(hash-has-key? arg-node 'InfixOp) (parse-infix (hash-ref arg-node 'InfixOp))]
         [(hash-has-key? arg-node 'PrefixOp) (parse-prefix (hash-ref arg-node 'PrefixOp))]
         [(hash-has-key? arg-node 'Variable) (parse-variable (hash-ref arg-node 'Variable))]
@@ -500,7 +509,15 @@
     (circom:prefix tmp-meta tmp-op tmp-rhe)
 )
 
-(define (parse-inlineswitch arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+(define (parse-inlineswitch arg-node)
+    (tokamak:typed arg-node hash?)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-cond (parse-expression (hash-ref arg-node 'cond)))
+    (define tmp-true (parse-expression (hash-ref arg-node 'if_true)))
+    (define tmp-false (parse-expression (hash-ref arg-node 'if_false)))
+    ; return
+    (circom:inlineswitch tmp-meta tmp-cond tmp-true tmp-false)
+)
 
 (define (parse-variable arg-node)
     (tokamak:typed arg-node hash?)

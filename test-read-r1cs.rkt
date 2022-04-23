@@ -3,7 +3,7 @@
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 
-(define r0 (read-r1cs "./examples/test7.r1cs"))
+(define r0 (read-r1cs "./examples/test9.r1cs"))
 ; (define r0 (read-r1cs "./benchmarks/ecne/Num2BitsNeg@bitify.r1cs"))
 
 (define t0 (get-mconstraints r0))

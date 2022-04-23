@@ -446,6 +446,18 @@
                     )
                 ]
 
+                [(circom:assertstmt m-meta m-arg)
+                    (for/all ([arg0 m-arg #:exhaustive])
+                        (tokamak:typed arg0 circom:expression?)
+
+                        (define tmp-arg (do-interpret arg0 arg-scopes arg-prefix))
+                        ; (fixme) directly make assertion here, is it right?
+                        ;         no need to lift tmp-arg
+                        ;         but this assert is supposed to be triggered at circom compile time, no?
+                        (assert tmp-arg)
+                    )
+                ]
+
                 [(circom:block m-meta m-stmts)
                     (for/all ([stmts0 m-stmts #:exhaustive])
                         (tokamak:typed stmts0 list?)
@@ -551,6 +563,31 @@
                         ))
                         ; return
                         tmp-result
+                    )
+                ]
+
+                [(circom:inlineswitch m-meta m-cond m-true m-false)
+                    (for*/all ([cond0 m-cond #:exhaustive] [true0 m-true #:exhaustive] [false0 m-false #:exhaustive])
+                        (tokamak:typed cond0 circom:expression?)
+                        (tokamak:typed true0 circom:expression?)
+                        (tokamak:typed false0 circom:expression?)
+
+                        (define tmp-cond (do-interpret cond0 arg-scopes arg-prefix))
+                        (for/all ([cond1 tmp-cond #:exhaustive])
+                            (tokamak:typed cond1 boolean?)
+
+                            (cond
+                                [cond1
+                                    ; cond is true, go to true branch
+                                    (do-interpret true0 arg-scopes arg-prefix)
+                                ]
+                                [else
+                                    ; cond is false, go to false branch
+                                    ; unlike ifthenelse, this must have a false branch
+                                    (do-interpret false0 arg-scopes arg-prefix)
+                                ]
+                            )
+                        )
                     )
                 ]
 
@@ -896,23 +933,36 @@
                 )
             )
 
-            ; arithmethc operators (returns bitvector)
-            ; (hash-set! builtin-operators 'mul (lambda (x y) (bvmul x y)))
+            ; arithmethc operators (input: bitvector, output: boolean)
             (hash-set! builtin-operators 'mul (lambda (x y) (config:mul x y)))
             (hash-set! builtin-operators 'add (lambda (x y) (bvadd x y)))
-            (hash-set! builtin-operators 'div (lambda (x y) (bvsdiv x y)))
+            (hash-set! builtin-operators 'div (lambda (x y) (bvsdiv x y))) ; (fixme) this should be raw division, but bvsdiv is quotient, see doc
+            (hash-set! builtin-operators 'intdiv (lambda (x y) (bvsdiv x y))) ; quotient
+            (hash-set! builtin-operators 'mod (lambda (x y) (bvsrem x y))); remainder
             (hash-set! builtin-operators 'sub (lambda (x y) (bvsub x y) ))
             (hash-set! builtin-operators 'pow (lambda (x y) (circom-pow x y)))
-            (hash-set! builtin-operators 'neg (lambda (x) (bvneg x)))
-            (hash-set! builtin-operators 'eq (lambda (x y) (bveq x y)))
 
-            ; boolean operators (returns boolean)
+            (hash-set! builtin-operators 'neg (lambda (x) (bvneg x)))
+            
+            ; relational operators (input: bitvector, output: boolean)
             (hash-set! builtin-operators 'lt (lambda (x y) (bvslt x y)))
+            (hash-set! builtin-operators 'leq (lambda (x y) (bvsle x y)))
             (hash-set! builtin-operators 'gt (lambda (x y) (bvsgt x y)))
+            (hash-set! builtin-operators 'geq (lambda (x y) (bvsge x y)))
+            (hash-set! builtin-operators 'eq (lambda (x y) (bveq x y)))
+            (hash-set! builtin-operators 'neq (lambda (x y) (not (bveq x y))))
+
+            ; boolean operators (input: boolean, output: boolean)
+            (hash-set! builtin-operators 'and (lambda (x y) (&& x y)))
+            (hash-set! builtin-operators 'or (lambda (x y) (|| x y)))
+            (hash-set! builtin-operators 'not (lambda (x) (not x)))
 
             ; bitwise operators
             ; ref: https://docs.circom.io/circom-language/basic-operators/#bitwise-operators
             (hash-set! builtin-operators 'band (lambda (x y) (bvand x y)))
+            (hash-set! builtin-operators 'bor (lambda (x y) (bvor x y)))
+            (hash-set! builtin-operators 'comp (lambda (x) (bvnot x))) ; (fixme) is this right?
+            (hash-set! builtin-operators 'bxor' (lambda (x y) (bvxor x y)))
             (hash-set! builtin-operators 'shr (lambda (x k) (circom-shr x k)))
             (hash-set! builtin-operators 'shl (lambda (x k) (circom-shl x k)))
 

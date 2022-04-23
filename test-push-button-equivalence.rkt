@@ -18,11 +18,12 @@
 (require "./picus/circom-vm.rkt")
 
 ; set the example
-; (define cname "test7")
-(define cname "BinSum@binsum")
+;(define cname "test9")
 ;(define json-path (format "./examples/~a.json" cname))
 ;(define r1cs-path (format "./examples/~a.r1cs" cname))
 ;(define sym-path (format "./examples/~a.sym" cname))
+
+(define cname "Num2BitsNeg@bitify")
 (define json-path (format "./benchmarks/ecne/~a.json" cname))
 (define r1cs-path (format "./benchmarks/ecne/~a.r1cs" cname))
 (define sym-path (format "./benchmarks/ecne/~a.sym" cname))
