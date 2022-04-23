@@ -11,7 +11,7 @@
         (super-new)
         (field
             [variable-book null] ; variable book is the top-level scope
-            [template-book null] ; stores all templates
+            [template-book null] ; stores all templates and functions
             [circom-root null] ; the top-level node, if you want to start, go with the list of components
             [builtin-operators null] ; stores all builtin operators
 
@@ -60,6 +60,11 @@
 
                 [(circom:template m-meta m-name m-args m-argloc m-body m-parallel)
                     ; add template definition
+                    (hash-set! template-book m-name arg-node)
+                ]
+
+                [(circom:function m-meta m-name m-args m-argloc m-body)
+                    ; add function definition
                     (hash-set! template-book m-name arg-node)
                 ]
 
@@ -271,6 +276,14 @@
                     )
                 ]
 
+                [(circom:retstmt m-meta m-val)
+                    (for*/all ([val0 m-val #:exhaustive])
+                        (tokamak:typed val0 circom:expression?)
+                        ; return
+                        (do-interpret val0 arg-scopes arg-prefix)
+                    )
+                ]
+
                 ; this creates new symbolic variables
                 ; (fixme) you need to properly deal with dims
                 [(circom:declstmt m-meta m-xtype m-name m-dims m-constant)
@@ -437,7 +450,8 @@
                     (for/all ([stmts0 m-stmts #:exhaustive])
                         (tokamak:typed stmts0 list?)
 
-                        (for ([s stmts0])
+                        ; (fixme) beware for/last may not be supported by rosette
+                        (for/last ([s stmts0])
                             (for/all ([s0 s #:exhaustive])
                                 (tokamak:typed s0 circom:statement?)
 
@@ -451,7 +465,8 @@
                     (for/all ([inits0 m-inits #:exhaustive])
                         (tokamak:typed inits0 list?)
 
-                        (for ([i inits0])
+                        ; (fixme) beware for/last may not be supported by rosette
+                        (for/last ([i inits0])
                             (for/all ([i0 i #:exhaustive])
                                 (tokamak:typed i0 circom:statement?)
 
@@ -578,44 +593,62 @@
             (define tmp-template (hash-ref template-book arg-name)) ; fetch the template node
             ; you could've stored a symbolic template, couldn't you?
             (for/all ([template0 tmp-template #:exhaustive])
-                (tokamak:typed template0 circom:template?)
+                (tokamak:typed template0 circom:template? circom:function?)
+                (cond
+                    [(circom:template? template0)
+                        (define tmp-args (circom:template-args template0)) ; fetch the template args
+                        (define tmp-body (circom:template-body template0)) ; fetch the template body
 
-                (define tmp-args (circom:template-args template0)) ; fetch the template args
-                (define tmp-body (circom:template-body template0)) ; fetch the template body
+                        (for*/all ([args0 tmp-args #:exhaustive] [body0 tmp-body #:exhaustive])
+                            (tokamak:typed args0 list?)
+                            (tokamak:typed body0 circom:statement?)
 
-                (for*/all ([args0 tmp-args #:exhaustive] [body0 tmp-body #:exhaustive])
-                    (tokamak:typed args0 list?)
-                    (tokamak:typed body0 circom:statement?)
+                            ; check arity
+                            (when (not (equal? (length args0) (length arg-args)))
+                                (tokamak:exit "[call-template] argument arities mismatch, template requires ~a, but ~a is provided."
+                                    (length args0) (length arg-args)))
 
-                    ; check arity
-                    (when (not (equal? (length args0) (length arg-args)))
-                        (tokamak:exit "[call-template] argument arities mismatch, template requires ~a, but ~a is provided."
-                            (length args0) (length arg-args)))
+                            (for ([local-id args0] [local-val arg-args])
+                                ; (fixme) ideally local variables from arguments should not have additional prefix
+                                ;         but we don't want to spend more efforts separating them, so let's add the prefix
+                                ;         for now so it fits the current call model
+                                ; ....... and maybe this is right
+                                (make-var arg-scopes (string-append arg-prefix "." local-id) local-val)
+                                ; (fixme) argument assignment, let's not register any type info
+                            )
+                            ; interpret template body
+                            (do-interpret body0 arg-scopes arg-prefix)
+                        )
+                    ]
+                    [(circom:function? template0)
+                        ; (fixme) you probably need to create a local scope here
+                        ;         we will see
 
-                    ; ; create a local scope
-                    ; (define local-scope (make-mhash config:cap))
-                    ; ; initialize local scope with argument values
-                    ; (for ([local-id args0] [local-val arg-args])
-                    ;     ; (make-var (cons local-scope scopes0) local-id local-val)
-                    ;     ; (fixme) ideally local variables from arguments should not have additional prefix
-                    ;     ;         but we don't want to spend more efforts separating them, so let's add the prefix
-                    ;     ;         for now so it fits the current call model
-                    ;     (make-var (cons local-scope arg-scopes) (string-append arg-prefix local-id) local-val)
-                    ;     ; (fixme) argument assignment, let's not register any type info
-                    ; )
-                    ; ; interpret template body
-                    ; (do-interpret body0 (cons local-scope arg-scopes) arg-prefix)
+                        (define tmp-args (circom:function-args template0)) ; fetch the function args
+                        (define tmp-body (circom:function-body template0)) ; fetch the function body
 
-                    (for ([local-id args0] [local-val arg-args])
-                        ; (fixme) ideally local variables from arguments should not have additional prefix
-                        ;         but we don't want to spend more efforts separating them, so let's add the prefix
-                        ;         for now so it fits the current call model
-                        ; ....... and maybe this is right
-                        (make-var arg-scopes (string-append arg-prefix "." local-id) local-val)
-                        ; (fixme) argument assignment, let's not register any type info
-                    )
-                    ; interpret template body
-                    (do-interpret body0 arg-scopes arg-prefix)
+                        (for*/all ([args0 tmp-args #:exhaustive] [body0 tmp-body #:exhaustive])
+                            (tokamak:typed args0 list?)
+                            (tokamak:typed body0 circom:statement?)
+
+                            ; check arity
+                            (when (not (equal? (length args0) (length arg-args)))
+                                (tokamak:exit "[call-function] argument arities mismatch, function requires ~a, but ~a is provided."
+                                    (length args0) (length arg-args)))
+
+                            (for ([local-id args0] [local-val arg-args])
+                                ; (fixme) ideally local variables from arguments should not have additional prefix
+                                ;         but we don't want to spend more efforts separating them, so let's add the prefix
+                                ;         for now so it fits the current call model
+                                ; ....... and maybe this is right
+                                (make-var arg-scopes (string-append arg-prefix "." local-id) local-val)
+                                ; (fixme) argument assignment, let's not register any type info
+                            )
+                            ; interpret function body
+                            (do-interpret body0 arg-scopes arg-prefix)
+                        )
+                    ]
+                    [else (tokamak:exit "[call-template] you can't reach here.")]
                 )
             )  
         )

@@ -18,12 +18,11 @@
 (require "./picus/circom-vm.rkt")
 
 ; set the example
-;(define cname "MultiAND@gates")
-(define cname "BinSub@binsub")
-; (define json-path "./examples/test1a.json") ; not equivalent
-; (define json-path "./examples/test5.json") ; equivalent
-; (define r1cs-path "./examples/test5.r1cs")
-; (define sym-path "./examples/test5.sym")
+; (define cname "test7")
+(define cname "BinSum@binsum")
+;(define json-path (format "./examples/~a.json" cname))
+;(define r1cs-path (format "./examples/~a.r1cs" cname))
+;(define sym-path (format "./examples/~a.sym" cname))
 (define json-path (format "./benchmarks/ecne/~a.json" cname))
 (define r1cs-path (format "./benchmarks/ecne/~a.r1cs" cname))
 (define sym-path (format "./benchmarks/ecne/~a.sym" cname))

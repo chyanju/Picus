@@ -27,13 +27,13 @@ cd circom-parser
 cargo build
 
 # use circom parser
-./circom-parser/target/debug/parser ./examples/test6.circom > ./examples/test6.json
-./circom-parser/target/debug/parser ./benchmarks/ecne/BinSub@binsub.circom > ./benchmarks/ecne/BinSub@binsub.json
+./circom-parser/target/debug/parser ./examples/test7.circom > ./examples/test7.json
+./circom-parser/target/debug/parser ./benchmarks/ecne/Num2BitsNeg@bitify.circom > ./benchmarks/ecne/Num2BitsNeg@bitify.json
 
 # simple circom compilation command
 # circom ./test0.circom --r1cs --wasm --sym --c
-circom -o ./examples/ ./examples/test6.circom --r1cs --sym
-circom -o ./benchmarks/ecne/ ./benchmarks/ecne/BinSub@binsub.circom --r1cs --sym
+circom -o ./examples/ ./examples/test7.circom --r1cs --sym
+circom -o ./benchmarks/ecne/ ./benchmarks/ecne/Num2BitsNeg@bitify.circom --r1cs --sym
 
 # push-button example for equivalence checking
 racket ./test-push-button-equivalence.rkt

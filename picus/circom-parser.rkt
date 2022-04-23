@@ -327,13 +327,29 @@
     (circom:template tmp-meta tmp-name tmp-args tmp-argloc tmp-body tmp-parallel)
 )
 
-(define (parse-function arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+(define (parse-function arg-node)
+    (tokamak:typed arg-node hash?)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-name (let ([node0 (hash-ref arg-node 'name)])
+        (tokamak:typed node0 string?)
+        node0
+    ))
+    (define tmp-args (for/list ([node0 (hash-ref arg-node 'args)])
+        (tokamak:typed node0 string?)
+        node0
+    ))
+    (define tmp-argloc (parse-fileloc (hash-ref arg-node 'arg_location)))
+    (define tmp-body (parse-statement (hash-ref arg-node 'body)))
+    ; return
+    (circom:function tmp-meta tmp-name tmp-args tmp-argloc tmp-body)
+)
 
 (define (parse-statement arg-node)
     (tokamak:typed arg-node hash?)
     (when (not (equal? 1 (hash-count arg-node)))
         (tokamak:exit "[parse-statement] statement node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
+        [(hash-has-key? arg-node 'Return) (parse-retstmt (hash-ref arg-node 'Return))]
         [(hash-has-key? arg-node 'IfThenElse) (parse-itestmt (hash-ref arg-node 'IfThenElse))]
         [(hash-has-key? arg-node 'While) (parse-whilestmt (hash-ref arg-node 'While))]
         [(hash-has-key? arg-node 'ConstraintEquality) (parse-ceqstmt (hash-ref arg-node 'ConstraintEquality))]
@@ -348,6 +364,7 @@
 )
 
 (define (parse-itestmt arg-node)
+    (tokamak:typed arg-node hash?)
     (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
     (define tmp-cond (parse-expression (hash-ref arg-node 'cond)))
     (define tmp-if (parse-statement (hash-ref arg-node 'if_case)))
@@ -363,6 +380,7 @@
 )
 
 (define (parse-whilestmt arg-node)
+    (tokamak:typed arg-node hash?)
     (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
     (define tmp-cond (parse-expression (hash-ref arg-node 'cond)))
     (define tmp-stmt (parse-statement (hash-ref arg-node 'stmt)))
@@ -370,7 +388,13 @@
     (circom:whilestmt tmp-meta tmp-cond tmp-stmt)
 )
 
-(define (parse-retstmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+(define (parse-retstmt arg-node)
+    (tokamak:typed arg-node hash?)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-val (parse-expression (hash-ref arg-node 'value)))
+    ; reuturn
+    (circom:retstmt tmp-meta tmp-val)
+)
 
 (define (parse-declstmt arg-node)
     (tokamak:typed arg-node hash?)
