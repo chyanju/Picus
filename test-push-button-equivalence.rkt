@@ -1,6 +1,8 @@
 #lang rosette
 (require rosette/solver/smt/boolector)
-(when (boolector-available?)
+(define use-boolector #t) ; use boolector or not?
+(when (and use-boolector (boolector-available?))
+  ; (current-solver (boolector #:logic 'QF_BV))
   (current-solver (boolector))
 )
 (printf "# using solver: ~a\n" (current-solver))
@@ -17,9 +19,9 @@
 
 ; set the example
 ; (define json-path "./examples/test1a.json") ; not equivalent
-(define json-path "./examples/test1.json") ; equivalent
-(define r1cs-path "./examples/test1.r1cs")
-(define sym-path "./examples/test1.sym")
+(define json-path "./examples/test2.json") ; equivalent
+(define r1cs-path "./examples/test2.r1cs")
+(define sym-path "./examples/test2.sym")
 
 ; =======================
 ; load and interpret r1cs

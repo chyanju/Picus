@@ -1,6 +1,8 @@
 #lang rosette
 (require rosette/solver/smt/boolector)
-(when (boolector-available?)
+(define use-boolector #f) ; use boolector or not?
+(when (and use-boolector (boolector-available?))
+  ; (current-solver (boolector #:logic 'QF_BV))
   (current-solver (boolector))
 )
 (printf "# using solver: ~a\n" (current-solver))
@@ -12,8 +14,8 @@
 (require "./picus/r1cs.rkt")
 (require "./picus/r1cs-interpreter.rkt")
 
-;(define r0 (read-r1cs "./examples/test0.r1cs"))
-(define r0 (read-r1cs "./examples/test2.r1cs"))
+(define r0 (read-r1cs "./examples/test0.r1cs"))
+;(define r0 (read-r1cs "./examples/test2.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmod_5_2.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmod_10_2.r1cs"))
 ;(define r0 (read-r1cs "./examples/bigmod_86_3.r1cs"))
