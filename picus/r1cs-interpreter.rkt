@@ -10,13 +10,13 @@
 
 ; helper function
 (define (next-symbolic-integer)
-    (define-symbolic* r1cs.x config:bv)
+    (define-symbolic* r1cs.x config:bvtyp)
     r1cs.x
 )
 
 ; constants
-(define bv-zero (bv 0 config:bv))
-(define bv-one (bv 1 config:bv))
+(define bv-zero (bv 0 config:bvtyp))
+(define bv-one (bv 1 config:bvtyp))
 
 (define (interpret-r1cs arg-r1cs arg-xlist)
     ; first create a list of all symbolic variables according to nwires
@@ -59,13 +59,13 @@
         ; assemble symbolic terms
         ; note that terms could be empty, in which case 0 is used
         (define terms-a (cons bv-zero (for/list ([w0 wids-a] [f0 factors-a])
-            (config:mul (bv f0 config:bv) (list-ref xlist w0))
+            (config:mul (bv f0 config:bvtyp) (list-ref xlist w0))
         )))
         (define terms-b (cons bv-zero (for/list ([w0 wids-b] [f0 factors-b])
-            (config:mul (bv f0 config:bv) (list-ref xlist w0))
+            (config:mul (bv f0 config:bvtyp) (list-ref xlist w0))
         )))
         (define terms-c (cons bv-zero (for/list ([w0 wids-c] [f0 factors-c])
-            (config:mul (bv f0 config:bv) (list-ref xlist w0))
+            (config:mul (bv f0 config:bvtyp) (list-ref xlist w0))
         )))
 
         ; assemble equation: A*B = C

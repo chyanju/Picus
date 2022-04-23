@@ -21,9 +21,9 @@
             [intermediate-book null] ; hash mapping from string to symbolic variable
 
             ; constants
-            [bv-zero (bv 0 config:bv)]
-            [bv-one (bv 1 config:bv)]
-            [bv-two (bv 2 config:bv)]
+            [bv-zero (bv 0 config:bvtyp)]
+            [bv-one (bv 1 config:bvtyp)]
+            [bv-two (bv 2 config:bvtyp)]
         )
 
         ; also do initializations
@@ -543,7 +543,7 @@
                     (for/all ([v0 v #:exhaustive])
                         (tokamak:typed v0 integer?)
 
-                        (bv v0 config:bv) ; wrap into bitvector
+                        (bv v0 config:bvtyp) ; wrap into bitvector
                     )
                 ]
 
@@ -811,18 +811,18 @@
                     ; 0=< k <= p/2
                     [(&&
                         (bvsle bv-zero k)
-                        (bvsle k (bvsdiv config:p bv-two))
+                        (bvsle k (bvsdiv config:bvp bv-two))
                      )
                         ; equals to: x/(2**k)
                         (bvsdiv x (circom-pow bv-two k))
                     ]
                     ; p/2 +1<= k < p
                     [(&&
-                        (bvsle (bvadd bv-one (bvsdiv config:p bv-two)) k)
-                        (bvslt k config:p)
+                        (bvsle (bvadd bv-one (bvsdiv config:bvp bv-two)) k)
+                        (bvslt k config:bvp)
                      )
                         ; equals to: x << (p-k)
-                        (circom-shl x (bvsub config:p k))
+                        (circom-shl x (bvsub config:bvp k))
                     ]
                     [else (tokamak:exit "[circom-shr] you can't reach here.")]
                 )
@@ -839,25 +839,25 @@
                     ; 0=< k <= p/2
                     [(&&
                         (bvsle bv-zero k)
-                        (bvsle k (bvsdiv config:p bv-two))
+                        (bvsle k (bvsdiv config:bvp bv-two))
                      )
                         ; (fixme) you probably need to remove circom-mod temporarily
                         ; equals to: (x*(2{**}k)~ & ~mask) % p
                         (circom-mod
                             (bvand
                                 (config:mul x (circom-pow bv-two k))
-                                (bvnot config:mask)
+                                (bvnot config:bvmask)
                             )
-                            config:p
+                            config:bvp
                         )
                     ]
                     ; p/2 +1<= k < p
                     [(&&
-                        (bvsle (bvadd bv-one (bvsdiv config:p bv-two)) k)
-                        (bvslt k config:p)
+                        (bvsle (bvadd bv-one (bvsdiv config:bvp bv-two)) k)
+                        (bvslt k config:bvp)
                      )
                         ; equals to: x >> (p-k)
-                        (circom-shr x (bvsub config:p k))
+                        (circom-shr x (bvsub config:bvp k))
                     ]
                     [else (tokamak:exit "[circom-shl] you can't reach here.")]
                 )

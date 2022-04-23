@@ -28,12 +28,12 @@ cargo build
 
 # use circom parser
 ./circom-parser/target/debug/parser ./examples/test6.circom > ./examples/test6.json
-./circom-parser/target/debug/parser ./benchmarks/ecne/MultiAND@gates.circom > ./benchmarks/ecne/MultiAND@gates.json
+./circom-parser/target/debug/parser ./benchmarks/ecne/BinSub@binsub.circom > ./benchmarks/ecne/BinSub@binsub.json
 
 # simple circom compilation command
 # circom ./test0.circom --r1cs --wasm --sym --c
 circom -o ./examples/ ./examples/test6.circom --r1cs --sym
-circom -o ./benchmarks/ecne/ ./benchmarks/ecne/MultiAND@gates.circom --r1cs --sym
+circom -o ./benchmarks/ecne/ ./benchmarks/ecne/BinSub@binsub.circom --r1cs --sym
 
 # push-button example for equivalence checking
 racket ./test-push-button-equivalence.rkt

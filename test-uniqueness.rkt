@@ -38,7 +38,7 @@
 ; uniqueness: for all given inputs, the valuations of all outputs should be unique
 ; that is, inputs are shared
 (define (next-symbolic-integer-alternative)
-  (define-symbolic* y config:bv)
+  (define-symbolic* y config:bvtyp)
   y
 )
 ; fix inputs, create alternative outputs

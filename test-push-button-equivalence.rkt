@@ -19,7 +19,7 @@
 
 ; set the example
 ;(define cname "MultiAND@gates")
-(define cname "OR@gates")
+(define cname "BinSub@binsub")
 ; (define json-path "./examples/test1a.json") ; not equivalent
 ; (define json-path "./examples/test5.json") ; equivalent
 ; (define r1cs-path "./examples/test5.r1cs")

@@ -4,7 +4,7 @@
 (require "./picus/r1cs.rkt")
 
 ; (define r0 (read-r1cs "./examples/test2.r1cs"))
-(define r0 (read-r1cs "./benchmarks/ecne/MultiAND@gates.r1cs"))
+(define r0 (read-r1cs "./benchmarks/ecne/BinSub@binsub.r1cs"))
 
 (define t0 (get-mconstraints r0))
 (define inputs0 (r1cs-inputs r0))
