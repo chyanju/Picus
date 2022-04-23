@@ -193,7 +193,7 @@
                         (tokamak:typed prefix0 string?)
 
                         ; (fixme) the prefix seems to only be "main.", otherwise circom complains
-                        (do-interpret call0 arg-scopes (string-append "main." prefix0))
+                        (do-interpret call0 arg-scopes (string-append prefix0 "main")) ; top level doesn't need a dot
                     )
                 ]
 
@@ -208,6 +208,34 @@
                                           circom:ceqstmt? circom:logcallstmt? circom:assertstmt? circom:initblock? circom:block?)
 
                         (do-interpret v0 arg-scopes arg-prefix)
+                    )
+                ]
+
+                [(circom:itestmt m-meta m-cond m-if m-else)
+                    (for*/all ([cond0 m-cond #:exhaustive] [if0 m-if #:exhaustive] [else0 m-else #:exhaustive])
+                        (tokamak:typed cond0 circom:expression?)
+                        (tokamak:typed if0 circom:statement?)
+                        (tokamak:typed else0 circom:statement? null?)
+
+                        (define tmp-cond (do-interpret cond0 arg-scopes arg-prefix))
+                        (for/all ([cond1 tmp-cond #:exhaustive])
+                            ; (note) for if, this can be symbolic
+                            (tokamak:typed cond1 boolean?)
+
+                            (cond
+                                [cond1
+                                    ; cond is true, go to if branch
+                                    (do-interpret if0 arg-scopes arg-prefix)
+                                ]
+                                [else
+                                    ; cond is false, go to else branch
+                                    (cond
+                                        [(null? else0) (void)] ; else branch is empty
+                                        [else (do-interpret else0 arg-scopes arg-prefix)]
+                                    )
+                                ]
+                            )
+                        )
                     )
                 ]
 
@@ -257,7 +285,7 @@
                         ; dynamically create symbolic variable
                         (define dimstrs (assemble-dims scopes0 prefix0 dims0)) ; (fixme) currently it's concrete, but it could be symbolic
                         (define vnames (for/list ([ds dimstrs])
-                            (string-append prefix0 name0 ds)
+                            (string-append prefix0 "." name0 ds)
                         ))
 
                         (define syms (for/list ([vv vnames])
@@ -284,21 +312,30 @@
                                             (cond
                                                 [(equal? 'output first0) 
                                                     (for ([vname vnames] [sym syms])
-                                                        (hash-set! input-book vname sym)
+                                                        (hash-set! output-book vname sym)
                                                     )
-                                                    ; var is made before
+                                                    ; var is made before, register as 'output type
+                                                    (for ([vname vnames])
+                                                        (make-var scopes0 (string-append vname "@") 'output)
+                                                    )
                                                 ]
                                                 [(equal? 'input first0) 
                                                     (for ([vname vnames] [sym syms])
-                                                        (hash-set! output-book vname sym)
+                                                        (hash-set! input-book vname sym)
                                                     )
-                                                    ; var is made before
+                                                    ; var is made before, register as 'input type
+                                                    (for ([vname vnames])
+                                                        (make-var scopes0 (string-append vname "@") 'input)
+                                                    )
                                                 ]
                                                 [(equal? 'intermediate first0) 
                                                     (for ([vname vnames] [sym syms])
                                                         (hash-set! intermediate-book vname sym)
                                                     )
-                                                    ; var is made before
+                                                    ; var is made before; var is made before, register as 'intermediate type
+                                                    (for ([vname vnames])
+                                                        (make-var scopes0 (string-append vname "@") 'intermediate)
+                                                    )
                                                 ]
                                                 [else (tokamak:exit "[do-interpret] [declstmt.0] unsupported first0, got: ~a." first0)]
                                             )
@@ -307,7 +344,18 @@
                                 ]
                                 [(symbol? v0)
                                     (cond
-                                        [(equal? 'var v0) (void)] ; var is made before
+                                        [(equal? 'var v0)
+                                            ; var is made before, register as 'var type
+                                            (for ([vname vnames])
+                                                (make-var scopes0 (string-append vname "@") 'var)
+                                            )
+                                        ]
+                                        [(equal? 'comp v0)
+                                            ; component is made before, register as 'comp type
+                                            (for ([vname vnames])
+                                                (make-var scopes0 (string-append vname "@") 'comp)
+                                            )
+                                        ]
                                         [else (tokamak:exit "[do-interpret] [declstmt.1] unsupported v0, got: ~a." v0)]
                                     )
                                 ]
@@ -329,11 +377,25 @@
                         (tokamak:typed scopes0 list?)
                         (tokamak:typed prefix0 string?)
 
-                        (define tmp-rhe (do-interpret rhe0 scopes0 prefix0))
                         (define tmp-accstr (assemble-access scopes0 prefix0 access0))
-                        (define tmp-var (string-append prefix0 var0 tmp-accstr)) ; don't forget the prefix
+                        (define tmp-var (string-append prefix0 "." var0 tmp-accstr)) ; don't forget the prefix
                         (define tmp-val (read-var scopes0 tmp-var))
                         (define tmp-op (do-interpret op0 scopes0 prefix0))
+
+                        ; (fixme) maybe there's better way
+                        ;         if tmp-var is a component, then rhe needs to append a prefix when interpreting
+                        (define tmp-vtype (read-var scopes0 (string-append tmp-var "@")))
+                        (tokamak:typed tmp-vtype symbol?)
+                        (define tmp-rhe (cond 
+                            ; (note) directly replace prefix will work, don't append since component now has no local scope
+                            [(equal? 'comp tmp-vtype) (do-interpret rhe0 scopes0 tmp-var)]
+                            [(equal? 'var tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+                            [(equal? 'input tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+                            [(equal? 'output tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+                            [(equal? 'intermediate tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+                            [else (tokamak:exit "[do-interpret] [substmt.0] unsupported tmp-vtype, got: ~a." tmp-vtype)]
+                        ))
+
                         (for/all ([op1 tmp-op #:exhaustive])
                             (tokamak:typed op1 symbol?)
                             ; (note) no need to decompose tmp-rhe, sicne union assertion is also acceptable
@@ -352,7 +414,7 @@
                                     ; `<--` symbol: only assert
                                     (assert (equal? tmp-val tmp-rhe))
                                 ]
-                                [else (tokamak:exit "[do-interpret] [substmt.0] unsupported op1 in substmt, got: ~a." op1)]
+                                [else (tokamak:exit "[do-interpret] [substmt.1] unsupported op1 in substmt, got: ~a." op1)]
                             )
                         )
                     )
@@ -495,7 +557,7 @@
                         (tokamak:typed prefix0 string?)
 
                         (define tmp-accstr (assemble-access scopes0 prefix0 access0))
-                        (read-var scopes0 (string-append prefix0 name0 tmp-accstr))
+                        (read-var scopes0 (string-append prefix0 "." name0 tmp-accstr))
                     )
                 ]
 
@@ -530,19 +592,30 @@
                         (tokamak:exit "[call-template] argument arities mismatch, template requires ~a, but ~a is provided."
                             (length args0) (length arg-args)))
 
-                    ; create a local scope
-                    (define local-scope (make-mhash config:cap))
-                    ; initialize local scope with argument values
+                    ; ; create a local scope
+                    ; (define local-scope (make-mhash config:cap))
+                    ; ; initialize local scope with argument values
+                    ; (for ([local-id args0] [local-val arg-args])
+                    ;     ; (make-var (cons local-scope scopes0) local-id local-val)
+                    ;     ; (fixme) ideally local variables from arguments should not have additional prefix
+                    ;     ;         but we don't want to spend more efforts separating them, so let's add the prefix
+                    ;     ;         for now so it fits the current call model
+                    ;     (make-var (cons local-scope arg-scopes) (string-append arg-prefix local-id) local-val)
+                    ;     ; (fixme) argument assignment, let's not register any type info
+                    ; )
+                    ; ; interpret template body
+                    ; (do-interpret body0 (cons local-scope arg-scopes) arg-prefix)
+
                     (for ([local-id args0] [local-val arg-args])
-                        ; (make-var (cons local-scope scopes0) local-id local-val)
                         ; (fixme) ideally local variables from arguments should not have additional prefix
                         ;         but we don't want to spend more efforts separating them, so let's add the prefix
                         ;         for now so it fits the current call model
-                        (make-var (cons local-scope arg-scopes) (string-append arg-prefix local-id) local-val)
+                        ; ....... and maybe this is right
+                        (make-var arg-scopes (string-append arg-prefix "." local-id) local-val)
+                        ; (fixme) argument assignment, let's not register any type info
                     )
-
                     ; interpret template body
-                    (do-interpret body0 (cons local-scope arg-scopes) arg-prefix)
+                    (do-interpret body0 arg-scopes arg-prefix)
                 )
             )  
         )
@@ -610,7 +683,8 @@
                         (tokamak:typed tmp-acc bv? string?)
                         ; convert to formatted string
                         (cond
-                            [(string? tmp-acc) (string-append "[" tmp-acc "]")]
+                            ; [(string? tmp-acc) (string-append "[" tmp-acc "]")]
+                            [(string? tmp-acc) (string-append "." tmp-acc )] ; (fixme) this is usually component access, right?
                             [(bv? tmp-acc) (string-append "[" (number->string (bitvector->integer tmp-acc)) "]")]
                         )
                     ))
@@ -735,7 +809,7 @@
 
                 (cond
                     ; 0=< k <= p/2
-                    [(and
+                    [(&&
                         (bvsle bv-zero k)
                         (bvsle k (bvsdiv config:p bv-two))
                      )
@@ -743,7 +817,7 @@
                         (bvsdiv x (circom-pow bv-two k))
                     ]
                     ; p/2 +1<= k < p
-                    [(and
+                    [(&&
                         (bvsle (bvadd bv-one (bvsdiv config:p bv-two)) k)
                         (bvslt k config:p)
                      )
@@ -763,7 +837,7 @@
 
                 (cond
                     ; 0=< k <= p/2
-                    [(and
+                    [(&&
                         (bvsle bv-zero k)
                         (bvsle k (bvsdiv config:p bv-two))
                      )
@@ -778,7 +852,7 @@
                         )
                     ]
                     ; p/2 +1<= k < p
-                    [(and
+                    [(&&
                         (bvsle (bvadd bv-one (bvsdiv config:p bv-two)) k)
                         (bvslt k config:p)
                      )
@@ -797,9 +871,11 @@
             (hash-set! builtin-operators 'sub (lambda (x y) (bvsub x y) ))
             (hash-set! builtin-operators 'pow (lambda (x y) (circom-pow x y)))
             (hash-set! builtin-operators 'neg (lambda (x) (bvneg x)))
+            (hash-set! builtin-operators 'eq (lambda (x y) (bveq x y)))
 
             ; boolean operators (returns boolean)
             (hash-set! builtin-operators 'lt (lambda (x y) (bvslt x y)))
+            (hash-set! builtin-operators 'gt (lambda (x y) (bvsgt x y)))
 
             ; bitwise operators
             ; ref: https://docs.circom.io/circom-language/basic-operators/#bitwise-operators

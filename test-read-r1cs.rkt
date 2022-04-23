@@ -3,12 +3,8 @@
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 
-(define r0 (read-r1cs "./examples/test2.r1cs"))
-; (define r0 (read-r1cs "./examples/bigmod_5_2.r1cs"))
-; (define r0 (read-r1cs "./examples/bigmod_10_2.r1cs"))
-; (define r0 (read-r1cs "./examples/bigmod_86_3.r1cs"))
-; (define r0 (read-r1cs "./examples/bigmult_86_3.r1cs"))
-; (define r0 (read-r1cs "./examples/ecne_circomlib_tests/MultiAND@gates.r1cs"))
+; (define r0 (read-r1cs "./examples/test2.r1cs"))
+(define r0 (read-r1cs "./benchmarks/ecne/MultiAND@gates.r1cs"))
 
 (define t0 (get-mconstraints r0))
 (define inputs0 (r1cs-inputs r0))

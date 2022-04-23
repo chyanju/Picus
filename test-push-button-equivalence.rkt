@@ -18,13 +18,15 @@
 (require "./picus/circom-vm.rkt")
 
 ; set the example
+;(define cname "MultiAND@gates")
+(define cname "OR@gates")
 ; (define json-path "./examples/test1a.json") ; not equivalent
-(define json-path "./examples/test1.json") ; equivalent
-(define r1cs-path "./examples/test1.r1cs")
-(define sym-path "./examples/test1.sym")
-; (define json-path "./benchmarks/ecne/AND@gates.json") ; equivalent
-; (define r1cs-path "./benchmarks/ecne/AND@gates.r1cs")
-; (define sym-path "./benchmarks/ecne/AND@gates.sym")
+; (define json-path "./examples/test5.json") ; equivalent
+; (define r1cs-path "./examples/test5.r1cs")
+; (define sym-path "./examples/test5.sym")
+(define json-path (format "./benchmarks/ecne/~a.json" cname))
+(define r1cs-path (format "./benchmarks/ecne/~a.r1cs" cname))
+(define sym-path (format "./benchmarks/ecne/~a.sym" cname))
 
 ; =======================
 ; load and interpret r1cs

@@ -27,16 +27,13 @@ cd circom-parser
 cargo build
 
 # use circom parser
-# ./circom-parser/target/debug/parser ./examples/test1.circom
-./circom-parser/target/debug/parser ./examples/test3.circom > ./examples/test3.json
-./circom-parser/target/debug/parser ./examples/test4.circom > ./examples/test4.json
-./circom-parser/target/debug/parser ./benchmarks/ecne/AND@gates.circom > ./benchmarks/ecne/AND@gates.json
+./circom-parser/target/debug/parser ./examples/test6.circom > ./examples/test6.json
+./circom-parser/target/debug/parser ./benchmarks/ecne/MultiAND@gates.circom > ./benchmarks/ecne/MultiAND@gates.json
 
 # simple circom compilation command
 # circom ./test0.circom --r1cs --wasm --sym --c
-circom -o ./examples/ ./examples/test3.circom --r1cs --sym
-circom -o ./examples/ ./examples/test4.circom --r1cs --sym
-circom -o ./benchmarks/ecne/ ./benchmarks/ecne/AND@gates.circom --r1cs --sym
+circom -o ./examples/ ./examples/test6.circom --r1cs --sym
+circom -o ./benchmarks/ecne/ ./benchmarks/ecne/MultiAND@gates.circom --r1cs --sym
 
 # push-button example for equivalence checking
 racket ./test-push-button-equivalence.rkt
@@ -52,11 +49,6 @@ racket ./test-uniqueness.rkt
 # grab Ecne's readable constraints only
 julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1cs > Circom_Functions/benchmarks/bigmod_5_2.txt
 ```
-
-## Known Issues
-
-- `NOT@gates.circom` is generating a potentially buggy r1cs file.
-- `MultiAND@gates.circom`: pending.
 
 ## Notes
 

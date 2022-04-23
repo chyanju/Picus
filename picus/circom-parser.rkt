@@ -97,6 +97,10 @@
         (tokamak:exit "[parse-access] access node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
         [(hash-has-key? arg-node 'ArrayAccess) (parse-expression (hash-ref arg-node 'ArrayAccess))]
+        [(hash-has-key? arg-node 'ComponentAccess) (let ([node0 (hash-ref arg-node 'ComponentAccess)])
+            (tokamak:typed node0 string?)
+            node0
+        )]
         [else (tokamak:exit "[parse-access] unsupported access type, got: ~a." (hash-keys arg-node))]
     ))
     ; return
@@ -330,6 +334,7 @@
     (when (not (equal? 1 (hash-count arg-node)))
         (tokamak:exit "[parse-statement] statement node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
+        [(hash-has-key? arg-node 'IfThenElse) (parse-itestmt (hash-ref arg-node 'IfThenElse))]
         [(hash-has-key? arg-node 'While) (parse-whilestmt (hash-ref arg-node 'While))]
         [(hash-has-key? arg-node 'ConstraintEquality) (parse-ceqstmt (hash-ref arg-node 'ConstraintEquality))]
         [(hash-has-key? arg-node 'Block) (parse-block (hash-ref arg-node 'Block))]
@@ -342,7 +347,20 @@
     (circom:statement tmp-v)
 )
 
-(define (parse-itestmt arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+(define (parse-itestmt arg-node)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-cond (parse-expression (hash-ref arg-node 'cond)))
+    (define tmp-if (parse-statement (hash-ref arg-node 'if_case)))
+    (define tmp-else (let ([node0 (hash-ref arg-node 'else_case)])
+        (cond
+            ; [(null? node0) null]
+            [(equal? 'null node0) null]
+            [else (parse-statement node0)]
+        )
+    ))
+    ; return
+    (circom:itestmt tmp-meta tmp-cond tmp-if tmp-else)
+)
 
 (define (parse-whilestmt arg-node)
     (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))

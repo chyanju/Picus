@@ -1,6 +1,6 @@
 pragma circom 2.0.0;
 
-include "../circomlib/circuits/gates.circom";
+include "../circomlib/gates.circom";
 
 component main = OR();
         
