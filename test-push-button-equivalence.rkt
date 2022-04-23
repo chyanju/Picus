@@ -1,6 +1,6 @@
 #lang rosette
 (require rosette/solver/smt/boolector)
-(define use-boolector #t) ; use boolector or not?
+(define use-boolector #f) ; use boolector or not?
 (when (and use-boolector (boolector-available?))
   ; (current-solver (boolector #:logic 'QF_BV))
   (current-solver (boolector))
@@ -19,9 +19,12 @@
 
 ; set the example
 ; (define json-path "./examples/test1a.json") ; not equivalent
-(define json-path "./examples/test2.json") ; equivalent
-(define r1cs-path "./examples/test2.r1cs")
-(define sym-path "./examples/test2.sym")
+(define json-path "./examples/test1.json") ; equivalent
+(define r1cs-path "./examples/test1.r1cs")
+(define sym-path "./examples/test1.sym")
+; (define json-path "./benchmarks/ecne/AND@gates.json") ; equivalent
+; (define r1cs-path "./benchmarks/ecne/AND@gates.r1cs")
+; (define sym-path "./benchmarks/ecne/AND@gates.sym")
 
 ; =======================
 ; load and interpret r1cs
@@ -40,14 +43,22 @@
 ; ==========================
 ; load and interpret circuit
 (printf "# processing circuit...\n")
-(define circuit-json (string->jsexpr (file->string json-path)))
-(define circuit-node (parse-circom-json circuit-json))
+; if you include, then the json will have multiple lines
+(define circuit-strings (reverse (string-split (file->string json-path) "\n"))) ; (note) reverse!
+(define circuit-jsons (for/list ([s circuit-strings]) (string->jsexpr s)))
 (define vm (new circom-vm%))
-(send vm deploy circuit-node) ; deploy
-(printf "  # parsing...\n")
-(define circuit-root (get-field circom-root vm))
-(printf "  # interpreting...\n")
-(send vm interpret circuit-root) ; interpret
+; interpret one by one
+(for ([i (range (length circuit-jsons))])
+  (define circuit-json (list-ref circuit-jsons i))
+  (define is-init (equal? 0 i)) ; do you need to initialize all states or not
+  
+  (define circuit-node (parse-circom-json circuit-json))
+  (send vm deploy circuit-node is-init) ; deploy
+  (printf "  # parsing piece ~a...\n" i)
+  (define circuit-root (get-field circom-root vm))
+  (printf "  # interpreting piece ~a...\n" i)
+  (send vm interpret circuit-root is-init) ; interpret
+)
 ; print some basic circuit info
 (define input-book (get-field input-book vm))
 (define output-book (get-field output-book vm))

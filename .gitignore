@@ -1,4 +1,6 @@
-examples/circomlib
+benchmarks/ecne/*.json
+benchmarks/ecne/*.sym
+benchmarks/ecne/*.r1cs
 
 # ========================================================== #
 # ======== gitignore template for the Rust language ======== #
