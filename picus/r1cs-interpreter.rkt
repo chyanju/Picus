@@ -1,15 +1,22 @@
 #lang rosette
 (require "./tokamak.rkt")
 (require "./utils.rkt")
+(require "./config.rkt")
 (require "./r1cs.rkt")
-(provide (all-defined-out))
-; note: this requires rosette, so it's separated from the r1cs library
+; (provide (all-defined-out))
+(provide (rename-out
+    [interpret-r1cs interpret-r1cs]
+))
 
-; (fixme) currently you can only name it "x"
+; helper function
 (define (next-symbolic-integer)
-    (define-symbolic* r1cs.x integer?)
+    (define-symbolic* r1cs.x config:bv)
     r1cs.x
 )
+
+; constants
+(define bv-zero (bv 0 config:bv))
+(define bv-one (bv 1 config:bv))
 
 (define (interpret-r1cs arg-r1cs arg-xlist)
     ; first create a list of all symbolic variables according to nwires
@@ -51,21 +58,21 @@
 
         ; assemble symbolic terms
         ; note that terms could be empty, in which case 0 is used
-        (define terms-a (cons 0 (for/list ([w0 wids-a] [f0 factors-a])
-            (* f0 (list-ref xlist w0))
+        (define terms-a (cons bv-zero (for/list ([w0 wids-a] [f0 factors-a])
+            (bvmul (bv f0 config:bv) (list-ref xlist w0))
         )))
-        (define terms-b (cons 0 (for/list ([w0 wids-b] [f0 factors-b])
-            (* f0 (list-ref xlist w0))
+        (define terms-b (cons bv-zero (for/list ([w0 wids-b] [f0 factors-b])
+            (bvmul (bv f0 config:bv) (list-ref xlist w0))
         )))
-        (define terms-c (cons 0 (for/list ([w0 wids-c] [f0 factors-c])
-            (* f0 (list-ref xlist w0))
+        (define terms-c (cons bv-zero (for/list ([w0 wids-c] [f0 factors-c])
+            (bvmul (bv f0 config:bv) (list-ref xlist w0))
         )))
 
         ; assemble equation: A*B = C
-        (define sum-a (apply + terms-a))
-        (define sum-b (apply + terms-b))
-        (define sum-c (apply + terms-c))
-        (define ret-cnst (equal? sum-c (* sum-a sum-b)))
+        (define sum-a (apply bvadd terms-a))
+        (define sum-b (apply bvadd terms-b))
+        (define sum-c (apply bvadd terms-c))
+        (define ret-cnst (bveq sum-c (bvmul sum-a sum-b)))
 
         ; return this assembled constraint
         ret-cnst
@@ -77,5 +84,5 @@
     ; so we append an additional constraint here
     ; see: https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md#general-considerations
     ; (values xlist sconstraints)
-    (values xlist (cons (equal? 1 (list-ref xlist 0)) sconstraints))
+    (values xlist (cons (bveq bv-one (list-ref xlist 0)) sconstraints))
 )

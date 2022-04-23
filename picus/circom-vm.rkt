@@ -2,6 +2,7 @@
 (require rosette/lib/destruct) ; match syntax in rosette
 (require "./tokamak.rkt")
 (require "./mhash.rkt")
+(require "./config.rkt")
 (require "./circom-grammar.rkt")
 (provide (all-defined-out))
 
@@ -19,23 +20,16 @@
             [output-book null] ; hash mapping from string to symbolic variable
             [intermediate-book null] ; hash mapping from string to symbolic variable
 
-            ; default setting
-            [scope-cap 100]
-            ; (fixme) this is 254-bit, right? --- according to (implied by) the circom docs
-            [default-bvsym 'bv254] ; typesym is for tokamak:symbolic*
-            [default-bv (bitvector 254)] ; type is for direct creation of variables
-            ; yes this magic prime p is within 256 bits!
-            [magic-p (bv 21888242871839275222246405745257275088548364400416034343698204186575808495617 (bitvector 254))]
-            ; b is the number of significant bits of p, which is 254
-            [magic-b (bv 254 (bitvector 254))]
-            ; mask = b^254 - 1
-            [magic-mask (bv 28948022309329048855892746252171976963317496166410141009864396001978282409983 (bitvector 254))]
+            ; constants
+            [bv-zero (bv 0 config:bv)]
+            [bv-one (bv 1 config:bv)]
+            [bv-two (bv 2 config:bv)]
         )
 
         ; also do initializations
         ; (concrete:top) arg-node
         (define/public (deploy arg-node)
-            (set! variable-book (make-mhash scope-cap))
+            (set! variable-book (make-mhash config:cap))
             (set! template-book (make-hash))
             (init-builtin-operators); initialize all builtin operators
             (do-deploy arg-node)
@@ -263,7 +257,7 @@
                         ))
 
                         (define syms (for/list ([vv vnames])
-                            (tokamak:symbolic* (string->symbol vv) default-bvsym)
+                            (tokamak:symbolic* (string->symbol vv) config:bvsym)
                         ))
                         
                         ; register in the scope
@@ -483,7 +477,7 @@
                     (for/all ([v0 v #:exhaustive])
                         (tokamak:typed v0 integer?)
 
-                        (bv v0 default-bv) ; wrap into bitvector
+                        (bv v0 config:bv) ; wrap into bitvector
                     )
                 ]
 
@@ -533,7 +527,7 @@
                             (length args0) (length arg-args)))
 
                     ; create a local scope
-                    (define local-scope (make-mhash scope-cap))
+                    (define local-scope (make-mhash config:cap))
                     ; initialize local scope with argument values
                     (for ([local-id args0] [local-val arg-args])
                         ; (make-var (cons local-scope scopes0) local-id local-val)
@@ -705,13 +699,14 @@
             ; (note) (fixme) all arguments should be concrete, you are not checking them all
             (set! builtin-operators (make-hash))
 
-            ; borrowed from ecne for speed up
-            (define (circom-mod x k)
-                (if (bvugt x k)
-                    (bvsub x k)
-                    x
-                )
-            )
+            ; ; borrowed from ecne for speed up
+            ; (define (circom-mod x k)
+            ;     (if (bvugt x k)
+            ;         (bvsub x k)
+            ;         x
+            ;     )
+            ; )
+            (define (circom-mod x k) x)
 
             ; helper functions
             (define (circom-pow x k)
@@ -722,8 +717,8 @@
                 (tokamak:typed k concrete?)
 
                 (if (bvzero? k)
-                    (bv 1 default-bv)
-                    (bvmul x (circom-pow x (bvsub k (bv 1 default-bv))))
+                    bv-one
+                    (bvmul x (circom-pow x (bvsub k bv-one)))
                 )
             )
 
@@ -737,19 +732,19 @@
                 (cond
                     ; 0=< k <= p/2
                     [(and
-                        (bvsle (bv 0 default-bv) k)
-                        (bvsle k (bvudiv magic-p (bv 2 default-bv)))
+                        (bvsle bv-zero k)
+                        (bvsle k (bvudiv config:p bv-two))
                      )
                         ; equals to: x/(2**k)
-                        (bvudiv x (circom-pow (bv 2 default-bv) k))
+                        (bvudiv x (circom-pow bv-two k))
                     ]
                     ; p/2 +1<= k < p
                     [(and
-                        (bvsle (bvadd (bv 1 default-bv) (bvudiv magic-p (bv 2 default-bv))) k)
-                        (bvslt k magic-p)
+                        (bvsle (bvadd bv-one (bvudiv config:p bv-two)) k)
+                        (bvslt k config:p)
                      )
                         ; equals to: x << (p-k)
-                        (circom-shl x (bvsub magic-p k))
+                        (circom-shl x (bvsub config:p k))
                     ]
                     [else (tokamak:exit "[circom-shr] you can't reach here.")]
                 )
@@ -765,41 +760,37 @@
                 (cond
                     ; 0=< k <= p/2
                     [(and
-                        (bvsle (bv 0 default-bv) k)
-                        (bvsle k (bvudiv magic-p (bv 2 default-bv)))
+                        (bvsle bv-zero k)
+                        (bvsle k (bvudiv config:p bv-two))
                      )
+                        ; (fixme) you probably need to remove circom-mod temporarily
                         ; equals to: (x*(2{**}k)~ & ~mask) % p
                         (circom-mod
                             (bvand
-                                (bvmul x (circom-pow (bv 2 default-bv) k))
-                                (bvnot magic-mask)
+                                (bvmul x (circom-pow bv-two k))
+                                (bvnot config:mask)
                             )
-                            magic-p
+                            config:p
                         )
                     ]
                     ; p/2 +1<= k < p
                     [(and
-                        (bvsle (bvadd (bv 1 default-bv) (bvudiv magic-p (bv 2 default-bv))) k)
-                        (bvslt k magic-p)
+                        (bvsle (bvadd bv-one (bvudiv config:p bv-two)) k)
+                        (bvslt k config:p)
                      )
                         ; equals to: x >> (p-k)
-                        (circom-shr x (bvsub magic-p k))
+                        (circom-shr x (bvsub config:p k))
                     ]
                     [else (tokamak:exit "[circom-shl] you can't reach here.")]
                 )
             )
 
             ; arithmethc operators (returns bitvector)
-            ; (fixme) should it be `bvsrem` or `bvurem` or others?
-            ;         i know it's definitely not `bvsmod`
-            ; (fixme) to avoid overflow, we are doing: (a*b)%m = ((a%m)*(b%m))%m
-            (hash-set! builtin-operators 'mul (lambda (x y) (circom-mod (bvmul x y) magic-p)))
-            (hash-set! builtin-operators 'add (lambda (x y) (circom-mod (bvadd x y) magic-p)))
-            ; (hash-set! builtin-operators 'mul (lambda (x y) (bvmul x y)))
-            ; (hash-set! builtin-operators 'add (lambda (x y) (bvadd x y)))
-            (hash-set! builtin-operators 'div (lambda (x y) (circom-mod (bvudiv x y) magic-p)))
-            (hash-set! builtin-operators 'sub (lambda (x y) (circom-mod (bvsub x y) magic-p)))
-            (hash-set! builtin-operators 'pow (lambda (x y) (circom-mod (circom-pow x y) magic-p)))
+            (hash-set! builtin-operators 'mul (lambda (x y) (bvmul x y)))
+            (hash-set! builtin-operators 'add (lambda (x y) (bvadd x y)))
+            (hash-set! builtin-operators 'div (lambda (x y) (bvudiv x y)))
+            (hash-set! builtin-operators 'sub (lambda (x y) (bvsub x y) ))
+            (hash-set! builtin-operators 'pow (lambda (x y) (circom-pow x y)))
             (hash-set! builtin-operators 'neg (lambda (x) (bvneg x)))
 
             ; boolean operators (returns boolean)
@@ -807,7 +798,7 @@
 
             ; bitwise operators
             ; ref: https://docs.circom.io/circom-language/basic-operators/#bitwise-operators
-            (hash-set! builtin-operators 'band (lambda (x y) (circom-mod (bvand x y) magic-p)))
+            (hash-set! builtin-operators 'band (lambda (x y) (bvand x y)))
             (hash-set! builtin-operators 'shr (lambda (x k) (circom-shr x k)))
             (hash-set! builtin-operators 'shl (lambda (x k) (circom-shl x k)))
 

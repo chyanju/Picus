@@ -1,4 +1,4 @@
-#lang racket
+#lang rosette
 (provide (prefix-out circom: (all-defined-out)))
 ; (note) see NOTES.md for transcribed CFG
 

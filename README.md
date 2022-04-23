@@ -14,6 +14,9 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 - Circom 2: [https://docs.circom.io/](https://docs.circom.io/)
 - Rust: [https://www.rust-lang.org/](https://www.rust-lang.org/)
   - for circom parser
+- Boolector: [https://boolector.github.io/](https://boolector.github.io/)
+  - recommended for faster solving, if not, z3 will be used (may be slower)
+
 
 
 ## Commands
@@ -41,9 +44,6 @@ racket ./test-read-r1cs.rkt
 
 # automatic uniqueness checking
 racket ./test-uniqueness.rkt
-
-# automatic equivalence checking
-racket ./test-equivalence.rkt
 
 # grab Ecne's readable constraints only
 julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1cs > Circom_Functions/benchmarks/bigmod_5_2.txt

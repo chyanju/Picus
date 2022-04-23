@@ -32,9 +32,11 @@
     (assert-type arg-type symbol?)
     (define tmp-type 
         (cond
-            [(equal? 'integer arg-type) integer?]
-            [(equal? 'boolean arg-type) boolean?]
+            ; [(equal? 'integer arg-type) integer?]
+            ; [(equal? 'boolean arg-type) boolean?]
             [(equal? 'bv254 arg-type) (bitvector 254)]
+            ; [(equal? 'bv16 arg-type) (bitvector 16)]
+            ; [(equal? 'bv4 arg-type) (bitvector 4)]
             [else (println-and-exit "unknown symbolic type, got: ~a" arg-type)]
         )
     )

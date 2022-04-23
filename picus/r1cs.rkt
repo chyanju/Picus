@@ -1,17 +1,18 @@
-#lang racket
+#lang rosette
 (require "./tokamak.rkt")
 (require "./utils.rkt")
+(require "./config.rkt")
 (provide (all-defined-out))
 
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L10
-(define big-prime 21888242871839275222246405745257275088548364400416034343698204186575808495617)
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L13
 ; Galois Field
 (define (F x)
     ; yes, behaviorly you should use remainder
-    (remainder x big-prime)
+    (remainder x config:p)
 )
 
+; (fixme) this magic number is different to the prime (-100), confirm it
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L414
 (define (fix-number x)
     (if (> x 21888242871839275222246405745257275088548363400416034343698204186575808495517)

@@ -1,11 +1,17 @@
 #lang rosette
+(require rosette/solver/smt/boolector)
+(when (boolector-available?)
+  (current-solver (boolector))
+)
+(printf "# using solver: ~a\n" (current-solver))
+(output-smt #t)
+
 (require json)
 (require csv-reading)
 (require "./picus/tokamak.rkt")
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
-; (require "./picus/r1cs-interpreter.rkt")
-(require "./picus/r1cs-bv-interpreter.rkt")
+(require "./picus/r1cs-interpreter.rkt")
 (require "./picus/circom-parser.rkt")
 (require "./picus/circom-vm.rkt")
 
