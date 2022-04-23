@@ -59,20 +59,20 @@
         ; assemble symbolic terms
         ; note that terms could be empty, in which case 0 is used
         (define terms-a (cons bv-zero (for/list ([w0 wids-a] [f0 factors-a])
-            (bvmul (bv f0 config:bv) (list-ref xlist w0))
+            (config:mul (bv f0 config:bv) (list-ref xlist w0))
         )))
         (define terms-b (cons bv-zero (for/list ([w0 wids-b] [f0 factors-b])
-            (bvmul (bv f0 config:bv) (list-ref xlist w0))
+            (config:mul (bv f0 config:bv) (list-ref xlist w0))
         )))
         (define terms-c (cons bv-zero (for/list ([w0 wids-c] [f0 factors-c])
-            (bvmul (bv f0 config:bv) (list-ref xlist w0))
+            (config:mul (bv f0 config:bv) (list-ref xlist w0))
         )))
 
         ; assemble equation: A*B = C
         (define sum-a (apply bvadd terms-a))
         (define sum-b (apply bvadd terms-b))
         (define sum-c (apply bvadd terms-c))
-        (define ret-cnst (bveq sum-c (bvmul sum-a sum-b)))
+        (define ret-cnst (bveq sum-c (config:mul sum-a sum-b)))
 
         ; return this assembled constraint
         ret-cnst

@@ -15,3 +15,7 @@
 (define bv (bitvector nbits)) ; default type, bitvector
 
 (define cap 100) ; default mhash capacity
+
+; (fixme) quick fix for mul function to speed up
+(define (mul x y) (bvmul x y))
+; (define-symbolic mul (~> bv bv bv))

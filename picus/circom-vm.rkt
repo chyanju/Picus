@@ -703,10 +703,6 @@
             ; (note) (fixme) all arguments should be concrete, you are not checking them all
             (set! builtin-operators (make-hash))
 
-            ; (fixme) quick fix for mul function to speed up
-            ; (define-symbolic circom-mul (~> config:bv config:bv config:bv))
-            (define (circom-mul x y) (bvmul x y))
-
             ; ; borrowed from ecne for speed up
             ; (define (circom-mod x k)
             ;     (if (bvugt x k)
@@ -726,7 +722,7 @@
 
                 (if (bvzero? k)
                     bv-one
-                    (circom-mul x (circom-pow x (bvsub k bv-one)))
+                    (config:mul x (circom-pow x (bvsub k bv-one)))
                 )
             )
 
@@ -775,7 +771,7 @@
                         ; equals to: (x*(2{**}k)~ & ~mask) % p
                         (circom-mod
                             (bvand
-                                (circom-mul x (circom-pow bv-two k))
+                                (config:mul x (circom-pow bv-two k))
                                 (bvnot config:mask)
                             )
                             config:p
@@ -795,7 +791,7 @@
 
             ; arithmethc operators (returns bitvector)
             ; (hash-set! builtin-operators 'mul (lambda (x y) (bvmul x y)))
-            (hash-set! builtin-operators 'mul (lambda (x y) (circom-mul x y)))
+            (hash-set! builtin-operators 'mul (lambda (x y) (config:mul x y)))
             (hash-set! builtin-operators 'add (lambda (x y) (bvadd x y)))
             (hash-set! builtin-operators 'div (lambda (x y) (bvudiv x y)))
             (hash-set! builtin-operators 'sub (lambda (x y) (bvsub x y) ))

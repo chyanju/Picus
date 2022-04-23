@@ -113,6 +113,7 @@
 )
 
 (printf "# solving equivalence...\n")
+(error-print-width 1000000)
 (define model (solve (assert (apply && sconstraints))))
 (if (sat? model)
     (printf "  # found a counterexample:\n~a\n" model)
