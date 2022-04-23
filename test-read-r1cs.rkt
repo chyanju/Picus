@@ -3,7 +3,7 @@
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 
-(define r0 (read-r1cs "./examples/test1.r1cs"))
+(define r0 (read-r1cs "./examples/test2.r1cs"))
 ; (define r0 (read-r1cs "./examples/bigmod_5_2.r1cs"))
 ; (define r0 (read-r1cs "./examples/bigmod_10_2.r1cs"))
 ; (define r0 (read-r1cs "./examples/bigmod_86_3.r1cs"))

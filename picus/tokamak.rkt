@@ -34,7 +34,8 @@
         (cond
             ; [(equal? 'integer arg-type) integer?]
             ; [(equal? 'boolean arg-type) boolean?]
-            [(equal? 'bv254 arg-type) (bitvector 254)]
+            ; [(equal? 'bv254 arg-type) (bitvector 254)]
+            [(equal? 'bv256 arg-type) (bitvector 256)]
             ; [(equal? 'bv16 arg-type) (bitvector 16)]
             ; [(equal? 'bv4 arg-type) (bitvector 4)]
             [else (println-and-exit "unknown symbolic type, got: ~a" arg-type)]

@@ -737,14 +737,14 @@
                     ; 0=< k <= p/2
                     [(and
                         (bvsle bv-zero k)
-                        (bvsle k (bvudiv config:p bv-two))
+                        (bvsle k (bvsdiv config:p bv-two))
                      )
                         ; equals to: x/(2**k)
-                        (bvudiv x (circom-pow bv-two k))
+                        (bvsdiv x (circom-pow bv-two k))
                     ]
                     ; p/2 +1<= k < p
                     [(and
-                        (bvsle (bvadd bv-one (bvudiv config:p bv-two)) k)
+                        (bvsle (bvadd bv-one (bvsdiv config:p bv-two)) k)
                         (bvslt k config:p)
                      )
                         ; equals to: x << (p-k)
@@ -765,7 +765,7 @@
                     ; 0=< k <= p/2
                     [(and
                         (bvsle bv-zero k)
-                        (bvsle k (bvudiv config:p bv-two))
+                        (bvsle k (bvsdiv config:p bv-two))
                      )
                         ; (fixme) you probably need to remove circom-mod temporarily
                         ; equals to: (x*(2{**}k)~ & ~mask) % p
@@ -779,7 +779,7 @@
                     ]
                     ; p/2 +1<= k < p
                     [(and
-                        (bvsle (bvadd bv-one (bvudiv config:p bv-two)) k)
+                        (bvsle (bvadd bv-one (bvsdiv config:p bv-two)) k)
                         (bvslt k config:p)
                      )
                         ; equals to: x >> (p-k)
@@ -793,7 +793,7 @@
             ; (hash-set! builtin-operators 'mul (lambda (x y) (bvmul x y)))
             (hash-set! builtin-operators 'mul (lambda (x y) (config:mul x y)))
             (hash-set! builtin-operators 'add (lambda (x y) (bvadd x y)))
-            (hash-set! builtin-operators 'div (lambda (x y) (bvudiv x y)))
+            (hash-set! builtin-operators 'div (lambda (x y) (bvsdiv x y)))
             (hash-set! builtin-operators 'sub (lambda (x y) (bvsub x y) ))
             (hash-set! builtin-operators 'pow (lambda (x y) (circom-pow x y)))
             (hash-set! builtin-operators 'neg (lambda (x) (bvneg x)))
