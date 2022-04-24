@@ -221,7 +221,3 @@ The tokamak pattern is used to restrict the scope of symbolic variables in a pro
 
 (pending)
 
-
-
-
-
