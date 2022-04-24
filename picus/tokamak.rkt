@@ -36,8 +36,12 @@
             ; [(equal? 'boolean arg-type) boolean?]
             ; [(equal? 'bv254 arg-type) (bitvector 254)]
             [(equal? 'bv256 arg-type) (bitvector 256)]
-            ; [(equal? 'bv16 arg-type) (bitvector 16)]
-            ; [(equal? 'bv4 arg-type) (bitvector 4)]
+            [(equal? 'bv128 arg-type) (bitvector 128)]
+            [(equal? 'bv64 arg-type) (bitvector 64)]
+            [(equal? 'bv32 arg-type) (bitvector 32)]
+            [(equal? 'bv16 arg-type) (bitvector 16)]
+            [(equal? 'bv8 arg-type) (bitvector 8)]
+            [(equal? 'bv4 arg-type) (bitvector 4)]
             [else (println-and-exit "unknown symbolic type, got: ~a" arg-type)]
         )
     )
