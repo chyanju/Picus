@@ -27,7 +27,7 @@
 (define bvb (bv b bvtyp)) ; bitvector version of b
 (define bvmask (bv mask bvtyp)) ; bitvector version of mask
 
-(define cap 5000) ; default mhash capacity
+(define cap 50) ; default mhash capacity
 
 ; (fixme) quick fix for mul function to speed up
 

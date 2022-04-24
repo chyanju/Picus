@@ -478,6 +478,7 @@
     (when (not (equal? 1 (hash-count arg-node)))
         (tokamak:exit "[parse-expression] expression node needs to have only 1 key, got: ~a." (hash-count arg-node)))
     (define tmp-v (cond
+        [(hash-has-key? arg-node 'ArrayInLine) (parse-arrayinline (hash-ref arg-node 'ArrayInLine))]
         [(hash-has-key? arg-node 'InlineSwitchOp) (parse-inlineswitch (hash-ref arg-node 'InlineSwitchOp))]
         [(hash-has-key? arg-node 'InfixOp) (parse-infix (hash-ref arg-node 'InfixOp))]
         [(hash-has-key? arg-node 'PrefixOp) (parse-prefix (hash-ref arg-node 'PrefixOp))]
@@ -546,4 +547,12 @@
     ; return
     (circom:call tmp-meta tmp-id tmp-args)
 )
-(define (parse-arrayinline arg-node) (tokamak:exit "[~a] not implemented." (current-namespace)))
+(define (parse-arrayinline arg-node)
+    (tokamak:typed arg-node hash?)
+    (define tmp-meta (parse-meta (hash-ref arg-node 'meta)))
+    (define tmp-vals (for/list ([node0 (hash-ref arg-node 'values)])
+        (parse-expression node0)
+    ))
+    ; return
+    (circom:arrayinline tmp-meta tmp-vals)
+)

@@ -27,12 +27,12 @@ cd circom-parser
 cargo build
 
 # use circom parser
-./circom-parser/target/debug/parser ./examples/test9.circom > ./examples/test9.json
+./circom-parser/target/debug/parser ./examples/test10.circom > ./examples/test10.json
 ./circom-parser/target/debug/parser ./benchmarks/ecne/Num2BitsNeg@bitify.circom > ./benchmarks/ecne/Num2BitsNeg@bitify.json
 
 # simple circom compilation command
 # circom ./test0.circom --r1cs --wasm --sym --c
-circom -o ./examples/ ./examples/test9.circom --r1cs --sym
+circom -o ./examples/ ./examples/test10.circom --r1cs --sym
 circom -o ./benchmarks/ecne/ ./benchmarks/ecne/Num2BitsNeg@bitify.circom --r1cs --sym
 
 # push-button example for equivalence checking

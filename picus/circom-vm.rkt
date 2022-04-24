@@ -2,6 +2,7 @@
 (require rosette/lib/destruct) ; match syntax in rosette
 (require "./tokamak.rkt")
 (require "./mhash.rkt")
+(require "./utils.rkt")
 (require "./config.rkt")
 (require "./circom-grammar.rkt")
 (provide (all-defined-out))
@@ -295,6 +296,14 @@
                         (tokamak:typed scopes0 list?)
                         (tokamak:typed prefix0 string?)
 
+                        ; (note) if the original name0 is an inline array's identifier, register its type as 'arr
+                        ;        as a special type to help the next substitution, and register its value as its dims in list
+                        ;        e.g., (list 3 4) is arr[3][4]
+                        (when (not (null? dims0))
+                            (make-var scopes0 (string-append prefix0 "." name0) (get-dims scopes0 prefix0 dims0))
+                            (make-var scopes0 (string-append prefix0 "." name0 "@") 'arr)
+                        )
+
                         ; dynamically create symbolic variable
                         (define dimstrs (assemble-dims scopes0 prefix0 dims0)) ; (fixme) currently it's concrete, but it could be symbolic
                         (define vnames (for/list ([ds dimstrs])
@@ -392,7 +401,6 @@
 
                         (define tmp-accstr (assemble-access scopes0 prefix0 access0))
                         (define tmp-var (string-append prefix0 "." var0 tmp-accstr)) ; don't forget the prefix
-                        (define tmp-val (read-var scopes0 tmp-var))
                         (define tmp-op (do-interpret op0 scopes0 prefix0))
 
                         ; (fixme) maybe there's better way
@@ -406,28 +414,67 @@
                             [(equal? 'input tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
                             [(equal? 'output tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
                             [(equal? 'intermediate tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+
+                            ; special type from picus, array identifier for inline array
+                            [(equal? 'arr tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+
                             [else (tokamak:exit "[do-interpret] [substmt.0] unsupported tmp-vtype, got: ~a." tmp-vtype)]
                         ))
 
                         (for/all ([op1 tmp-op #:exhaustive])
                             (tokamak:typed op1 symbol?)
                             ; (note) no need to decompose tmp-rhe, sicne union assertion is also acceptable
-
                             (cond
-                                [(equal? 'csig op1) 
-                                    ; `<==` symbol: assert and then update
-                                    (assert (equal? tmp-val tmp-rhe))
-                                    (write-var scopes0 tmp-var tmp-rhe)
+                                [(equal? 'arr tmp-vtype)
+                                    ; inline array assignment
+                                    (for/all ([rhe1 tmp-rhe #:exhaustive])
+                                        (tokamak:typed rhe1 list?) ; inline array must return a list
+                                        (cond
+                                            [(equal? 'var op1)
+                                                ; only support `=` symbol for now
+                                                ; (fixme) we should properly check lengths match between var dims and rhe1 dims
+                                                ;         the current impl is not considering symbolic elem in rhe1
+                                                (define ld (get-list-dims0 rhe1))
+                                                (define vd (read-var scopes0 tmp-var))
+                                                (when (not (equal? ld vd))
+                                                    (tokamak:exit "[do-interpret] [substmt.1] dims mismatch, declared: ~a, returned: ~a." vd ld))
+                                                (define inds (apply cartesian-product (for/list ([z ld]) (range z))))
+                                                (for ([ind inds])
+                                                    (define retv (nested-list-ref rhe1 ind))
+                                                    ; no need to add prefix since tmp-var already has prefix settled
+                                                    (define srcv (string-append 
+                                                        tmp-var
+                                                        (apply string-append (for/list ([nn ind])
+                                                            (string-append "[" (number->string nn) "]")
+                                                        ))
+                                                    ))
+                                                    (write-var scopes0 srcv retv)
+                                                )
+                                            ]
+                                            [else (tokamak:exit "[do-interpret] [substmt.2] unsupported op1 for inline array, got: ~a." op1)]
+                                        )
+                                    )
                                 ]
-                                [(equal? 'var op1)
-                                    ; `=` symbol: only update
-                                    (write-var scopes0 tmp-var tmp-rhe)
+                                [else
+                                    ; other substitution
+                                    (define tmp-val (read-var scopes0 tmp-var))
+                                    (cond
+                                        [(equal? 'csig op1) 
+                                            ; `<==` symbol: assert and then update
+                                            (assert (equal? tmp-val tmp-rhe))
+                                            (write-var scopes0 tmp-var tmp-rhe)
+                                        ]
+                                        [(equal? 'var op1)
+                                            ; `=` symbol: only update
+                                            (write-var scopes0 tmp-var tmp-rhe)
+                                        ]
+                                        [(equal? 'sig op1)
+                                            ; `<--` symbol: only assert
+                                            (assert (equal? tmp-val tmp-rhe))
+                                        ]
+                                        [else (tokamak:exit "[do-interpret] [substmt.3] unsupported op1 in substmt, got: ~a." op1)]
+                                    )
                                 ]
-                                [(equal? 'sig op1)
-                                    ; `<--` symbol: only assert
-                                    (assert (equal? tmp-val tmp-rhe))
-                                ]
-                                [else (tokamak:exit "[do-interpret] [substmt.1] unsupported op1 in substmt, got: ~a." op1)]
                             )
                         )
                     )
@@ -613,6 +660,16 @@
                     )
                 ]
 
+                [(circom:arrayinline m-meta m-vals)
+                    (for/all ([vals0 m-vals #:exhaustive])
+                        (tokamak:typed vals0 list?)
+
+                        (for/list ([val vals0])
+                            (do-interpret val arg-scopes arg-prefix)
+                        )
+                    )
+                ]
+
                 [_ (tokamak:exit "[do-interpret] unsupported node, got: ~a." arg-node)]
             )
         )
@@ -693,6 +750,32 @@
         ; (concrete:top) arg-scopes
         ; (concrete:top) arg-prefix
         ; (concrete:top) arg-dims
+        ; this returns a list of dims, e.g., (list 3 4) is for arr[3][4]
+        ; (fixme) you need to properly deal with symbolic case
+        (define (get-dims arg-scopes arg-prefix arg-dims)
+            (tokamak:typed arg-scopes list?)
+            (tokamak:typed arg-prefix string?)
+            (tokamak:typed arg-dims list?)
+
+            ; generate concrete dims
+            (define tmp-dims (for/list ([dim arg-dims])
+                (tokamak:typed dim circom:expression?)
+
+                (define tmp-dim (do-interpret dim arg-scopes arg-prefix))
+                ; (note) dim must be concrete, and you need to convert it to integer
+                (tokamak:typed tmp-dim concrete?)
+                (tokamak:typed tmp-dim bv?)
+
+                (bitvector->integer tmp-dim)
+            ))
+
+            ; return
+            tmp-dims
+        )
+
+        ; (concrete:top) arg-scopes
+        ; (concrete:top) arg-prefix
+        ; (concrete:top) arg-dims
         ; (note) this method returns a list of all dims strings
         ; (fixme) you need to properly deal with symbolic case
         (define (assemble-dims arg-scopes arg-prefix arg-dims)
@@ -704,16 +787,7 @@
                 [(null? arg-dims) (list "")] ; no dims
                 [else
                     ; generate concrete dims
-                    (define tmp-dims (for/list ([dim arg-dims])
-                        (tokamak:typed dim circom:expression?)
-
-                        (define tmp-dim (do-interpret dim arg-scopes arg-prefix))
-                        ; (note) dim must be concrete, and you need to convert it to integer
-                        (tokamak:typed tmp-dim concrete?)
-                        (tokamak:typed tmp-dim bv?)
-
-                        (bitvector->integer tmp-dim)
-                    ))
+                    (define tmp-dims (get-dims arg-scopes arg-prefix arg-dims))
                     (define tmp-lls (for/list ([d tmp-dims])
                         ; create a range
                         (for/list ([i (range d)])

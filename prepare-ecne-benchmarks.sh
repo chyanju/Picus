@@ -55,7 +55,7 @@ declare -a arr=(
 "MultiMux2@mux2.circom"
 "Mux2@mux2.circom"
 "MultiMux3@mux3.circom"
-"Mux3 @mux3.circom"
+"Mux3@mux3.circom"
 "MultiMux4@mux4.circom"
 "Mux4@mux4.circom"
 "Pedersen@pedersen_old.circom"

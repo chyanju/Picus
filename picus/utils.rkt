@@ -22,3 +22,20 @@
     )
     (accu 1 (bytes->list b))
 )
+
+; (note) this only detects first elems
+;        no checking for full shapes
+(define (get-list-dims0 l)
+    (cond
+        [(list? l) (cons (length l) (get-list-dims0 (car l)))]
+        [else (list)]
+    )
+)
+
+; provide an access path to access element of a list
+(define (nested-list-ref l rs)
+    (cond
+        [(null? rs) l]
+        [else (nested-list-ref (list-ref l (car rs)) (cdr rs))]
+    )
+)
