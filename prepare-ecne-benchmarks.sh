@@ -80,6 +80,6 @@ do
 	echo "    parsing..."
 	./circom-parser/target/debug/parser ./benchmarks/ecne/${fn} > ./benchmarks/ecne/${bn}.json
 
-	echo "    testing..."
-	racket ./test-functionality.rkt --cname ${bn}
+	# echo "    testing..."
+	# racket ./test-functionality.rkt --cname ${bn}
 done

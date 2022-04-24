@@ -83,5 +83,5 @@ do
 	./circom-parser/target/debug/parser ./benchmarks/ecne/${fn} > ./benchmarks/ecne/${bn}.json
 
 	echo "    verifying..."
-	timeout 600 racket ./run-ecne-equivalence.rkt --cname ${bn} > ./log/${bn}.log 2>&1
+	timeout 120 racket ./run-ecne-equivalence.rkt --cname ${bn} > ./log/${bn}.log 2>&1
 done

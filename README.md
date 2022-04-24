@@ -11,9 +11,12 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
     - `raco pkg install rosette`
   - csv-reading: [https://www.neilvandyke.org/racket/csv-reading/](https://www.neilvandyke.org/racket/csv-reading/)
     - `raco pkg install csv-reading`
-- Circom 2: [https://docs.circom.io/](https://docs.circom.io/)
 - Rust: [https://www.rust-lang.org/](https://www.rust-lang.org/)
   - for circom parser
+- Node.js: [https://nodejs.org/en/](https://nodejs.org/en/)
+  - for circom parser
+
+- Circom 2: [https://docs.circom.io/](https://docs.circom.io/)
 - Boolector: [https://boolector.github.io/](https://boolector.github.io/)
   - recommended for faster solving, if not, z3 will be used (may be slower)
 
@@ -34,6 +37,9 @@ cargo build
 # circom ./test0.circom --r1cs --wasm --sym --c
 circom -o ./examples/ ./examples/test10.circom --r1cs --sym
 circom -o ./benchmarks/ecne/ ./benchmarks/ecne/Num2BitsNeg@bitify.circom --r1cs --sym
+
+# test on ecne example
+racket ./run-ecne-equivalence.rkt --cname AND@gates
 
 # push-button example for equivalence checking
 racket ./test-push-button-equivalence.rkt
