@@ -1,3 +1,4 @@
+log/
 benchmarks/ecne/*.json
 benchmarks/ecne/*.sym
 benchmarks/ecne/*.r1cs

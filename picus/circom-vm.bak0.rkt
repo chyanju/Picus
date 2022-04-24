@@ -81,20 +81,13 @@
                 (set! output-book (make-hash))
                 (set! intermediate-book (make-hash))
             )
-            (do-interpret arg-node (list variable-book) "" "")
+            (do-interpret arg-node (list variable-book) "")
         )
 
         ; (concrete:top) arg-node
         ; (symbolic:top) arg-scopes: a stacked list of scopes
         ; (symbolic:top) arg-prefix: the prefix attached to every variable interacted (esp. when applied to template)
-        ; (symbolic:top) arg-cprx: (call prefix) for fetching the argument in the correct scope
-        ;                          when assignment to a component, a call need to append a scope, but when fetching arguments
-        ;                          it should still use the old prefix
-        ;                          e.g., component lt = LessThan(n), "lt" should be appended, but "n" the argument come without "lt"
-        ;                                main.lt.??, but main.n should be fetched before entering LessThan
-        ;                          (note) only declstmt with 'comp and call related operation need to modify this field
-        ;                                 otherwise, just inherit and ignore
-        (define (do-interpret arg-node arg-scopes arg-prefix arg-cprx)
+        (define (do-interpret arg-node arg-scopes arg-prefix)
             (tokamak:typed arg-node circom:lang?)
 
             ; still use destruct to not lose track of vc
@@ -123,8 +116,8 @@
                         (tokamak:typed first0 circom:stype?)
                         (tokamak:typed second0 circom:setype?)
 
-                        (define tmp-first (do-interpret first0 arg-scopes arg-prefix arg-cprx))
-                        (define tmp-second (do-interpret second0 arg-scopes arg-prefix arg-cprx))
+                        (define tmp-first (do-interpret first0 arg-scopes arg-prefix))
+                        (define tmp-second (do-interpret second0 arg-scopes arg-prefix))
                         (for*/all ([first1 tmp-first #:exhaustive] [second1 tmp-second #:exhaustive])
                             (tokamak:typed first1 symbol?)
                             (tokamak:typed second1 symbol?)
@@ -141,7 +134,7 @@
 
                         (cond
                             [(symbol? v0) v0]
-                            [(circom:signal? v0) (do-interpret v0 arg-scopes arg-prefix arg-cprx)]
+                            [(circom:signal? v0) (do-interpret v0 arg-scopes arg-prefix)]
                             [else (tokamak:exit "[do-interpret] you can't reach here.")]
                         )
                     )
@@ -155,7 +148,7 @@
                             [(string? v0) v0] ; direct return
                             [(circom:expression? v0)
                                 ; get the value
-                                (do-interpret v0 arg-scopes arg-prefix arg-cprx)
+                                (do-interpret v0 arg-scopes arg-prefix)
                             ]
                         )
                     )
@@ -194,7 +187,7 @@
 
                         (cond
                             [(null? main0) (void)] ; do nothing
-                            [else (do-interpret main0 arg-scopes arg-prefix arg-cprx)]
+                            [else (do-interpret main0 arg-scopes arg-prefix)]
                         )
                     )
                 ]
@@ -206,7 +199,7 @@
                         (tokamak:typed prefix0 string?)
 
                         ; (fixme) the prefix seems to only be "main.", otherwise circom complains
-                        (do-interpret call0 arg-scopes prefix0 (string-append prefix0 "main")) ; top level doesn't need a dot
+                        (do-interpret call0 arg-scopes (string-append prefix0 "main")) ; top level doesn't need a dot
                     )
                 ]
 
@@ -220,7 +213,7 @@
                         (tokamak:typed v0 circom:itestmt? circom:whilestmt? circom:retstmt? circom:declstmt? circom:substmt?
                                           circom:ceqstmt? circom:logcallstmt? circom:assertstmt? circom:initblock? circom:block?)
 
-                        (do-interpret v0 arg-scopes arg-prefix arg-cprx)
+                        (do-interpret v0 arg-scopes arg-prefix)
                     )
                 ]
 
@@ -230,7 +223,7 @@
                         (tokamak:typed if0 circom:statement?)
                         (tokamak:typed else0 circom:statement? null?)
 
-                        (define tmp-cond (do-interpret cond0 arg-scopes arg-prefix arg-cprx))
+                        (define tmp-cond (do-interpret cond0 arg-scopes arg-prefix))
                         (for/all ([cond1 tmp-cond #:exhaustive])
                             ; (note) for if, this can be symbolic
                             (tokamak:typed cond1 boolean?)
@@ -238,13 +231,13 @@
                             (cond
                                 [cond1
                                     ; cond is true, go to if branch
-                                    (do-interpret if0 arg-scopes arg-prefix arg-cprx)
+                                    (do-interpret if0 arg-scopes arg-prefix)
                                 ]
                                 [else
                                     ; cond is false, go to else branch
                                     (cond
                                         [(null? else0) (void)] ; else branch is empty
-                                        [else (do-interpret else0 arg-scopes arg-prefix arg-cprx)]
+                                        [else (do-interpret else0 arg-scopes arg-prefix)]
                                     )
                                 ]
                             )
@@ -259,8 +252,8 @@
                         (tokamak:typed stmt0 circom:statement?)
 
                         ; define a recursive loop
-                        (define (do-while lscopes lprefix lcprx)
-                            (define tmp-cond (do-interpret cond0 lscopes lprefix lcprx))
+                        (define (do-while lscopes lprefix)
+                            (define tmp-cond (do-interpret cond0 lscopes lprefix))
                             (for/all ([cond1 tmp-cond #:exhaustive])
                                 ; (note) this has to be both concrete and boolean
                                 (tokamak:typed cond1 concrete?)
@@ -269,8 +262,8 @@
                                 (cond
                                     [cond1 
                                         ; cond is true, go to statement
-                                        (do-interpret stmt0 lscopes lprefix lcprx)
-                                        (do-while lscopes lprefix lcprx)
+                                        (do-interpret stmt0 lscopes lprefix)
+                                        (do-while lscopes lprefix)
                                     ]
                                     ; cond is false, do nothing and exit the loop
                                     [else (void)]
@@ -279,7 +272,7 @@
                         )
 
                         ; initiate the loop
-                        (do-while arg-scopes arg-prefix arg-cprx)
+                        (do-while arg-scopes arg-prefix)
                         
                     )
                 ]
@@ -288,32 +281,31 @@
                     (for*/all ([val0 m-val #:exhaustive])
                         (tokamak:typed val0 circom:expression?)
                         ; return
-                        (do-interpret val0 arg-scopes arg-prefix arg-cprx)
+                        (do-interpret val0 arg-scopes arg-prefix)
                     )
                 ]
 
                 ; this creates new symbolic variables
                 ; (fixme) you need to properly deal with dims
                 [(circom:declstmt m-meta m-xtype m-name m-dims m-constant)
-                    (for*/all ([xtype0 m-xtype #:exhaustive] [name0 m-name #:exhaustive] [dims0 m-dims #:exhaustive] 
-                               [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive] [cprx0 arg-cprx #:exhaustive])
+                    (for*/all ([xtype0 m-xtype #:exhaustive] [name0 m-name #:exhaustive] 
+                               [dims0 m-dims #:exhaustive] [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
                         (tokamak:typed xtype0 circom:vtype?)
                         (tokamak:typed name0 string?)
                         (tokamak:typed dims0 list?)
                         (tokamak:typed scopes0 list?)
                         (tokamak:typed prefix0 string?)
-                        (tokamak:typed cprx0 string?)
 
                         ; (note) if the original name0 is an inline array's identifier, register its type as 'arr
                         ;        as a special type to help the next substitution, and register its value as its dims in list
                         ;        e.g., (list 3 4) is arr[3][4]
                         (when (not (null? dims0))
-                            (make-var scopes0 (string-append prefix0 "." name0) (get-dims scopes0 prefix0 cprx0 dims0))
+                            (make-var scopes0 (string-append prefix0 "." name0) (get-dims scopes0 prefix0 dims0))
                             (make-var scopes0 (string-append prefix0 "." name0 "@") 'arr)
                         )
 
                         ; dynamically create symbolic variable
-                        (define dimstrs (assemble-dims scopes0 prefix0 cprx0 dims0)) ; (fixme) currently it's concrete, but it could be symbolic
+                        (define dimstrs (assemble-dims scopes0 prefix0 dims0)) ; (fixme) currently it's concrete, but it could be symbolic
                         (define vnames (for/list ([ds dimstrs])
                             (string-append prefix0 "." name0 ds)
                         ))
@@ -328,7 +320,7 @@
                         )
 
                         ; update states
-                        (define v (do-interpret xtype0 scopes0 prefix0 cprx0))
+                        (define v (do-interpret xtype0 scopes0 prefix0))
                         (for/all ([v0 v #:exhaustive])
                             (tokamak:typed v0 symbol? pair?)
 
@@ -399,36 +391,32 @@
                 ; (fixme) you need to properly deal with access
                 [(circom:substmt m-meta m-var m-access m-op m-rhe)
                     (for*/all ([var0 m-var #:exhaustive] [access0 m-access #:exhaustive] [op0 m-op #:exhaustive]
-                               [rhe0 m-rhe #:exhaustive] [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive]
-                               [cprx0 arg-cprx #:exhaustive])
+                               [rhe0 m-rhe #:exhaustive] [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
                         (tokamak:typed var0 string?)
                         (tokamak:typed access0 list?)
                         (tokamak:typed op0 circom:assignop?)
                         (tokamak:typed rhe0 circom:expression?)
                         (tokamak:typed scopes0 list?)
                         (tokamak:typed prefix0 string?)
-                        (tokamak:typed cprx0 string?)
 
-                        (define tmp-accstr (assemble-access scopes0 prefix0 cprx0 access0))
+                        (define tmp-accstr (assemble-access scopes0 prefix0 access0))
                         (define tmp-var (string-append prefix0 "." var0 tmp-accstr)) ; don't forget the prefix
-                        (define tmp-op (do-interpret op0 scopes0 prefix0 cprx0))
+                        (define tmp-op (do-interpret op0 scopes0 prefix0))
 
                         ; (fixme) maybe there's better way
                         ;         if tmp-var is a component, then rhe needs to append a prefix when interpreting
                         (define tmp-vtype (read-var scopes0 (string-append tmp-var "@")))
                         (tokamak:typed tmp-vtype symbol?)
                         (define tmp-rhe (cond 
-                            ; (note) if rhe0 is a call, it will need a new prefix tmp-var
-                            ; (fixme) this overrides/ignores the existing cprx0, is this right?
-                            [(equal? 'comp tmp-vtype) (do-interpret rhe0 scopes0 prefix0 tmp-var)]
-
-                            [(equal? 'var tmp-vtype) (do-interpret rhe0 scopes0 prefix0 cprx0)]
-                            [(equal? 'input tmp-vtype) (do-interpret rhe0 scopes0 prefix0 cprx0)]
-                            [(equal? 'output tmp-vtype) (do-interpret rhe0 scopes0 prefix0 cprx0)]
-                            [(equal? 'intermediate tmp-vtype) (do-interpret rhe0 scopes0 prefix0 cprx0)]
+                            ; (note) directly replace prefix will work, don't append since component now has no local scope
+                            [(equal? 'comp tmp-vtype) (do-interpret rhe0 scopes0 tmp-var)]
+                            [(equal? 'var tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+                            [(equal? 'input tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+                            [(equal? 'output tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
+                            [(equal? 'intermediate tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
 
                             ; special type from picus, array identifier for inline array
-                            [(equal? 'arr tmp-vtype) (do-interpret rhe0 scopes0 prefix0 cprx0)]
+                            [(equal? 'arr tmp-vtype) (do-interpret rhe0 scopes0 prefix0)]
 
                             [else (tokamak:exit "[do-interpret] [substmt.0] unsupported tmp-vtype, got: ~a." tmp-vtype)]
                         ))
@@ -497,8 +485,8 @@
                         (tokamak:typed lhe0 circom:expression?)
                         (tokamak:typed rhe0 circom:expression?)
 
-                        (define tmp-lhe (do-interpret lhe0 arg-scopes arg-prefix arg-cprx))
-                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix arg-cprx))
+                        (define tmp-lhe (do-interpret lhe0 arg-scopes arg-prefix))
+                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix))
                         ; ceqstmt has default operator: ===, we will do assertion only here
                         ; (note) no need to decompose tmp-lhe or tmp-rhe, sicne union assertion is also acceptable
                         (assert (equal? tmp-lhe tmp-rhe))
@@ -509,7 +497,7 @@
                     (for/all ([arg0 m-arg #:exhaustive])
                         (tokamak:typed arg0 circom:expression?)
 
-                        (define tmp-arg (do-interpret arg0 arg-scopes arg-prefix arg-cprx))
+                        (define tmp-arg (do-interpret arg0 arg-scopes arg-prefix))
                         ; (fixme) directly make assertion here, is it right?
                         ;         no need to lift tmp-arg
                         ;         but this assert is supposed to be triggered at circom compile time, no?
@@ -526,7 +514,7 @@
                             (for/all ([s0 s #:exhaustive])
                                 (tokamak:typed s0 circom:statement?)
 
-                                (do-interpret s0 arg-scopes arg-prefix arg-cprx)
+                                (do-interpret s0 arg-scopes arg-prefix)
                             )
                         )
                     )
@@ -541,7 +529,7 @@
                             (for/all ([i0 i #:exhaustive])
                                 (tokamak:typed i0 circom:statement?)
 
-                                (do-interpret i0 arg-scopes arg-prefix arg-cprx)
+                                (do-interpret i0 arg-scopes arg-prefix)
                             )
                         )
                     )
@@ -553,7 +541,7 @@
                         (tokamak:typed v0 circom:infix? circom:prefix? circom:inlineswitch? 
                                           circom:variable? circom:call? circom:arrayinline? circom:number?)
 
-                        (do-interpret v0 arg-scopes arg-prefix arg-cprx)
+                        (do-interpret v0 arg-scopes arg-prefix)
                     )
                 ]
 
@@ -567,18 +555,17 @@
                             (for/all ([arg0 arg #:exhaustive])
                                 (tokamak:typed arg0 circom:expression?)
 
-                                (do-interpret arg0 arg-scopes arg-prefix arg-cprx)
+                                (do-interpret arg0 arg-scopes arg-prefix)
                             )
                         ))
 
                         ; call and return
-                        (for*/all ([args1 tmp-args #:exhaustive] [scopes0 arg-scopes #:exhaustive] [cprx0 arg-cprx #:exhaustive])
+                        (for*/all ([args1 tmp-args #:exhaustive] [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
                             (tokamak:typed args1 list?)
                             (tokamak:typed scopes0 list?)
-                            (tokamak:typed cprx0 string?)
+                            (tokamak:typed prefix0 string?)
 
-                            ; (note) this should switch to call prefix, don't use the original prefix
-                            (call-template scopes0 cprx0 id0 args1)
+                            (call-template scopes0 prefix0 id0 args1)
                         )
                     )
                 ]
@@ -589,9 +576,9 @@
                         (tokamak:typed op0 circom:infixop?)
                         (tokamak:typed rhe0 circom:expression?)
 
-                        (define tmp-lhe (do-interpret lhe0 arg-scopes arg-prefix arg-cprx))
-                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix arg-cprx))
-                        (define tmp-op (do-interpret op0 arg-scopes arg-prefix arg-cprx))
+                        (define tmp-lhe (do-interpret lhe0 arg-scopes arg-prefix))
+                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix))
+                        (define tmp-op (do-interpret op0 arg-scopes arg-prefix))
                         ; (note) `apply` is not listed as rosette's lifted form (but can be found in rosette/safe)
                         ;        for safety we still manually lift it here
                         (define tmp-result (for*/all ([lhe1 tmp-lhe #:exhaustive] [op1 tmp-op #:exhaustive] [rhe1 tmp-rhe #:exhaustive])
@@ -611,8 +598,8 @@
                         (tokamak:typed op0 circom:prefixop?)
                         (tokamak:typed rhe0 circom:expression?)
 
-                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix arg-cprx))
-                        (define tmp-op (do-interpret op0 arg-scopes arg-prefix arg-cprx))
+                        (define tmp-rhe (do-interpret rhe0 arg-scopes arg-prefix))
+                        (define tmp-op (do-interpret op0 arg-scopes arg-prefix))
                         ; (note) `apply` is not listed as rosette's lifted form (but can be found in rosette/safe)
                         ;        for safety we still manually lift it here
                         (define tmp-result (for*/all ([rhe1 tmp-rhe #:exhaustive] [op1 tmp-op #:exhaustive])
@@ -632,19 +619,19 @@
                         (tokamak:typed true0 circom:expression?)
                         (tokamak:typed false0 circom:expression?)
 
-                        (define tmp-cond (do-interpret cond0 arg-scopes arg-prefix arg-cprx))
+                        (define tmp-cond (do-interpret cond0 arg-scopes arg-prefix))
                         (for/all ([cond1 tmp-cond #:exhaustive])
                             (tokamak:typed cond1 boolean?)
 
                             (cond
                                 [cond1
                                     ; cond is true, go to true branch
-                                    (do-interpret true0 arg-scopes arg-prefix arg-cprx)
+                                    (do-interpret true0 arg-scopes arg-prefix)
                                 ]
                                 [else
                                     ; cond is false, go to false branch
                                     ; unlike ifthenelse, this must have a false branch
-                                    (do-interpret false0 arg-scopes arg-prefix arg-cprx)
+                                    (do-interpret false0 arg-scopes arg-prefix)
                                 ]
                             )
                         )
@@ -661,15 +648,14 @@
 
                 ; (fixme) you need to properly deal with access
                 [(circom:variable m-meta m-name m-access)
-                    (for*/all ([name0 m-name #:exhaustive] [access0 m-access #:exhaustive] [scopes0 arg-scopes #:exhaustive] 
-                               [prefix0 arg-prefix #:exhaustive] [cprx0 arg-cprx #:exhaustive])
+                    (for*/all ([name0 m-name #:exhaustive] [access0 m-access #:exhaustive]
+                               [scopes0 arg-scopes #:exhaustive] [prefix0 arg-prefix #:exhaustive])
                         (tokamak:typed name0 string?)
                         (tokamak:typed access0 list?)
                         (tokamak:typed scopes0 list?)
                         (tokamak:typed prefix0 string?)
-                        (tokamak:typed cprx0 string?)
 
-                        (define tmp-accstr (assemble-access scopes0 prefix0 cprx0 access0))
+                        (define tmp-accstr (assemble-access scopes0 prefix0 access0))
                         (read-var scopes0 (string-append prefix0 "." name0 tmp-accstr))
                     )
                 ]
@@ -679,7 +665,7 @@
                         (tokamak:typed vals0 list?)
 
                         (for/list ([val vals0])
-                            (do-interpret val arg-scopes arg-prefix arg-cprx)
+                            (do-interpret val arg-scopes arg-prefix)
                         )
                     )
                 ]
@@ -725,7 +711,7 @@
                                 ; (fixme) argument assignment, let's not register any type info
                             )
                             ; interpret template body
-                            (do-interpret body0 arg-scopes arg-prefix arg-prefix)
+                            (do-interpret body0 arg-scopes arg-prefix)
                         )
                     ]
                     [(circom:function? template0)
@@ -753,7 +739,7 @@
                                 ; (fixme) argument assignment, let's not register any type info
                             )
                             ; interpret function body
-                            (do-interpret body0 arg-scopes arg-prefix arg-prefix)
+                            (do-interpret body0 arg-scopes arg-prefix)
                         )
                     ]
                     [else (tokamak:exit "[call-template] you can't reach here.")]
@@ -766,7 +752,7 @@
         ; (concrete:top) arg-dims
         ; this returns a list of dims, e.g., (list 3 4) is for arr[3][4]
         ; (fixme) you need to properly deal with symbolic case
-        (define (get-dims arg-scopes arg-prefix arg-cprx arg-dims)
+        (define (get-dims arg-scopes arg-prefix arg-dims)
             (tokamak:typed arg-scopes list?)
             (tokamak:typed arg-prefix string?)
             (tokamak:typed arg-dims list?)
@@ -775,7 +761,7 @@
             (define tmp-dims (for/list ([dim arg-dims])
                 (tokamak:typed dim circom:expression?)
 
-                (define tmp-dim (do-interpret dim arg-scopes arg-prefix arg-cprx))
+                (define tmp-dim (do-interpret dim arg-scopes arg-prefix))
                 ; (note) dim must be concrete, and you need to convert it to integer
                 (tokamak:typed tmp-dim concrete?)
                 (tokamak:typed tmp-dim bv?)
@@ -792,7 +778,7 @@
         ; (concrete:top) arg-dims
         ; (note) this method returns a list of all dims strings
         ; (fixme) you need to properly deal with symbolic case
-        (define (assemble-dims arg-scopes arg-prefix arg-cprx arg-dims)
+        (define (assemble-dims arg-scopes arg-prefix arg-dims)
             (tokamak:typed arg-scopes list?)
             (tokamak:typed arg-prefix string?)
             (tokamak:typed arg-dims list?)
@@ -801,7 +787,7 @@
                 [(null? arg-dims) (list "")] ; no dims
                 [else
                     ; generate concrete dims
-                    (define tmp-dims (get-dims arg-scopes arg-prefix arg-cprx arg-dims))
+                    (define tmp-dims (get-dims arg-scopes arg-prefix arg-dims))
                     (define tmp-lls (for/list ([d tmp-dims])
                         ; create a range
                         (for/list ([i (range d)])
@@ -824,7 +810,7 @@
         ; (concrete:top) arg-prefix
         ; (concrete:top) arg-access
         ; (fixme) you need to properly deal with symbolic case
-        (define (assemble-access arg-scopes arg-prefix arg-cprx arg-access)
+        (define (assemble-access arg-scopes arg-prefix arg-access)
             (tokamak:typed arg-scopes list?)
             (tokamak:typed arg-prefix string?)
             (tokamak:typed arg-access list?)
@@ -836,7 +822,7 @@
                     (define tmp-access (for/list ([acc arg-access])
                         (tokamak:typed acc circom:access?)
 
-                        (define tmp-acc (do-interpret acc arg-scopes arg-prefix arg-cprx))
+                        (define tmp-acc (do-interpret acc arg-scopes arg-prefix))
                         (tokamak:typed tmp-acc concrete?)
                         (tokamak:typed tmp-acc bv? string?)
                         ; convert to formatted string

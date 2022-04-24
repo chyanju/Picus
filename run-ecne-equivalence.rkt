@@ -8,8 +8,7 @@
 (printf "# using solver: ~a\n" (current-solver))
 (output-smt #t)
 
-(require json)
-(require csv-reading)
+(require json csv-reading racket/cmdline)
 (require "./picus/tokamak.rkt")
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
@@ -17,16 +16,24 @@
 (require "./picus/circom-parser.rkt")
 (require "./picus/circom-vm.rkt")
 
-; set the example
-(define cname "test1")
-(define json-path (format "./examples/~a.json" cname))
-(define r1cs-path (format "./examples/~a.r1cs" cname))
-(define sym-path (format "./examples/~a.sym" cname))
+; parse command line arguments
+(define arg-cname null)
+(command-line
+  #:program "picus functionality test"
+  #:once-any
+  [("--cname") p-cname "ecne circom file name (without extension)" 
+    (begin
+      (printf "# using: ~a\n" p-cname)
+      (set! arg-cname p-cname)
+    )
+  ]
+)
+(when (null? arg-cname) (tokamak:exit "cname should not be null."))
 
-;(define cname "LessEqThan@comparators")
-;(define json-path (format "./benchmarks/ecne/~a.json" cname))
-;(define r1cs-path (format "./benchmarks/ecne/~a.r1cs" cname))
-;(define sym-path (format "./benchmarks/ecne/~a.sym" cname))
+; set the example
+(define json-path (format "./benchmarks/ecne/~a.json" arg-cname))
+(define r1cs-path (format "./benchmarks/ecne/~a.r1cs" arg-cname))
+(define sym-path (format "./benchmarks/ecne/~a.sym" arg-cname))
 
 ; =======================
 ; load and interpret r1cs
