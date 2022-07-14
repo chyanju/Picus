@@ -13,12 +13,14 @@
 )
 
 ; (fixme) this magic number is different to the prime (-100), confirm it
+; this is for better human-readable printing
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L414
 (define (fix-number x)
-    (if (> x 21888242871839275222246405745257275088548363400416034343698204186575808495517)
-        (- x 21888242871839275222246405745257275088548364400416034343698204186575808495617)
-        x
-    )
+    ; (if (> x 21888242871839275222246405745257275088548363400416034343698204186575808495517)
+    ;     (- x 21888242871839275222246405745257275088548364400416034343698204186575808495617)
+    ;     x
+    ; )
+    x
 )
 
 ; r1cs structs
@@ -31,6 +33,7 @@
 
 ; quick functions
 (define (get-mconstraints arg-r1cs) (header-section-mconstraints (r1cs-header arg-r1cs)))
+; (note) nwires doesn't count the 1st input, so when creating xlist, you need nwires+1
 (define (get-nwires arg-r1cs) (header-section-nwires (r1cs-header arg-r1cs)))
 (define (get-npubout arg-r1cs) (header-section-npubout (r1cs-header arg-r1cs)))
 (define (get-npubin arg-r1cs) (header-section-npubin (r1cs-header arg-r1cs)))

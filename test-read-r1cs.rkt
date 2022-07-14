@@ -3,8 +3,20 @@
 (require "./picus/utils.rkt")
 (require "./picus/r1cs.rkt")
 
-(define r0 (read-r1cs "./examples/test9.r1cs"))
-; (define r0 (read-r1cs "./benchmarks/ecne/Num2BitsNeg@bitify.r1cs"))
+; parse command line arguments
+(define arg-r1cs null)
+(command-line
+  #:once-any
+  [("--r1cs") p-r1cs "path to target r1cs"
+    (begin
+      (printf "# r1cs file: ~a\n" p-r1cs)
+      (set! arg-r1cs p-r1cs)
+    )
+  ]
+)
+(when (null? arg-r1cs) (tokamak:exit "r1cs should not be null."))
+
+(define r0 (read-r1cs arg-r1cs))
 
 (define t0 (get-mconstraints r0))
 (define inputs0 (r1cs-inputs r0))

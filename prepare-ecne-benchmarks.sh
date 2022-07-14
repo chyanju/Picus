@@ -76,7 +76,9 @@ do
 	bn="${fn%.*}"
 	echo "=================== ${fn}: ${bn} ==================="
 	echo "    compiling..."
-	circom -o ./benchmarks/ecne/ ./benchmarks/ecne/${fn} --r1cs --sym
+	# circom -o ./benchmarks/ecne/ ./benchmarks/ecne/${fn} --r1cs --sym
+	# to compare with Ecne, you need --O0 to disable optimization
+	circom -o ./benchmarks/ecne/ ./benchmarks/ecne/${fn} --r1cs --sym --O0
 	echo "    parsing..."
 	./circom-parser/target/debug/parser ./benchmarks/ecne/${fn} > ./benchmarks/ecne/${bn}.json
 
