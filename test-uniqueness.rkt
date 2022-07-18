@@ -90,16 +90,16 @@
 ; =======================================
 
 ; (printf "# constraints are:\n~a\n~a\n~a\n" sconstraints sconstraints0 dconstraints)
-(printf "# ========== sconstraints ========== #\n")
-(for ([p sconstraints]) (printf "~a\n" p))
-(printf "# ========== sconstraints0 ========== #\n")
-(for ([p sconstraints0]) (printf "~a\n" p))
-(printf "# ========== dconstraints ========== #\n")
-(for ([p dconstraints]) (printf "~a\n" p))
+; (printf "# ========== sconstraints ========== #\n")
+; (for ([p sconstraints]) (printf "~a\n" p))
+; (printf "# ========== sconstraints0 ========== #\n")
+; (for ([p sconstraints0]) (printf "~a\n" p))
+; (printf "# ========== dconstraints ========== #\n")
+; (for ([p dconstraints]) (printf "~a\n" p))
 
 ; final query
 (printf "# solving uniqueness...\n")
-(define uniqueness-query (&& (apply && sconstraints) (apply && sconstraints0) (apply && dconstraints)))
+(define uniqueness-query (&& (apply && sconstraints) (apply && sconstraints0) (apply || dconstraints)))
 
 ; solve
 (error-print-width 1000000)
