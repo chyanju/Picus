@@ -85,8 +85,11 @@
 (printf "# interpreting alternative r1cs...\n")
 (define-values (_ sconstraints0) (interpret-r1cs r0 xlist0))
 ; existence of different valuation of outputs
+; (define dconstraints (for/list ([i (range (+ 1 nwires))])
+;   (if (contains? output-list i) (! (= (list-ref xlist i) (list-ref xlist0 i))) #t)))
+; (note) we are using || later, so we need #f for all matching cases
 (define dconstraints (for/list ([i (range (+ 1 nwires))])
-  (if (contains? output-list i) (! (= (list-ref xlist i) (list-ref xlist0 i))) #t)))
+  (if (contains? output-list i) (! (= (list-ref xlist i) (list-ref xlist0 i))) #f)))
 ; =======================================
 
 ; (printf "# constraints are:\n~a\n~a\n~a\n" sconstraints sconstraints0 dconstraints)
