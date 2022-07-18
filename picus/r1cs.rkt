@@ -196,7 +196,7 @@
 ; find section start pos and size of designated section type
 ; arg-raw: bytes of sections without meta zone
 (define (find-section arg-raw arg-type)
-    (cond 
+    (cond
         [(zero? (bytes-length arg-raw))
             (tokamak:exit (format "# [exception][find-section-pos] cannot find position of section given type: ~a." arg-type))
         ]

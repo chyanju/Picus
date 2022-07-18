@@ -1,4 +1,6 @@
 #lang rosette
+(require rosette/solver/smt/z3)
+(current-solver (z3 #:logic 'QF_NIA))
 (printf "# using solver: ~a\n" (current-solver))
 (output-smt #t)
 
@@ -58,6 +60,7 @@
 ;   (if (contains? input-list i) (list-ref xlist i) (next-symbolic-integer-alternative))))
 
 ; ; =======================================
+; ; (fixme)
 ; ; witness verification (anything not in input list, which is output + witness)
 ; (define xlist0 (for/list ([i (range (+ 1 nwires))])
 ;   (if (contains? input-list i) (list-ref xlist i) (next-symbolic-integer-alternative))))
@@ -72,8 +75,11 @@
 
 ; =======================================
 ; output verification (weak verification)
+; clara fixed version
+;   |- create alternative variables for all non-input variables
+;   |- but restrict output variables as weak verification states
 (define xlist0 (for/list ([i (range (+ 1 nwires))])
-  (if (contains? output-list i) (next-symbolic-integer-alternative) (list-ref xlist i))))
+  (if (not (contains? input-list i)) (next-symbolic-integer-alternative) (list-ref xlist i))))
 (printf "# xlist0: ~a.\n" xlist0)
 ; then interpret again
 (printf "# interpreting alternative r1cs...\n")
@@ -83,11 +89,17 @@
   (if (contains? output-list i) (! (= (list-ref xlist i) (list-ref xlist0 i))) #t)))
 ; =======================================
 
+; (printf "# constraints are:\n~a\n~a\n~a\n" sconstraints sconstraints0 dconstraints)
+(printf "# ========== sconstraints ========== #\n")
+(for ([p sconstraints]) (printf "~a\n" p))
+(printf "# ========== sconstraints0 ========== #\n")
+(for ([p sconstraints0]) (printf "~a\n" p))
+(printf "# ========== dconstraints ========== #\n")
+(for ([p dconstraints]) (printf "~a\n" p))
+
 ; final query
 (printf "# solving uniqueness...\n")
 (define uniqueness-query (&& (apply && sconstraints) (apply && sconstraints0) (apply && dconstraints)))
-
-; (printf "# constraints are:\n~a\n~a\n~a\n" sconstraints sconstraints0 dconstraints)
 
 ; solve
 (error-print-width 1000000)
