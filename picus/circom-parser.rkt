@@ -1,6 +1,8 @@
 #lang rosette
-(require "./tokamak.rkt")
-(require "./circom-grammar.rkt")
+(require
+    (prefix-in tokamak: "./tokamak.rkt")
+    (prefix-in circom: "./circom-grammar.rkt")
+)
 (provide (all-defined-out))
 ; (note) all arguments should be concrete; this module doesn't accept any symbolic values
 

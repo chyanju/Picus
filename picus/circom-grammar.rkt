@@ -1,5 +1,5 @@
 #lang rosette
-(provide (prefix-out circom: (all-defined-out)))
+(provide (all-defined-out`))
 ; (note) see NOTES.md for transcribed CFG
 
 (struct setype (v) #:mutable #:transparent #:reflection-name 'circom:setype)

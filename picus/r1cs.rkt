@@ -1,18 +1,16 @@
 #lang rosette
-(require "./tokamak.rkt")
-(require "./utils.rkt")
-(require "./config.rkt")
+(require
+    (prefix-in tokamak: "./tokamak.rkt")
+    (prefix-in utils: "./utils.rkt")
+    (prefix-in config: "./config.rkt")
+)
 (provide (all-defined-out))
 
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L10
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L13
-; Galois Field
-(define (F x)
-    ; yes, behaviorly you should use remainder
-    (remainder x config:p)
-)
+; map back to field
+(define (F x) (modulo x config:p))
 
-; (fixme) this magic number is different to the prime (-100), confirm it
 ; this is for better human-readable printing
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L414
 (define (fix-number x)
@@ -43,18 +41,18 @@
 (define (get-field-size arg-r1cs) (header-section-field-size (r1cs-header arg-r1cs)))
 
 (define (extract-header-section arg-raw)
-    (define field-size (bytes->number (subbytes arg-raw 0 4))) ; field size in bytes
+    (define field-size (utils:bytes->number (subbytes arg-raw 0 4))) ; field size in bytes
     (when (not (zero? (remainder field-size 8)))
         (tokamak:exit "# [exception][extract-header-section] field size should be a multiple of 8, got: ~a.") field-size)
     ; (fixme) is the prime number in little endian?
     ; (fixme) it's still in bytes type
     (define prime-number (subbytes arg-raw 4 (+ 4 field-size))) ; prime number
-    (define nwires (bytes->number (subbytes arg-raw (+ 4 field-size) (+ 8 field-size))))
-    (define npubout (bytes->number (subbytes arg-raw (+ 8 field-size) (+ 12 field-size))))
-    (define npubin (bytes->number (subbytes arg-raw (+ 12 field-size) (+ 16 field-size))))
-    (define nprvin (bytes->number (subbytes arg-raw (+ 16 field-size) (+ 20 field-size))))
-    (define nlabels (bytes->number (subbytes arg-raw (+ 20 field-size) (+ 28 field-size))))
-    (define mconstraints (bytes->number (subbytes arg-raw (+ 28 field-size) (+ 32 field-size))))
+    (define nwires (utils:bytes->number (subbytes arg-raw (+ 4 field-size) (+ 8 field-size))))
+    (define npubout (utils:bytes->number (subbytes arg-raw (+ 8 field-size) (+ 12 field-size))))
+    (define npubin (utils:bytes->number (subbytes arg-raw (+ 12 field-size) (+ 16 field-size))))
+    (define nprvin (utils:bytes->number (subbytes arg-raw (+ 16 field-size) (+ 20 field-size))))
+    (define nlabels (utils:bytes->number (subbytes arg-raw (+ 20 field-size) (+ 28 field-size))))
+    (define mconstraints (utils:bytes->number (subbytes arg-raw (+ 28 field-size) (+ 32 field-size))))
     ; return
     (header-section field-size prime-number nwires npubout npubin nprvin nlabels mconstraints)
 )
@@ -64,13 +62,13 @@
         (define tmp-wids
             (for/list ([i arg-n])
                 (define s0 (* i (+ 4 arg-fs)))
-                (bytes->number (subbytes arg-block s0 (+ 4 s0)))
+                (utils:bytes->number (subbytes arg-block s0 (+ 4 s0)))
             )
         )
         (define tmp-factors
             (for/list ([i arg-n])
                 (define s0 (+ 4 (* i (+ 4 arg-fs))))
-                (fix-number (F (bytes->number (subbytes arg-block s0 (+ arg-fs s0)))))
+                (fix-number (F (utils:bytes->number (subbytes arg-block s0 (+ arg-fs s0)))))
             )
         )
         ; return
@@ -78,21 +76,21 @@
     )
 
     ; block A
-    (define nnz-a (bytes->number (subbytes arg-raw 0 4))) ; number of non-zero factors
+    (define nnz-a (utils:bytes->number (subbytes arg-raw 0 4))) ; number of non-zero factors
     (define block-a-start 4)
     (define block-a-end (+ block-a-start (* nnz-a (+ 4 arg-fs))))
     (define block-a (subbytes arg-raw block-a-start block-a-end)) ; fetch a whole block
     (define-values (wids-a factors-a) (extract-constraint-block block-a nnz-a))
 
     ; block B
-    (define nnz-b (bytes->number (subbytes arg-raw block-a-end (+ 4 block-a-end))))
+    (define nnz-b (utils:bytes->number (subbytes arg-raw block-a-end (+ 4 block-a-end))))
     (define block-b-start (+ 4 block-a-end))
     (define block-b-end (+ block-b-start (* nnz-b (+ 4 arg-fs))))
     (define block-b (subbytes arg-raw block-b-start block-b-end))
     (define-values (wids-b factors-b) (extract-constraint-block block-b nnz-b))
 
     ; block C
-    (define nnz-c (bytes->number (subbytes arg-raw block-b-end (+ 4 block-b-end))))
+    (define nnz-c (utils:bytes->number (subbytes arg-raw block-b-end (+ 4 block-b-end))))
     (define block-c-start (+ 4 block-b-end))
     (define block-c-end (+ block-c-start (* nnz-c (+ 4 arg-fs))))
     (define block-c (subbytes arg-raw block-c-start block-c-end))
@@ -140,7 +138,7 @@
     (define map0 
         (for/list ([i n])
             (define s0 (* i 8))
-            (bytes->number (subbytes arg-raw s0 (+ 8 s0)))
+            (utils:bytes->number (subbytes arg-raw s0 (+ 8 s0)))
         )
     )
     ; return
@@ -153,8 +151,8 @@
     (cond 
         [(zero? (bytes-length arg-raw)) 0]
         [else
-            (define section0-type (bytes->number (subbytes arg-raw 0 4)))
-            (define section0-size (bytes->number (subbytes arg-raw 4 12)))
+            (define section0-type (utils:bytes->number (subbytes arg-raw 0 4)))
+            (define section0-size (utils:bytes->number (subbytes arg-raw 4 12)))
             (define bs0 (+ 12 section0-size)) ; next section start position
             (+ 1 (count-sections (subbytes arg-raw bs0)))
         ]
@@ -165,8 +163,8 @@
     (cond 
         [(zero? (bytes-length arg-raw)) (list)]
         [else
-            (define section0-type (bytes->number (subbytes arg-raw 0 4)))
-            (define section0-size (bytes->number (subbytes arg-raw 4 12)))
+            (define section0-type (utils:bytes->number (subbytes arg-raw 0 4)))
+            (define section0-size (utils:bytes->number (subbytes arg-raw 4 12)))
             (define bs0 (+ 12 section0-size)) ; next section start position
             (cons section0-type (extract-section-types (subbytes arg-raw bs0)))
         ]
@@ -180,10 +178,10 @@
     (cond
         [(zero? (bytes-length arg-raw)) (bytes)]
         [else
-            (define section0-type (bytes->number (subbytes arg-raw 0 4)))
-            (define section0-size (bytes->number (subbytes arg-raw 4 12)))
+            (define section0-type (utils:bytes->number (subbytes arg-raw 0 4)))
+            (define section0-size (utils:bytes->number (subbytes arg-raw 4 12)))
             (define bs0 (+ 12 section0-size)) ; next section start position
-            (if (contains? accepted-types section0-type)
+            (if (utils:contains? accepted-types section0-type)
                 ; yes, include this section
                 (bytes-append (subbytes arg-raw 0 bs0) (filter-sections (subbytes arg-raw bs0)))
                 ; no, drop this section
@@ -201,8 +199,8 @@
             (tokamak:exit (format "# [exception][find-section-pos] cannot find position of section given type: ~a." arg-type))
         ]
         [else
-            (define section0-type (bytes->number (subbytes arg-raw 0 4)))
-            (define section0-size (bytes->number (subbytes arg-raw 4 12)))
+            (define section0-type (utils:bytes->number (subbytes arg-raw 0 4)))
+            (define section0-size (utils:bytes->number (subbytes arg-raw 4 12)))
             (cond
                 [(equal? arg-type section0-type) (values 0 section0-size)] ; found
                 [else
@@ -223,11 +221,11 @@
     (when (not (equal? magic-number (bytes #x72 #x31 #x63 #x73)))
         (tokamak:exit (format "# [exception][read-r1cs] magic number is incorrect, got: ~a." magic-number)))
 
-    (define version (bytes->number (subbytes raw 4 8)))
+    (define version (utils:bytes->number (subbytes raw 4 8)))
     (when (not (equal? 1 version ))
         (tokamak:exit (format "# [exception][read-r1cs] version is not supported, got: ~a." version)))
 
-    (define nsec (bytes->number (subbytes raw 8 12)))
+    (define nsec (utils:bytes->number (subbytes raw 8 12)))
 
     (define raw-sections (subbytes raw 12)) ; 12=4+4+4, remove the meta zone
     (define fraw-sections (filter-sections raw-sections)) ; remove sections with undefined section types

@@ -1,52 +1,28 @@
 #lang rosette
-(require rackunit)
-(require racket/trace)
-(require/expose rosette/base/form/define (index!))
-; (provide (prefix-out tokamak: (all-defined-out)))
+(require 
+    (prefix-in ext: "./extensions.rkt")
+)
 (provide (rename-out
-    [println-and-exit tokamak:exit]
-    [assert-type tokamak:typed]
-    [fresh-symbolic-variable* tokamak:symbolic*]
-    [decomposable? tokamak:decomposable?]
-    [concrete-integer? tokamak:cinteger?]
-    [concrete-natural? tokamak:cnatural?]
+    [println-and-exit exit]
+    [assert-type typed]
+    [fresh-symbolic-variable* symbolic*]
+    [decomposable? decomposable?]
+    [concrete-integer? cinteger?]
+    [concrete-natural? cnatural?]
 ))
 
+(define (any? x) #t) ; any type
+(define (concrete-integer? x) (and (concrete? x) (integer? x)))
+(define (concrete-natural? x) (and (concrete-integer? x) (>= x 0)))
+
 ; used for forced break out of the execution
-; (define (println-and-exit msg)
-;     (printf "[tokamak] ~a\n" msg)
-;     (exit 0)
-; )
 (define (println-and-exit msg . fmts)
-    (printf "[tokamak] ~a\n" (apply format (cons msg fmts)))
-    (printf "[trace] ~a\n" (trace msg)) ; (fixme) this is wrong, but only used to print the trace
+    (printf "[tokamak:exit] ~a\n" (apply format (cons msg fmts)))
+    (error "tokamak:exit")
+    ; (printf "[trace] ~a\n" (trace msg)) ; (fixme) this is wrong, but only used to print the trace
     ; (printf "~a\n" (trace (current-namespace)))
     ; (error 'failed)
     (exit 0)
-)
-
-; ref: https://github.com/emina/rosette/blob/master/rosette/base/form/define.rkt#L37
-; arg-id and arg-type should beoth be symbols
-(define (fresh-symbolic-variable* arg-id arg-type)
-    (assert-type arg-id symbol?)
-    (assert-type arg-type symbol?)
-    (define tmp-type 
-        (cond
-            ; [(equal? 'integer arg-type) integer?]
-            ; [(equal? 'boolean arg-type) boolean?]
-            ; [(equal? 'bv254 arg-type) (bitvector 254)]
-            [(equal? 'bv256 arg-type) (bitvector 256)]
-            [(equal? 'bv128 arg-type) (bitvector 128)]
-            [(equal? 'bv64 arg-type) (bitvector 64)]
-            [(equal? 'bv32 arg-type) (bitvector 32)]
-            [(equal? 'bv16 arg-type) (bitvector 16)]
-            [(equal? 'bv8 arg-type) (bitvector 8)]
-            [(equal? 'bv4 arg-type) (bitvector 4)]
-            [else (println-and-exit "unknown symbolic type, got: ~a" arg-type)]
-        )
-    )
-    (define tmp-var (constant (list arg-id (index!)) tmp-type))
-    tmp-var
 )
 
 ; usually for debugging, asserting obj is one of types, otherwise print and exit
@@ -68,9 +44,25 @@
     )
 )
 
-(define (concrete-integer? x) (and (concrete? x) (integer? x)))
-(define (concrete-natural? x) (and (concrete-integer? x) (>= x 0)))
+; ref: https://github.com/emina/rosette/blob/master/rosette/base/form/define.rkt#L37
+; arg-id and arg-type should beoth be symbols
+(define (fresh-symbolic-variable* arg-id arg-type)
+    (assert-type arg-id symbol?)
+    (assert-type arg-type symbol?)
+    
+    (define tmp-type 
+        (cond
+            [(equal? 'bv256 arg-type) (bitvector 256)]
+            [else (println-and-exit "unknown symbolic type, got: ~a" arg-type)]
+        )
+    )
+    (define tmp-var (constant (list arg-id (ext:index!)) tmp-type))
+    tmp-var
+)
 
+; (fixme) this function may be wrong, since in a term the op is an actual function, not a symbol
+;         so you can't directly call (equal? 'ite op) to detect it, but you should use (equal? ite op)
+;         where ite needs to be exported from rosette
 ; decide whether the given value can be decomposed by `for/all`
 ; (note) decomposible here means whether `for/all` will reveal new values or not, see comments for more details
 (define (decomposable? v)

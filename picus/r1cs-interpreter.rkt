@@ -1,9 +1,10 @@
 #lang rosette
-(require "./tokamak.rkt")
-(require "./utils.rkt")
-(require "./config.rkt")
-(require "./r1cs.rkt")
-; (provide (all-defined-out))
+(require
+    (prefix-in tokamak: "./tokamak.rkt")
+    (prefix-in utils: "./utils.rkt")
+    (prefix-in config: "./config.rkt")
+    (prefix-in r1cs: "./r1cs.rkt")
+)
 (provide (rename-out
     [interpret-r1cs interpret-r1cs]
 ))
@@ -25,7 +26,7 @@
 
 (define (interpret-r1cs arg-r1cs arg-xlist)
     ; first create a list of all symbolic variables according to nwires
-    (define nwires (get-nwires arg-r1cs))
+    (define nwires (r1cs:get-nwires arg-r1cs))
     ; strictly align with wid
     (define xlist (if (null? arg-xlist)
         ; create fresh new
@@ -36,31 +37,31 @@
     ))
 
     ; then start creating constraints
-    (define m (get-mconstraints arg-r1cs))
-    (define rconstraints (get-constraints arg-r1cs)) ; r1cs constraints
+    (define m (r1cs:get-mconstraints arg-r1cs))
+    (define rconstraints (r1cs:get-constraints arg-r1cs)) ; r1cs constraints
 
     ; symbolic constraints
     (define sconstraints (for/list ([cnst rconstraints])
 
         ; get block
-        (define curr-block-a (constraint-a cnst))
-        (define curr-block-b (constraint-b cnst))
-        (define curr-block-c (constraint-c cnst))
+        (define curr-block-a (r1cs:constraint-a cnst))
+        (define curr-block-b (r1cs:constraint-b cnst))
+        (define curr-block-c (r1cs:constraint-c cnst))
 
         ; process block a
-        (define nnz-a (constraint-block-nnz curr-block-a))
-        (define wids-a (constraint-block-wids curr-block-a))
-        (define factors-a (constraint-block-factors curr-block-a))
+        (define nnz-a (r1cs:constraint-block-nnz curr-block-a))
+        (define wids-a (r1cs:constraint-block-wids curr-block-a))
+        (define factors-a (r1cs:constraint-block-factors curr-block-a))
 
         ; process block b
-        (define nnz-b (constraint-block-nnz curr-block-b))
-        (define wids-b (constraint-block-wids curr-block-b))
-        (define factors-b (constraint-block-factors curr-block-b))
+        (define nnz-b (r1cs:constraint-block-nnz curr-block-b))
+        (define wids-b (r1cs:constraint-block-wids curr-block-b))
+        (define factors-b (r1cs:constraint-block-factors curr-block-b))
 
         ; process block c
-        (define nnz-c (constraint-block-nnz curr-block-c))
-        (define wids-c (constraint-block-wids curr-block-c))
-        (define factors-c (constraint-block-factors curr-block-c))
+        (define nnz-c (r1cs:constraint-block-nnz curr-block-c))
+        (define wids-c (r1cs:constraint-block-wids curr-block-c))
+        (define factors-c (r1cs:constraint-block-factors curr-block-c))
 
         ; assemble symbolic terms
         ; note that terms could be empty, in which case 0 is used
