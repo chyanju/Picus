@@ -343,3 +343,78 @@
     "")
 
 )
+
+; mathematica string
+(define (r1cs->mstring arg-r1cs arg-id)
+    (define w2l (w2l-section-v (r1cs-w2l arg-r1cs))) ; w2l mapping, a list
+    (define clist (constraint-section-constraints (r1cs-constraint arg-r1cs))) ; a list of constraints
+
+    (define example-constraint (list-ref clist arg-id)) ; a constraint
+    (define example-block-a (constraint-a example-constraint))
+    (define example-block-b (constraint-b example-constraint))
+    (define example-block-c (constraint-c example-constraint))
+
+    ; process block a
+    (define nnz-a (constraint-block-nnz example-block-a))
+    (define wids-a (constraint-block-wids example-block-a))
+    (define factors-a (constraint-block-factors example-block-a))
+    (define str-a (string-join
+        (for/list ([w0 wids-a] [f0 factors-a])
+            (string-join (list
+                "("
+                (number->string f0)
+                " * x"
+                (number->string w0)
+                ")"
+            ) "")
+        )
+        " + "
+    ))
+
+    ; process block b
+    (define nnz-b (constraint-block-nnz example-block-b))
+    (define wids-b (constraint-block-wids example-block-b))
+    (define factors-b (constraint-block-factors example-block-b))
+    (define str-b (string-join
+        (for/list ([w0 wids-b] [f0 factors-b])
+            (string-join (list
+                "("
+                (number->string f0)
+                " * x"
+                (number->string w0)
+                ")"
+            ) "")
+        )
+        " + "
+    ))
+
+    ; process block c
+    (define nnz-c (constraint-block-nnz example-block-c))
+    (define wids-c (constraint-block-wids example-block-c))
+    (define factors-c (constraint-block-factors example-block-c))
+    (define str-c (string-join
+        (for/list ([w0 wids-c] [f0 factors-c])
+            (string-join (list
+                "("
+                (number->string f0)
+                " * x"
+                (number->string w0)
+                ")"
+            ) "")
+        )
+        " + "
+    ))
+
+    (string-join 
+        (list 
+            "(( "
+            (if (zero? (string-length str-a)) "0" str-a)
+            " ) * ( "
+            (if (zero? (string-length str-b)) "0" str-b)
+            " )) mod p == ("
+            (if (zero? (string-length str-c)) "0" str-c)
+            ") mod p"
+        ) 
+    "")
+
+)

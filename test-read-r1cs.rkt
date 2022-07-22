@@ -22,6 +22,7 @@
 (define inputs0 (r1cs-inputs r0))
 (define outputs0 (r1cs-outputs r0))
 (for ([i (range t0)]) (printf "~a\n" (r1cs->string r0 i)))
+; (for ([i (range t0)]) (printf "~a\n" (r1cs->mstring r0 i)))
 (printf "# total constraints: ~a.\n" t0)
 (printf "# total number of wires: ~a (+1)\n" (get-nwires r0))
 (printf "# inputs: ~a.\n" inputs0)

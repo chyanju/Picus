@@ -1,5 +1,4 @@
 #lang rosette
-; (provide (prefix-out config: (all-defined-out)))
 (provide (rename-out
     [p config:p] [bvp config:bvp]
     [b config:b] [bvb config:bvb]
@@ -32,18 +31,8 @@
 ; (fixme) quick fix for mul function to speed up
 
 ; uncomment this for normal mul
-(define (mul x y) 
+(define (mul x y)
     (define res (bvmul x y))
     ; (assert (&& (bvsge res x) (bvsge res y)))
     res
 )
-
-; uncomment this for uninterpreted mul
-; (define-symbolic smul (~> bvtyp bvtyp bvtyp))
-; (define (mul x y) 
-;     (define res (smul x y))
-;     ; (assert (&& (bvsge res x) (bvsge res y)))
-;     ; (assert (&& (bvsgt x (bv 0 bvtyp)) (bvsgt y (bv 0 bvtyp))))
-;     ; (assert (&& (not (bvzero? x)) (not (bvzero? y))))
-;     res
-; )
