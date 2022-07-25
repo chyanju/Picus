@@ -33,16 +33,12 @@
     )
   ]
 )
-(when (null? arg-r1cs) (tokamak:exit "r1cs should not be null."))
 
 (define r0 (r1cs:read-r1cs arg-r1cs))
 (define j0 (if (null? arg-range)
   null
   (string->jsexpr (file->string arg-range) #:null null)
 ))
-
-; restrict reasoning precision, not applicable on bv
-; (current-bitwidth 4) ; hmm...
 
 (define nwires (r1cs:get-nwires r0))
 (printf "# number of wires: ~a (+1)\n" nwires)

@@ -1,3 +1,4 @@
+; (fixme) this file is outdated
 #lang rosette
 (require rosette/lib/destruct) ; match syntax in rosette
 (require "./tokamak.rkt")

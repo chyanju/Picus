@@ -19,7 +19,6 @@
 (when (null? arg-r1cs) (tokamak:exit "r1cs should not be null."))
 
 (define r0 (r1cs:read-r1cs arg-r1cs))
-
 (define t0 (r1cs:get-mconstraints r0))
 (define inputs0 (r1cs:r1cs-inputs r0))
 (define outputs0 (r1cs:r1cs-outputs r0))

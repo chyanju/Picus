@@ -1,9 +1,11 @@
 #lang rosette
-(require 
+(require
     (prefix-in ext: "./extensions.rkt")
 )
 (provide (rename-out
     [println-and-exit exit]
+    [println-and-error error]
+    [println-and-log log]
     [assert-type typed]
     [fresh-symbolic-variable* symbolic*]
     [decomposable? decomposable?]
@@ -17,12 +19,20 @@
 
 ; used for forced break out of the execution
 (define (println-and-exit msg . fmts)
-    (printf "[tokamak:exit] ~a\n" (apply format (cons msg fmts)))
-    (error "tokamak:exit")
-    ; (printf "[trace] ~a\n" (trace msg)) ; (fixme) this is wrong, but only used to print the trace
-    ; (printf "~a\n" (trace (current-namespace)))
-    ; (error 'failed)
+    (printf (format "[tokamak:exit] ~a\n" (apply format (cons msg fmts))))
     (exit 0)
+)
+
+; used for throwing tokamak error with message
+(define (println-and-error msg . fmts)
+    (error (format "[tokamak:error] ~a\n" (apply format (cons msg fmts))))
+    (error error) ; intended error for trace to locate the cause
+    ; (exit 0)
+)
+
+(define (println-and-log msg . fmts)
+    ;; TODO/fixme
+    (printf (format "[tokamak:log] ~a\n" (apply format (cons msg fmts))))
 )
 
 ; usually for debugging, asserting obj is one of types, otherwise print and exit

@@ -1,5 +1,7 @@
 #lang rosette
-(require "./tokamak.rkt")
+(require
+    (prefix-in tokamak: "./tokamak.rkt")
+)
 (provide (all-defined-out))
 
 (define mvoid 'mvoid)

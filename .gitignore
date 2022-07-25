@@ -1,7 +1,10 @@
-log/
-benchmarks/ecne/*.json
-benchmarks/ecne/*.sym
-benchmarks/ecne/*.r1cs
+benchmarks/circomlib/*.json
+benchmarks/circomlib/*.sym
+benchmarks/circomlib/*.r1cs
+
+benchmarks/circomecdsa/*.json
+benchmarks/circomecdsa/*.sym
+benchmarks/circomecdsa/*.r1cs
 
 # ========================================================== #
 # ======== gitignore template for the Rust language ======== #
