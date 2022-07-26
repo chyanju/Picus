@@ -6,6 +6,10 @@ benchmarks/circomecdsa/*.json
 benchmarks/circomecdsa/*.sym
 benchmarks/circomecdsa/*.r1cs
 
+benchmarks/circompairing/*.json
+benchmarks/circompairing/*.sym
+benchmarks/circompairing/*.r1cs
+
 # ========================================================== #
 # ======== gitignore template for the Rust language ======== #
 # ========================================================== #
