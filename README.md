@@ -1,7 +1,9 @@
-# Picus
-
-<div align="left"><img src="https://img.shields.io/badge/tokamak-0.1-blueviolet?labelColor=blueviolet&color=3d3d3d"></div>
-
+<div align="left">
+  <h1>
+    <img src="./resources/picus-white.png" width=50>
+  	Picus
+  </h1>
+</div>
 Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 
 ## Dependencies
@@ -16,14 +18,23 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 - Node.js: https://nodejs.org/en/
   - for circom parser
 - Circom 2: https://docs.circom.io/
-- Boolector: https://boolector.github.io/
-  - recommended for faster solving, if not, z3 will be used (may be slower)
-
-
 
 ## Commands
 
+```bash
+# example test for the r1cs utilities
+racket ./test-read-r1cs.rkt --r1cs ./benchmarks/circomlib/EscalarMulAny@escalarmulany.r1cs
+
+# check uniqueness in one shot
+racket ./test-z3-uniqueness.rkt --r1cs ./benchmarks/circomlib/EscalarMulAny@escalarmulany.r1cs
+
+# check uniqueness using naive slicing
+racket ./test-z3-inc-uniqueness.rkt --r1cs ./benchmarks/circomlib/EscalarMulAny@escalarmulany.r1cs
 ```
+
+## Other Commands
+
+```bash
 # build circom parser
 cd circom-parser
 cargo build
@@ -37,20 +48,6 @@ cargo build
 circom -o ./examples/ ./examples/test10.circom --r1cs --sym
 circom -o ./benchmarks/ecne/ ./benchmarks/ecne/Num2BitsNeg@bitify.circom --r1cs --sym
 
-# test on ecne example
-racket ./run-ecne-equivalence.rkt --cname AND@gates
-
-# push-button example for equivalence checking
-racket ./test-push-button-equivalence.rkt
-# turn on error tracing (for debugging)
-racket -l errortrace -t ./test-push-button-equivalence.rkt
-
-# example test for the r1cs utilities
-racket ./test-read-r1cs.rkt
-
-# automatic uniqueness checking
-racket ./test-uniqueness.rkt
-
 # grab Ecne's readable constraints only
 julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1cs > Circom_Functions/benchmarks/bigmod_5_2.txt
 
@@ -58,12 +55,6 @@ julia --project=. src/gen_benchmark.jl Circom_Functions/benchmarks/bigmod_5_2.r1
 circom -o ./target/ ./ecne_circomlib_tests/ooo.circom --r1cs --sym --O0
 julia --project=. src/Ecne.jl --r1cs target/ooo.r1cs --name oooo --sym target/ooo.sym
 ```
-
-## Notes
-
-- The current R1CS parser is a stricter version that only allows 3 sections of type 1, 2 and 3 only. For the parser that complies with the currently very loose spec of R1CS (https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md), please see `r1cs-ext.rkt`. To have better control of the prototype, the stricter version is used instead.
-- Ecne's wire id starts from 1: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L1683
-- Ecne's readable outputs are "unoptimized". To compare the outputs with Ecne, you need to comment out the "unoptimizing" snippet of Ecne.
 
 ## Resources
 
