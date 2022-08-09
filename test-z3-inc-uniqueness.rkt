@@ -190,6 +190,7 @@
             (list "; =================================== ;")
             (list "")
             known-raw
+            (list "")
             (list "; =================================== ;")
             (list "; ======== query constraints ======== ;")
             (list "; =================================== ;")
@@ -199,7 +200,7 @@
         ))
         ; (define final-str (string-join final-raw "\n"))
         (define final-str (string-append
-            "(set-logic QF_NIA)\n"
+            "(set-logic QF_NIA)\n\n"
             (optimization-p (string-join final-raw "\n"))
         ))
         (define res (do-solve final-str arg-timeout))
