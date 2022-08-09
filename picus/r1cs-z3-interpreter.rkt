@@ -58,10 +58,12 @@
     ))
     ; update smt
     (set! raw-smt (append raw-smt
+        (list "; ======== declaration and range constraints ======== ;")
+        (list "")
         (for/list ([x xlist])
             (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
                 ; provided list with already defined x, skip
-                ""
+                (format "; ~a: already defined\n" x)
                 ; otherwise you need to define this variable
                 (format "(declare-const ~a Int)\n(assert (<= 0 ~a))\n(assert (< ~a ~a))\n"
                 x x x config:p)
@@ -159,7 +161,12 @@
     ))
 
     ; update smt
-    (set! raw-smt (append raw-smt sconstraints))
+    (set! raw-smt (append
+        raw-smt
+        (list "; ======== r1cs constraints ======== ;")
+        (list "")
+        sconstraints
+    ))
     (set! raw-smt (append raw-smt (list (format "(assert (= 1 ~a))\n" (list-ref xlist 0)))))
 
     ; return symbolic variable list and symbolic constraint list

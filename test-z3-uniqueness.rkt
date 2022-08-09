@@ -8,6 +8,37 @@
     (prefix-in rint: "./picus/r1cs-z3-interpreter.rkt")
 )
 
+; stateful variable
+(define state-smt-path null)
+; parse command line arguments
+(define arg-r1cs null)
+(define arg-timeout 5000)
+(define arg-smt #f)
+(command-line
+    #:once-each
+    [("--r1cs") p-r1cs "path to target r1cs"
+        (begin
+            (set! arg-r1cs p-r1cs)
+            (when (! (string-suffix? arg-r1cs ".r1cs"))
+                (printf "# error: file need to be *.r1cs\n")
+                (exit 0)
+            )
+        )
+    ]
+    [("--timeout") p-timeout "timeout for every small query (default: 5000ms)"
+        (begin
+            (set! arg-timeout (string->number p-timeout))
+        )
+    ]
+    [("--smt") "show path to generated smt files (default: false)"
+        (begin
+            (set! arg-smt #t)
+        )
+    ]
+)
+(printf "# r1cs file: ~a\n" arg-r1cs)
+(printf "# timeout: ~a\n" arg-timeout)
+
 ; solving component
 (define (do-solve smt-str timeout #:verbose? [verbose? #f])
     (define temp-folder (find-system-path 'temp-dir))
@@ -17,7 +48,7 @@
     (define smt-file (open-output-file temp-path))
     (display smt-str smt-file)
     (close-output-port smt-file)
-    (when verbose?
+    (when (|| verbose? arg-smt)
         (printf "# written to: ~a\n" temp-path)
     )
 
@@ -63,24 +94,7 @@
     )
 )
 
-; parse command line arguments
-(define arg-r1cs null)
-(command-line
-    #:once-each
-    [("--r1cs") p-r1cs "path to target r1cs"
-        (begin
-            (set! arg-r1cs p-r1cs)
-            (printf "# r1cs file: ~a\n" arg-r1cs)
-            (when (! (string-suffix? arg-r1cs ".r1cs"))
-                (printf "# error: file need to be *.r1cs\n")
-                (exit 0)
-            )
-        )
-    ]
-)
-
 (define r0 (r1cs:read-r1cs arg-r1cs))
-
 (define nwires (r1cs:get-nwires r0))
 (printf "# number of wires: ~a (+1)\n" nwires)
 (printf "# number of constraints: ~a\n" (r1cs:get-mconstraints r0))
@@ -126,7 +140,7 @@
 (define final-str (string-join final-raw "\n"))
 
 ; solve!
-(define res (do-solve final-str 10000))
+(define res (do-solve final-str arg-timeout))
 (if (equal? 'unsat (car res))
     (printf "# verified.\n")
     (printf "# failed / reason: ~a\n" res)

@@ -8,6 +8,48 @@
     (prefix-in rint: "./picus/r1cs-z3-interpreter.rkt")
 )
 
+; stateful variable
+(define state-smt-path null)
+; parse command line arguments
+(define arg-r1cs null)
+(define arg-timeout 5000)
+(define arg-smt #f)
+(command-line
+    #:once-each
+    [("--r1cs") p-r1cs "path to target r1cs"
+        (begin
+            (set! arg-r1cs p-r1cs)
+            (when (! (string-suffix? arg-r1cs ".r1cs"))
+                (printf "# error: file need to be *.r1cs\n")
+                (exit 0)
+            )
+        )
+    ]
+    [("--timeout") p-timeout "timeout for every small query (default: 5000ms)"
+        (begin
+            (set! arg-timeout (string->number p-timeout))
+        )
+    ]
+    [("--smt") "show path to generated smt files (default: false)"
+        (begin
+            (set! arg-smt #t)
+        )
+    ]
+)
+(printf "# r1cs file: ~a\n" arg-r1cs)
+(printf "# timeout: ~a\n" arg-timeout)
+
+(define (optimization-p smt-str)
+    (string-append
+        (format "(declare-const p Int)\n(assert (= p ~a))\n\n" config:p)
+        (string-replace
+            (string-replace smt-str (format "~a" config:p) "p")
+            (format "~a" (- config:p 1))
+            "(- p 1)"
+        )
+    )
+)
+
 ; solving component
 (define (do-solve smt-str timeout #:verbose? [verbose? #f])
     (define temp-folder (find-system-path 'temp-dir))
@@ -17,10 +59,10 @@
     (define smt-file (open-output-file temp-path))
     (display smt-str smt-file)
     (close-output-port smt-file)
+    (set! state-smt-path temp-path) ; update global smt path
     (when verbose?
         (printf "# written to: ~a\n" temp-path)
     )
-
     (when verbose?
         (printf "# solving...\n")
     )
@@ -63,24 +105,7 @@
     )
 )
 
-; parse command line arguments
-(define arg-r1cs null)
-(command-line
-    #:once-each
-    [("--r1cs") p-r1cs "path to target r1cs"
-        (begin
-            (set! arg-r1cs p-r1cs)
-            (printf "# r1cs file: ~a\n" arg-r1cs)
-            (when (! (string-suffix? arg-r1cs ".r1cs"))
-                (printf "# error: file need to be *.r1cs\n")
-                (exit 0)
-            )
-        )
-    ]
-)
-
 (define r0 (r1cs:read-r1cs arg-r1cs))
-
 (define nwires (r1cs:get-nwires r0))
 (printf "# number of wires: ~a (+1)\n" nwires)
 (printf "# number of constraints: ~a\n" (r1cs:get-mconstraints r0))
@@ -93,7 +118,6 @@
 (printf "# inputs: ~a.\n" input-list)
 (printf "# outputs: ~a.\n" output-list)
 (printf "# xlist: ~a.\n" xlist)
-; (printf "# original-raw ~a\n" original-raw)
 
 ; fix inputs, create alternative outputs
 ; (note) need nwires+1 to account for 1st input
@@ -113,8 +137,17 @@
 (printf "# interpreting alternative r1cs...\n")
 (define-values (_ alternative-raw) (rint:interpret-r1cs r0 xlist0))
 
-(define partial-raw (append (list "(set-logic QF_NIA)\n") original-raw (list "") alternative-raw (list "")))
-; (define final-str (string-join final-raw "\n"))
+(define partial-raw (append
+    (list "; ================================ ;")
+    (list "; ======== original block ======== ;")
+    (list "; ================================ ;")
+    (list "")
+    original-raw
+    (list "; =================================== ;")
+    (list "; ======== alternative block ======== ;")
+    (list "; =================================== ;")
+    (list "")
+    alternative-raw))
 
 ; keep track of index of xlist (not xlist0 since that's incomplete)
 (define known-list (filter
@@ -151,12 +184,25 @@
             (format "(assert (= ~a ~a))" (list-ref xlist j) (list-ref xlist0 j))
         ))
         (define final-raw (append
-            partial-raw known-raw (list "")
+            partial-raw
+            (list "; =================================== ;")
+            (list "; ======== known constraints ======== ;")
+            (list "; =================================== ;")
+            (list "")
+            known-raw
+            (list "; =================================== ;")
+            (list "; ======== query constraints ======== ;")
+            (list "; =================================== ;")
+            (list "")
             (list (format "(assert (not (= ~a ~a)))" (list-ref xlist i) (list-ref xlist0 i))) (list "")
             (list "(check-sat)\n(get-model)") (list "")
         ))
-        (define final-str (string-join final-raw "\n"))
-        (define res (do-solve final-str 5000))
+        ; (define final-str (string-join final-raw "\n"))
+        (define final-str (string-append
+            "(set-logic QF_NIA)\n"
+            (optimization-p (string-join final-raw "\n"))
+        ))
+        (define res (do-solve final-str arg-timeout))
         (cond
             [(equal? 'unsat (car res))
                 (printf "verified.\n")
@@ -172,6 +218,8 @@
                 (set! tmp-ul (cons i tmp-ul))
             ]
         )
+        (when arg-smt
+            (printf "    # smt path: ~a\n" state-smt-path))
     )
     ; return
     (if changed?
@@ -181,7 +229,7 @@
 )
 
 (define res-ul (inc-solve known-list unknown-list))
-(printf "# final res-ul: ~a\n" res-ul)
+(printf "# final unknown list: ~a\n" res-ul)
 (if (empty? res-ul)
     (printf "# verified.\n")
     (printf "# failed.\n")

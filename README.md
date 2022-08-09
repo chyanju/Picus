@@ -19,6 +19,28 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
   - for circom parser
 - Circom 2: https://docs.circom.io/
 
+## Usage
+
+```bash
+usage: test-z3-inc-uniqueness.rkt [ <option> ... ]
+
+<option> is one of
+
+  --r1cs <p-r1cs>
+     path to target r1cs
+  --timeout <p-timeout>
+     timeout for every small query (default: 5000ms)
+  --smt
+     show path to generated smt files (default: false)
+  --help, -h
+     Show this help
+  --
+     Do not treat any remaining argument as a switch (at this level)
+
+ Multiple single-letter switches can be combined after
+ one `-`. For example, `-h-` is the same as `-h --`.
+```
+
 ## Commands
 
 ```bash
@@ -26,10 +48,12 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 racket ./test-read-r1cs.rkt --r1cs ./benchmarks/circomlib/EscalarMulAny@escalarmulany.r1cs
 
 # check uniqueness in one shot
-racket ./test-z3-uniqueness.rkt --r1cs ./benchmarks/circomlib/EscalarMulAny@escalarmulany.r1cs
+# timeout is 10s, output and show path to smt
+racket ./test-z3-uniqueness.rkt --r1cs ./benchmarks/circomlib/Bits2Num@bitify.r1cs --timeout 10000 --smt
 
 # check uniqueness using naive slicing
-racket ./test-z3-inc-uniqueness.rkt --r1cs ./benchmarks/circomlib/EscalarMulAny@escalarmulany.r1cs
+# timeout is 3s, output and show path to smt
+racket ./test-z3-inc-uniqueness.rkt --r1cs ./benchmarks/circomlib/Mux4@mux4.r1cs --timeout 3000 --smt
 ```
 
 ## Other Commands
