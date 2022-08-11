@@ -152,7 +152,7 @@
 ; keep track of index of xlist (not xlist0 since that's incomplete)
 (define known-list (filter
     (lambda (x) (! (null? x)))
-    (for/list ([i (range (+ 1 nwires))])
+    (for/list ([i (range nwires)])
         (if (utils:contains? xlist0 (list-ref xlist i))
             i
             null
@@ -161,7 +161,7 @@
 ))
 (define unknown-list (filter
     (lambda (x) (! (null? x)))
-    (for/list ([i (range (+ 1 nwires))])
+    (for/list ([i (range nwires)])
         (if (utils:contains? xlist0 (list-ref xlist i))
             null
             i
