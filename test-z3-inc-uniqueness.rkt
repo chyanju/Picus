@@ -63,10 +63,6 @@
     (when verbose?
         (printf "# written to: ~a\n" temp-path)
     )
-<<<<<<< HEAD
-    (printf "# written to: ~a\n" temp-path)
-=======
->>>>>>> 89d898ebc681d7d93c59bfad4218817c8b89fa10
     (when verbose?
         (printf "# solving...\n")
     )
