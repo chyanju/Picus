@@ -10,6 +10,16 @@
         )
     )
 )
+
+; auxiliar function to check if the intersection of two sets is empty
+(define (empty_inter? l1 l2) 
+    (cond ((null? l1) #t)
+        ((contains? l2 (car l1)) #f)
+       (else (empty_inter? (cdr l1) l2))
+    )
+)
+
+
 (define (slice l offset n) (take (drop l offset) n))
 
 ; (note) this is little endian (i.e., little bytes come first)

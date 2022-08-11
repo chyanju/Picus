@@ -63,6 +63,10 @@
     (when verbose?
         (printf "# written to: ~a\n" temp-path)
     )
+<<<<<<< HEAD
+    (printf "# written to: ~a\n" temp-path)
+=======
+>>>>>>> 89d898ebc681d7d93c59bfad4218817c8b89fa10
     (when verbose?
         (printf "# solving...\n")
     )
@@ -232,6 +236,11 @@
 (define res-ul (inc-solve known-list unknown-list))
 (printf "# final unknown list: ~a\n" res-ul)
 (if (empty? res-ul)
-    (printf "# verified.\n")
-    (printf "# failed.\n")
+    (printf "# Strong safety verified.\n")
+    (printf "# Strong safey failed.\n")
+)
+
+(if (utils:empty_inter? res-ul output-list)
+    (printf "# Weak safety verified.\n")
+    (printf "# Weak safey failed.\n")
 )
