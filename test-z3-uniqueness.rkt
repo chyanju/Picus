@@ -96,7 +96,7 @@
 
 (define r0 (r1cs:read-r1cs arg-r1cs))
 (define nwires (r1cs:get-nwires r0))
-(printf "# number of wires: ~a (+1)\n" nwires)
+(printf "# number of wires: ~a\n" nwires)
 (printf "# number of constraints: ~a\n" (r1cs:get-mconstraints r0))
 (printf "# field size (how many bytes): ~a\n" (r1cs:get-field-size r0))
 
@@ -110,13 +110,12 @@
 ; (printf "# original-raw ~a\n" original-raw)
 
 ; fix inputs, create alternative outputs
-; (note) need nwires+1 to account for 1st input
 ; =======================================
 ; output verification (weak verification)
 ; clara fixed version
 ;   |- create alternative variables for all non-input variables
 ;   |- but restrict output variables as weak verification states
-(define xlist0 (for/list ([i (range (+ 1 nwires))])
+(define xlist0 (for/list ([i (range nwires)])
     (if (not (utils:contains? input-list i))
         (format "y~a" i)
         (list-ref xlist i)
@@ -127,7 +126,7 @@
 (printf "# interpreting alternative r1cs...\n")
 (define-values (_ alternative-raw) (rint:interpret-r1cs r0 xlist0))
 ; existence of different valuation of outputs
-(define tmp-diff (for/list ([i (range (+ 1 nwires))])
+(define tmp-diff (for/list ([i (range nwires)])
     (if (utils:contains? output-list i) (format "(not (= ~a ~a))" (list-ref xlist i) (list-ref xlist0 i)) null)))
 (define diff-list (filter (lambda (x) (! (null? x))) tmp-diff))
 (define diff-raw (list

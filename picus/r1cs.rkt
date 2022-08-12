@@ -31,7 +31,6 @@
 
 ; quick functions
 (define (get-mconstraints arg-r1cs) (header-section-mconstraints (r1cs-header arg-r1cs)))
-; (note) nwires doesn't count the 1st input, so when creating xlist, you need nwires+1
 (define (get-nwires arg-r1cs) (header-section-nwires (r1cs-header arg-r1cs)))
 (define (get-npubout arg-r1cs) (header-section-npubout (r1cs-header arg-r1cs)))
 (define (get-npubin arg-r1cs) (header-section-npubin (r1cs-header arg-r1cs)))

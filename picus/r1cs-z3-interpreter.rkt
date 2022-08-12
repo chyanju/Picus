@@ -51,8 +51,7 @@
     ; strictly align with wid
     (define xlist (if (null? arg-xlist)
         ; create fresh new
-        ; (note) need nwires+1 to account for 1st input
-        (for/list ([i (+ 1 nwires)]) (format "x~a" i))
+        (for/list ([i nwires]) (format "x~a" i))
         ; use existing one
         arg-xlist
     ))
