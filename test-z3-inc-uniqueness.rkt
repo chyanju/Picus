@@ -152,7 +152,7 @@
 ; keep track of index of xlist (not xlist0 since that's incomplete)
 (define known-list (filter
     (lambda (x) (! (null? x)))
-    (for/list ([i (range (+ 1 nwires))])
+    (for/list ([i (range nwires)])
         (if (utils:contains? xlist0 (list-ref xlist i))
             i
             null
@@ -161,7 +161,7 @@
 ))
 (define unknown-list (filter
     (lambda (x) (! (null? x)))
-    (for/list ([i (range (+ 1 nwires))])
+    (for/list ([i (range nwires)])
         (if (utils:contains? xlist0 (list-ref xlist i))
             null
             i
@@ -232,6 +232,11 @@
 (define res-ul (inc-solve known-list unknown-list))
 (printf "# final unknown list: ~a\n" res-ul)
 (if (empty? res-ul)
-    (printf "# verified.\n")
-    (printf "# failed.\n")
+    (printf "# Strong safety verified.\n")
+    (printf "# Strong safey failed.\n")
+)
+
+(if (utils:empty_inter? res-ul output-list)
+    (printf "# Weak safety verified.\n")
+    (printf "# Weak safey failed.\n")
 )

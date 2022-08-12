@@ -145,15 +145,20 @@
         ;     )
         ; ))
         ; optimized & simplified form
-        (define ret-cnst (format "(assert (= 0 ~a))\n"
-            (format "(mod ~a ~a)"
-                (if (equal? "0" sum-c)
-                    (format "~a" (opt-format-mul sum-a sum-b))
-                    (format "(- ~a ~a)" (opt-format-mul sum-a sum-b) sum-c)
+        (define ret-cnst 
+            (if (equal? "0" sum-c)
+                (format "(assert (or (= 0 (mod ~a ~a)) (= 0 (mod ~a ~a))))\n"
+                    sum-a
+                    config:p
+                    sum-b
+                    config:p
                 )
-                config:p
+                (format "(assert (= 0 (mod ~a ~a)))\n"
+                    (format "(- ~a ~a)" (opt-format-mul sum-a sum-b) sum-c)
+                    config:p
+                )
             )
-        ))
+        )
 
 
         ; return this assembled constraint
