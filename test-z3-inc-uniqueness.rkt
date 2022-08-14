@@ -12,6 +12,7 @@
 (define state-smt-path null)
 ; parse command line arguments
 (define arg-r1cs null)
+(define arg-order null)
 (define arg-timeout 5000)
 (define arg-smt #f)
 (command-line
@@ -23,6 +24,11 @@
                 (printf "# error: file need to be *.r1cs\n")
                 (exit 0)
             )
+        )
+    ]
+    [("--order") p-order "path to file with order for the signals"
+        (begin
+            (set! arg-order p-order)
         )
     ]
     [("--timeout") p-timeout "timeout for every small query (default: 5000ms)"
@@ -112,7 +118,7 @@
 (printf "# field size (how many bytes): ~a\n" (r1cs:get-field-size r0))
 
 (printf "# interpreting original r1cs...\n")
-(define-values (xlist original-raw) (rint:interpret-r1cs r0 null)) ; interpret the constraint system
+(define-values (xlist original-definitions original-constraints signal2constraints constraint2signals) (rint:interpret-r1cs r0 null)) ; interpret the constraint system
 (define input-list (r1cs:r1cs-inputs r0))
 (define output-list (r1cs:r1cs-outputs r0))
 (printf "# inputs: ~a.\n" input-list)
@@ -126,7 +132,7 @@
 ; clara fixed version
 ;   |- create alternative variables for all non-input variables
 ;   |- but restrict output variables as weak verification states
-(define xlist0 (for/list ([i (range (+ 1 nwires))])
+(define xlist0 (for/list ([i (range nwires)])
     (if (not (utils:contains? input-list i))
         (format "y~a" i)
         (list-ref xlist i)
@@ -135,19 +141,7 @@
 (printf "# xlist0: ~a.\n" xlist0)
 ; then interpret again
 (printf "# interpreting alternative r1cs...\n")
-(define-values (_ alternative-raw) (rint:interpret-r1cs r0 xlist0))
-
-(define partial-raw (append
-    (list "; ================================ ;")
-    (list "; ======== original block ======== ;")
-    (list "; ================================ ;")
-    (list "")
-    original-raw
-    (list "; =================================== ;")
-    (list "; ======== alternative block ======== ;")
-    (list "; =================================== ;")
-    (list "")
-    alternative-raw))
+(define-values (_1 alternative-definitions alternative-constraints _2 _3) (rint:interpret-r1cs r0 xlist0))
 
 ; keep track of index of xlist (not xlist0 since that's incomplete)
 (define known-list (filter
@@ -159,32 +153,227 @@
         )
     )
 ))
-(define unknown-list (filter
-    (lambda (x) (! (null? x)))
-    (for/list ([i (range nwires)])
-        (if (utils:contains? xlist0 (list-ref xlist i))
-            null
-            i
+
+(define unknown-list (if (null? arg-order)
+    (filter (lambda (x) (! (null? x)))
+        (for/list ([i (range nwires)])
+            (if (utils:contains? xlist0 (list-ref xlist i))
+                null
+                i
+            )
         )
     )
+    (call-with-input-file arg-order read-json)
 ))
+
+;(define unknown-list (file->list arg-order))	
+
+;(define unknown-list (filter
+;    (lambda (x) (! (null? x)))
+;    (for/list ([i (range nwires)])
+;        (if (utils:contains? xlist0 (list-ref xlist i))
+;            null
+;            i
+;        )
+;    )
+;))
 (printf "# initial knwon-list: ~a\n" known-list)
 (printf "# initial unknown-list: ~a\n" unknown-list)
 
+(printf "# signal2constraints: ~a.\n" signal2constraints)
+(printf "# constraint2signals: ~a.\n" constraint2signals)
+
+(define signal2neighborconstraints 
+    (for/list ([i (range nwires)])
+        (foldl 
+           (lambda (x y) 
+                (set-union y (foldl (lambda (x1 y1) (
+                    set-union y1 (if (utils:contains? known-list x1) '() (list-ref signal2constraints x1))))
+                    '()
+                    (list-ref constraint2signals x)
+                ) )
+            )
+            (list-ref signal2constraints i)
+            (list-ref signal2constraints i)
+        )
+     )
+) 
+(define signal2neighborsignals
+    (for/list ([i (range nwires)])
+        (foldl 
+           (lambda (x y) (set-union y (list-ref constraint2signals x)))
+            '()
+            (list-ref signal2neighborconstraints i)
+        )
+     )
+) 
+
+(define signal2signals
+    (for/list ([i (range nwires)])
+        (foldl 
+           (lambda (x y) (set-union y (list-ref constraint2signals x)))
+            '()
+            (list-ref signal2constraints i)
+        )
+     )
+) 
+
+(printf "# signal2neighborconstraints: ~a.\n" signal2neighborconstraints)
+(printf "# signal2neighborsignals: ~a.\n" signal2neighborsignals)
+
+(define partial-original-definitions-level-0
+    (for/list ([s nwires])
+        (define list_index (list-ref signal2signals s))
+        (for/list ([index list_index])
+            (list-ref original-definitions index)
+        )
+    )
+)
+
+(define partial-alternative-definitions-level-0
+    (for/list ([s nwires])
+        (define list_index (list-ref signal2signals s))
+        (for/list ([index list_index])
+            (list-ref alternative-definitions index)
+        )
+    )
+)
+
+(define partial-original-constraints-level-0
+    (for/list ([s nwires])
+        (define list_index (list-ref signal2constraints s))
+        (for/list ([index list_index])
+            (list-ref original-constraints index)
+        )
+    )
+)
+
+(define partial-alternative-constraints-level-0
+    (for/list ([s nwires])
+        (define list_index (list-ref signal2constraints s))
+        (for/list ([index list_index])
+            (list-ref alternative-constraints index)
+        )
+    )
+)
+
+(define partial-original-definitions-level-1
+    (for/list ([s nwires])
+        (define list_index (list-ref signal2neighborsignals s))
+        (for/list ([index list_index])
+            (list-ref original-definitions index)
+        )
+    )
+)
+
+(define partial-alternative-definitions-level-1
+    (for/list ([s nwires])
+        (define list_index (list-ref signal2neighborsignals s))
+        (for/list ([index list_index])
+            (list-ref alternative-definitions index)
+        )
+    )
+)
+
+(define partial-original-constraints-level-1
+    (for/list ([s nwires])
+        (define list_index (list-ref signal2neighborconstraints s))
+        (for/list ([index list_index])
+            (list-ref original-constraints index)
+        )
+    )
+)
+
+(define partial-alternative-constraints-level-1
+    (for/list ([s nwires])
+        (define list_index (list-ref signal2neighborconstraints s))
+        (for/list ([index list_index])
+            (list-ref alternative-constraints index)
+        )
+    )
+)
+
 ; returns final unknown list, and if it's empty, it means all are known
 ; and thus verified
-(define (inc-solve kl ul)
+(define (inc-solve kl ul arg-level changed-0 changed-1)
     (printf "# ==== new round inc-solve ===\n")
     (define tmp-kl (for/list ([i kl]) i))
     (define tmp-ul (list ))
     (define changed? #f)
+    
+    (define new-changed-0 '())
+    
+    (define new-changed-1 (if (= arg-level 0)
+        changed-1
+        '()
+    ))
+    
+    (define  partial-original-definitions 
+        (if (= arg-level 0)
+             partial-original-definitions-level-0
+             partial-original-definitions-level-1
+        )
+    )
+    
+    (define  partial-alternative-definitions 
+        (if (= arg-level 0)
+             partial-alternative-definitions-level-0
+             partial-alternative-definitions-level-1
+        )
+    )
+    
+    (define  partial-original-constraints 
+        (if (= arg-level 0)
+             partial-original-constraints-level-0
+             partial-original-constraints-level-1
+        )
+    )
+    
+    (define  partial-alternative-constraints 
+        (if (= arg-level 0)
+             partial-alternative-constraints-level-0
+             partial-alternative-constraints-level-1
+        )
+    )
+    
+    
     (for ([i ul])
-        (printf "  # checking: (~a ~a), " (list-ref xlist i) (list-ref xlist0 i))
-        (define known-raw (for/list ([j tmp-kl])
-            (format "(assert (= ~a ~a))" (list-ref xlist j) (list-ref xlist0 j))
+        (define to_study (if (= 0 arg-level) 
+             (not (utils:empty_inter? changed-0 (list-ref signal2signals i)))
+             (not (utils:empty_inter? changed-1 (list-ref signal2neighborsignals i)))
         ))
+        (printf "Studying ~a :~a." (list-ref xlist i) to_study)
+        (printf "  # checking: (~a ~a), " (list-ref xlist i) (list-ref xlist0 i))
+        
+        (define known-raw (for/list ([j tmp-kl])
+            (if (utils:contains? (if (= arg-level 0) (list-ref signal2signals i) (list-ref signal2neighborsignals i)) j) (format "(assert (= ~a ~a))" (list-ref xlist j) (list-ref xlist0 j)) (format "; not adding known"))
+        ))
+        
         (define final-raw (append
-            partial-raw
+            (list "; =================================== ;")
+            (list "; ======== original definitions ======== ;")
+            (list "; =================================== ;") 
+            (list "")
+            (list-ref partial-original-definitions i)
+            (list "")
+            (list "; =================================== ;")
+            (list "; ======== alternative definitions ======== ;")
+            (list "; =================================== ;") 
+            (list "")
+            (list-ref partial-alternative-definitions i)
+            (list "")
+            (list "; =================================== ;")
+            (list "; ======== original constraints ======== ;")
+            (list "; =================================== ;") 
+            (list "")
+            (list-ref partial-original-constraints i)
+            (list "")
+            (list "; =================================== ;")
+            (list "; ======== alternative constraints ======== ;")
+            (list "; =================================== ;") 
+            (list "")
+            (list-ref partial-alternative-constraints i)
+            (list "")
             (list "; =================================== ;")
             (list "; ======== known constraints ======== ;")
             (list "; =================================== ;")
@@ -203,12 +392,14 @@
             "(set-logic QF_NIA)\n\n"
             (optimization-p (string-join final-raw "\n"))
         ))
-        (define res (do-solve final-str arg-timeout))
+        (define res (if to_study (do-solve final-str arg-timeout) (cons #f '())))
         (cond
             [(equal? 'unsat (car res))
                 (printf "verified.\n")
                 (set! tmp-kl (cons i tmp-kl))
                 (set! changed? #t)
+                (set! new-changed-0 (cons i new-changed-0))
+                (set! new-changed-1 (cons i new-changed-1))
             ]
             [(equal? 'sat (car res))
                 (printf "sat.\n")
@@ -223,13 +414,16 @@
             (printf "    # smt path: ~a\n" state-smt-path))
     )
     ; return
-    (if changed?
-        (inc-solve (reverse tmp-kl) (reverse tmp-ul))
-        tmp-ul
+    (if changed? 
+        (inc-solve (reverse tmp-kl) (reverse tmp-ul) 0 new-changed-0 new-changed-1)
+        (if (= arg-level 1)
+           tmp-ul
+           (inc-solve (reverse tmp-kl) (reverse tmp-ul) 1 new-changed-0 new-changed-1)
+        )
     )
 )
 
-(define res-ul (inc-solve known-list unknown-list))
+(define res-ul (inc-solve known-list unknown-list 0 unknown-list unknown-list))
 (printf "# final unknown list: ~a\n" res-ul)
 (if (empty? res-ul)
     (printf "# Strong safety verified.\n")

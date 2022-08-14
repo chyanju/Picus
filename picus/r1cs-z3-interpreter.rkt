@@ -43,6 +43,45 @@
     )
 )
 
+(define (normalize f0)
+    (if (> f0 (quotient config:p 2))
+        (- f0 config:p)
+        f0
+    )
+)
+
+(define (get-max-value-linear wids factors)
+    (foldl 
+        (lambda (x y z) 
+            (+ z (if (= x 0) (normalize y) (if (> (normalize y) 0) (* (normalize y)(- config:p 1)) 0)))
+        )
+    0 wids factors
+    )
+)
+
+(define (get-min-value-linear wids factors)
+    (foldl 
+        (lambda (x y z) 
+             (+ z (if (= x 0) (normalize y) (if (< (normalize y) 0) (* (normalize y)(- config:p 1)) 0)))
+        )
+    0 wids factors
+    )
+)
+
+
+(define (extract-signals cnst)
+    (define curr-block-a (r1cs:constraint-a cnst))
+    (define curr-block-b (r1cs:constraint-b cnst))
+    (define curr-block-c (r1cs:constraint-c cnst))
+
+    (define wids-a (r1cs:constraint-block-wids curr-block-a))
+    (define wids-b (r1cs:constraint-block-wids curr-block-b))
+    (define wids-c (r1cs:constraint-block-wids curr-block-c))
+
+    (append wids-a wids-b wids-c)
+)
+
+
 (define (interpret-r1cs arg-r1cs arg-xlist)
     (define raw-smt (list)) ; a list of raw smt strings
 
@@ -52,32 +91,69 @@
     (define xlist (if (null? arg-xlist)
         ; create fresh new
         ; (note) need nwires+1 to account for 1st input
-        (for/list ([i (+ 1 nwires)]) (format "x~a" i))
+        (for/list ([i nwires]) (format "x~a" i))
         ; use existing one
         arg-xlist
     ))
+    
+    
+    
     ; update smt
-    (set! raw-smt (append raw-smt
-        (list "; ======== declaration and range constraints ======== ;")
-        (list "")
+    ;(set! raw-smt (append raw-smt
+    ;    (list "; ======== declaration and range constraints ======== ;")
+    ;    (list "")
+    ;    (for/list ([x xlist])
+    ;        (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
+    ;            ; provided list with already defined x, skip
+    ;            (format "; ~a: already defined\n" x)
+    ;            ; otherwise you need to define this variable
+    ;            (format "(declare-const ~a Int)\n(assert (<= 0 ~a))\n(assert (< ~a ~a))\n"
+    ;            x x x config:p)
+    ;        )
+    ;    )
+    ;)) ; update smt
+    
+    ; generate the definitions of the signals
+    (define signal-definitions
         (for/list ([x xlist])
             (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
                 ; provided list with already defined x, skip
-                (format "; ~a: already defined\n" x)
+                (format "; ~a: already defined\n" x)  
                 ; otherwise you need to define this variable
                 (format "(declare-const ~a Int)\n(assert (<= 0 ~a))\n(assert (< ~a ~a))\n"
                 x x x config:p)
             )
         )
-    )) ; update smt
+    )
+    
 
     ; then start creating constraints
     (define m (r1cs:get-mconstraints arg-r1cs))
     (define rconstraints (r1cs:get-constraints arg-r1cs)) ; r1cs constraints
 
-    ; symbolic constraints
-    (define sconstraints (for/list ([cnst rconstraints])
+    ; map from signals to constraints where they appear
+    (define signal2constraints (for/list ([i nwires])
+        (if (= i 0)
+            '()
+            (filter
+                (lambda (x) (utils:contains? (extract-signals (list-ref rconstraints x)) i)) 
+                (range 0 m)
+            )
+        )
+    ))
+    
+    ; map from constraints to signals where they appear
+    (define constraints2signal (for/list ([i m])
+        (filter
+            (lambda (x) (utils:contains? (list-ref signal2constraints x) i)) 
+            (range 1  nwires)
+        )
+    ))
 
+    ; symbolic constraints
+    (define sconstraints (for/list ([index m])
+
+        (define cnst (list-ref rconstraints index))
         ; get block
         (define curr-block-a (r1cs:constraint-a cnst))
         (define curr-block-b (r1cs:constraint-b cnst))
@@ -105,7 +181,10 @@
             ; (format "(* ~a ~a)" f0 x0)
             ; optimized form
             (let ([x0 (list-ref xlist w0)])
-                (opt-format-mul f0 x0)
+                (if (= w0 0)
+                    (normalize f0)
+                    (opt-format-mul (normalize f0) x0)
+                )
             )
         )))
         ; (printf "# wids-b is: ~a\n" wids-b)
@@ -113,7 +192,10 @@
             ; (format "(* ~a ~a)" f0 x0)
             ; optimized form
             (let ([x0 (list-ref xlist w0)])
-                (opt-format-mul f0 x0)
+                (if (= w0 0)
+                    (normalize f0)
+                    (opt-format-mul (normalize f0) x0)
+                )
             )
         )))
         ; (printf "# wids-c is: ~a\n" wids-c)
@@ -121,7 +203,10 @@
             ; (format "(* ~a ~a)" f0 x0)
             ; optimized form
             (let ([x0 (list-ref xlist w0)])
-                (opt-format-mul f0 x0)
+                (if (= w0 0)
+                    (normalize f0)
+                    (opt-format-mul (normalize f0) x0)
+                )
             )
         )))
         ; (printf "# done wids\n")
@@ -146,17 +231,59 @@
         ; ))
         ; optimized & simplified form
         (define ret-cnst 
-            (if (equal? "0" sum-c)
-                (format "(assert (or (= 0 (mod ~a ~a)) (= 0 (mod ~a ~a))))\n"
-                    sum-a
-                    config:p
-                    sum-b
-                    config:p
-                )
-                (format "(assert (= 0 (mod ~a ~a)))\n"
-                    (format "(- ~a ~a)" (opt-format-mul sum-a sum-b) sum-c)
-                    config:p
-                )
+            (cond
+                [(equal? "0" sum-c)
+                    (define max-k-a (floor (/ (get-max-value-linear wids-a factors-a) config:p)))
+                    (define min-k-a (ceiling (/ (get-min-value-linear wids-a factors-a) config:p)))
+                    ;(printf "Sum ~a : min ~a max ~a \n" sum-a min-k-a max-k-a)
+                    (define max-k-b (floor (/ (get-max-value-linear wids-a factors-a) config:p)))
+                    (define min-k-b (ceiling (/ (get-min-value-linear wids-a factors-a) config:p)))
+                    ;(printf "Sum ~a : min ~a max ~a \n" sum-b min-k-b max-k-b)
+                    (format "(assert (or ~a ~a))\n"
+                        (if (= max-k-a min-k-a)
+                            (format "(= ~a ~a)\n"
+                                sum-a
+                                (* max-k-a config:p)
+                            ) 
+                            (format "(= 0 (mod ~a ~a))\n"
+                                sum-a
+                                config:p
+                            )
+                        )
+                        (if (= max-k-b min-k-b)
+                            (format "(= ~a ~a)\n"
+                                sum-b
+                                (* max-k-b config:p)
+                            ) 
+                            (format "(= 0 (mod ~a ~a))\n"
+                                sum-b
+                                config:p
+                            )
+                        )
+                    )
+                ]
+                [(|| (equal? "0" sum-a) (equal? "0" sum-b))
+                    
+                    (define max-k (floor (/ (get-max-value-linear wids-c factors-c) config:p)))
+                    (define min-k (ceiling (/ (get-min-value-linear wids-c factors-c) config:p)))
+                    ;(printf "Sum ~a : min ~a max ~a \n" sum-c min-k max-k)
+                        (if (= max-k min-k)
+                            (format "(assert (= ~a ~a))\n"
+                                sum-c
+                                (* max-k config:p)
+                            ) 
+                            (format "(assert (= 0 (mod ~a ~a)))\n"
+                                sum-c
+                                config:p
+                            )
+                    )
+                ]    
+                [else 
+                    (format "(assert (= 0 (mod ~a ~a)))\n"
+                        (format "(- ~a ~a)" (opt-format-mul sum-a sum-b) sum-c)
+                        config:p
+                    )
+                ]
             )
         )
 
@@ -166,13 +293,12 @@
     ))
 
     ; update smt
-    (set! raw-smt (append
-        raw-smt
-        (list "; ======== r1cs constraints ======== ;")
-        (list "")
-        sconstraints
-    ))
-    (set! raw-smt (append raw-smt (list (format "(assert (= 1 ~a))\n" (list-ref xlist 0)))))
+    ;(set! raw-smt (append
+        ;raw-smt
+        ;(list "; ======== r1cs constraints ======== ;")
+        ;(list "")
+        ;sconstraints
+    ;))
 
     ; return symbolic variable list and symbolic constraint list
     ; note that according to r1cs spec,
@@ -180,5 +306,5 @@
     ; so we append an additional constraint here
     ; see: https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md#general-considerations
     ; (values xlist sconstraints)
-    (values xlist raw-smt)
+    (values xlist signal-definitions sconstraints signal2constraints constraints2signal)
 )
