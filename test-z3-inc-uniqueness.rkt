@@ -107,7 +107,7 @@
 
 (define r0 (r1cs:read-r1cs arg-r1cs))
 (define nwires (r1cs:get-nwires r0))
-(printf "# number of wires: ~a (+1)\n" nwires)
+(printf "# number of wires: ~a\n" nwires)
 (printf "# number of constraints: ~a\n" (r1cs:get-mconstraints r0))
 (printf "# field size (how many bytes): ~a\n" (r1cs:get-field-size r0))
 
@@ -120,13 +120,12 @@
 (printf "# xlist: ~a.\n" xlist)
 
 ; fix inputs, create alternative outputs
-; (note) need nwires+1 to account for 1st input
 ; =======================================
 ; output verification (weak verification)
 ; clara fixed version
 ;   |- create alternative variables for all non-input variables
 ;   |- but restrict output variables as weak verification states
-(define xlist0 (for/list ([i (range (+ 1 nwires))])
+(define xlist0 (for/list ([i (range nwires)])
     (if (not (utils:contains? input-list i))
         (format "y~a" i)
         (list-ref xlist i)
