@@ -17,7 +17,7 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
   - for circom parser
 - Node.js: https://nodejs.org/en/
   - for circom parser
-- Circom 2: https://docs.circom.io/
+- Circom (2.0.6 Required): https://docs.circom.io/
 
 ## Usage
 
