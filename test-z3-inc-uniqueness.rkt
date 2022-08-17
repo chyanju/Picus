@@ -13,6 +13,7 @@
 ; parse command line arguments
 (define arg-r1cs null)
 (define arg-order null)
+(define arg-preconditions null)
 (define arg-timeout 5000)
 (define arg-smt #f)
 (command-line
@@ -31,6 +32,11 @@
             (set! arg-order p-order)
         )
     ]
+    [("--prec") p-preconditions "path to file with the preconditions"
+        (begin
+            (set! arg-preconditions p-preconditions)
+        )
+    ]
     [("--timeout") p-timeout "timeout for every small query (default: 5000ms)"
         (begin
             (set! arg-timeout (string->number p-timeout))
@@ -47,6 +53,7 @@
 
 (define (optimization-p smt-str)
     (string-append
+        (format "(declare-fun div (Int Int) Int)\n")
         (format "(declare-const p Int)\n(assert (= p ~a))\n\n" config:p)
         (string-replace
             (string-replace smt-str (format "~a" config:p) "p")
@@ -163,6 +170,11 @@
         )
     )
     (call-with-input-file arg-order read-json)
+))
+
+(define list-preconditions (if (null? arg-preconditions)
+    '()
+    (file->lines arg-preconditions)
 ))
 
 ;(define unknown-list (file->list arg-order))	
@@ -353,13 +365,15 @@
             (list "; ======== original definitions ======== ;")
             (list "; =================================== ;") 
             (list "")
-            (list-ref partial-original-definitions i)
+            ;(list-ref partial-original-definitions i)
+            original-definitions
             (list "")
             (list "; =================================== ;")
             (list "; ======== alternative definitions ======== ;")
             (list "; =================================== ;") 
             (list "")
-            (list-ref partial-alternative-definitions i)
+            alternative-definitions
+            ;(list-ref partial-alternative-definitions i)
             (list "")
             (list "; =================================== ;")
             (list "; ======== original constraints ======== ;")
@@ -380,6 +394,12 @@
             known-raw
             (list "")
             (list "; =================================== ;")
+            (list "; ======== known constraints ======== ;")
+            (list "; =================================== ;")
+            (list "")
+            list-preconditions
+            (list "")
+            (list "; =================================== ;")
             (list "; ======== query constraints ======== ;")
             (list "; =================================== ;")
             (list "")
@@ -388,7 +408,7 @@
         ))
         ; (define final-str (string-join final-raw "\n"))
         (define final-str (string-append
-            "(set-logic QF_NIA)\n\n"
+            "(set-logic QF_UFNIA)\n\n"
             (optimization-p (string-join final-raw "\n"))
         ))
         (define res (if to_study (do-solve final-str arg-timeout) (cons #f '())))

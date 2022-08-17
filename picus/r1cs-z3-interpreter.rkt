@@ -43,6 +43,27 @@
     )
 )
 
+(define (opt-format-cases-mul a b c)
+    (define case-1
+        (format "(=> (not (= 0 (mod ~a ~a))) (= ~a (div (mod ~a ~a) (mod ~a ~a))))"
+            a config:p b a config:p c config:p
+        )
+    )
+    (define case-2
+        (format "(=> (not (= 0 (mod ~a ~a))) (= ~a (div (mod ~a ~a) (mod ~a ~a))))"
+            b config:p a b config:p c config:p
+        )
+    )
+    (define case-3
+        (format "(= 0 (mod (- ~a ~a) p))" 
+            (opt-format-mul a b) c
+        )
+    )
+    (format "(assert (and ~a ~a ~a))\n"
+        case-1 case-2 case-3
+    )
+)
+
 (define (normalize f0)
     (if (> f0 (quotient config:p 2))
         (- f0 config:p)
@@ -278,10 +299,7 @@
                     )
                 ]    
                 [else 
-                    (format "(assert (= 0 (mod ~a ~a)))\n"
-                        (format "(- ~a ~a)" (opt-format-mul sum-a sum-b) sum-c)
-                        config:p
-                    )
+                    (opt-format-cases-mul sum-a sum-b sum-c)
                 ]
             )
         )
