@@ -8,7 +8,7 @@
 ; solving component
 (define (solve smt-str timeout #:verbose? [verbose? #f] #:output-smt? [output-smt? #f])
     (define temp-folder (find-system-path 'temp-dir))
-    (define temp-file (format "picus~a.smt"
+    (define temp-file (format "picus~a.smt2"
         (string-replace (format "~a" (current-inexact-milliseconds)) "." "")))
     (define temp-path (build-path temp-folder temp-file))
     (set! state-smt-path temp-path)
