@@ -277,6 +277,17 @@
     )
 )
 
+(define partial-original-constraints-level-2
+    original-constraints-z3
+)
+
+(define (partial-alternative-constraints-level-2 xlist-alt)
+    (for/list ([index (r1cs:get-mconstraints r0)])
+        (rint:write-constraint (list-ref original-constraints index) xlist-alt)
+    )
+)
+
+
 
 ; returns final unknown list, and if it's empty, it means all are known
 ; and thus verified
@@ -303,20 +314,29 @@
         (define  partial-original-constraints 
             (if (= arg-level 0)
                  partial-original-constraints-level-0
-                 partial-original-constraints-level-1
+                 (if (= arg-level 1)
+                   partial-original-constraints-level-1
+                   partial-original-constraints-level-2
+                 )
             )
         )
     
         (define  partial-alternative-constraints 
             (if (= arg-level 0)
                  (partial-alternative-constraints-level-0 i xlist-alt)
-                 (partial-alternative-constraints-level-1 i xlist-alt)
+                 (if (= arg-level 1)
+                     (partial-alternative-constraints-level-1 i xlist-alt)
+                     (partial-alternative-constraints-level-2 xlist-alt)
+                 )
             )
         )
     
         (define to_study (if (= 0 arg-level) 
              (not (utils:empty_inter? changed-0 (list-ref signal2signals i)))
-             (not (utils:empty_inter? changed-1 (list-ref signal2neighborsignals i)))
+             (if (= 1 arg-level)
+                 (not (utils:empty_inter? changed-1 (list-ref signal2neighborsignals i)))
+                 #t
+             )
         ))
         (printf "Studying ~a :~a." (list-ref xlist-alt i) to_study)
         (printf "  # checking: (~a ~a), " (list-ref xlist-original i) (list-ref xlist-alt i))
@@ -339,7 +359,11 @@
             (list "; ======== original constraints ======== ;")
             (list "; =================================== ;") 
             (list "")
-            (list-ref partial-original-constraints i)
+            (if (= 2 arg-level)
+               partial-original-constraints
+               (list-ref partial-original-constraints i)
+            )
+
             (list "")
             (list "; =================================== ;")
             (list "; ======== alternative constraints ======== ;")
@@ -389,9 +413,12 @@
     ; return
     (if changed? 
         (inc-solve (reverse tmp-kl) (reverse tmp-ul) 0 new-changed-0 new-changed-1)
-        (if (= arg-level 1)
-           tmp-ul
+        (if (= arg-level 0)
            (inc-solve (reverse tmp-kl) (reverse tmp-ul) 1 new-changed-0 new-changed-1)
+           (if (= arg-level 1)
+               (inc-solve (reverse tmp-kl) (reverse tmp-ul) 2 new-changed-0 new-changed-1)
+               tmp-ul
+           )
         )
     )
 )

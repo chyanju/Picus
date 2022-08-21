@@ -41,10 +41,12 @@ template BabyAdd() {
     gamma <== y1*x2;
     delta <== (-a*x1+y1)*(x2 + y2);
     tau <== beta * gamma;
-
+    
+    // d * tau != +- 1 ----> x1 * x2 * y1 * y2 != +- 1
+    assert(d*tau != -1);
     xout <-- (beta + gamma) / (1+ d*tau);
     (1+ d*tau) * xout === (beta + gamma);
-
+    assert(d*tau != 1);
     yout <-- (delta + a*beta - gamma) / (1-d*tau);
     (1-d*tau)*yout === (delta + a*beta - gamma);
 }
