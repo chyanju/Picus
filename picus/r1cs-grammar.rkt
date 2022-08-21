@@ -11,17 +11,48 @@
 ; map back to field
 (define (F x) (modulo x config:p))
 
-; this is for better human-readable printing
-; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L414
-(define (fix-number x)
-    ; (if (> x 21888242871839275222246405745257275088548363400416034343698204186575808495517)
-    ;     (- x 21888242871839275222246405745257275088548364400416034343698204186575808495617)
-    ;     x
-    ; )
-    x
+; r1cs commands (grammar)
+; command level
+(struct rcmds (vs) #:mutable #:transparent #:reflection-name 'r1cs:rcmds) ; vs: list
+(struct rlogic (v) #:mutable #:transparent #:reflection-name 'r1cs:rlogic) ; v: logic
+(struct rdef (var type) #:mutable #:transparent #:reflection-name 'r1cs:rdef) ; var: rvar, type: rtype
+(struct rassert (cnst) #:mutable #:transparent #:reflection-name 'r1cs:rassert) ; cnst: req | rneq | rleq | ...
+(struct rcmt (v) #:mutable #:transparent #:reflection-name 'r1cs:rcmt) ; comments
+(struct rsolve () #:mutable #:transparent #:reflection-name 'r1cs:rsolve)
+; sub-command level
+(struct rint (v) #:mutable #:transparent #:reflection-name 'r1cs:rint) ; v: int
+(struct rstr (v) #:mutable #:transparent #:reflection-name 'r1cs:rstr) ; v: str
+(struct rvar (v) #:mutable #:transparent #:reflection-name 'r1cs:rvar) ; v: str
+(struct rtype (v) #:mutable #:transparent #:reflection-name 'r1cs:rtype) ; v: str
+; sub-command level
+(struct req (lhs rhs) #:mutable #:transparent #:reflection-name 'r1cs:req)
+(struct rneq (lhs rhs) #:mutable #:transparent #:reflection-name 'r1cs:rneq)
+(struct rleq (lhs rhs) #:mutable #:transparent #:reflection-name 'r1cs:rleq)
+(struct rlt (lhs rhs) #:mutable #:transparent #:reflection-name 'r1cs:rlt)
+(struct rgeq (lhs rhs) #:mutable #:transparent #:reflection-name 'r1cs:rgeq)
+(struct rgt (lhs rhs) #:mutable #:transparent #:reflection-name 'r1cs:rgt)
+; sub-command level
+(struct rand (vs) #:mutable #:transparent #:reflection-name 'r1cs:rand) ; vs: a list of bools
+(struct ror (vs) #:mutable #:transparent #:reflection-name 'r1cs:ror) ; vs: a list of bools
+; no rnot here out of simplicity, use neq, or other unequalty instead
+; sub-command level
+(struct radd (vs) #:mutable #:transparent #:reflection-name 'r1cs:radd) ; vs: list
+(struct rsub (vs) #:mutable #:transparent #:reflection-name 'r1cs:rsub) ; vs: list
+(struct rmul (vs) #:mutable #:transparent #:reflection-name 'r1cs:rmul) ; vs: list
+(struct rneg (v) #:mutable #:transparent #:reflection-name 'r1cs:rneg) ; v: int
+(struct rmod (v mod) #:mutable #:transparent #:reflection-name 'r1cs:rmod) ; v: int, mod: int
+
+(define (append-rcmds . obj)
+    (if (null? obj)
+        (rcmds (list ))
+        (rcmds (append
+            (rcmds-vs (car obj))
+            (rcmds-vs (apply append-rcmds (cdr obj)))
+        ))
+    )
 )
 
-; r1cs structs
+; r1cs structs for binary files (*.r1cs)
 (struct r1cs (magic version nsec header constraint w2l inputs outputs) #:mutable #:transparent #:reflection-name 'r1cs)
     (struct header-section (field-size prime-number nwires npubout npubin nprvin nlabels mconstraints) #:mutable #:transparent #:reflection-name 'header-section)
     (struct constraint-section (constraints) #:mutable #:transparent #:reflection-name 'constraint-section)
@@ -67,7 +98,7 @@
         (define tmp-factors
             (for/list ([i arg-n])
                 (define s0 (+ 4 (* i (+ 4 arg-fs))))
-                (fix-number (F (utils:bytes->number (subbytes arg-block s0 (+ arg-fs s0)))))
+                (F (utils:bytes->number (subbytes arg-block s0 (+ arg-fs s0))))
             )
         )
         ; return

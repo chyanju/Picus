@@ -3,13 +3,15 @@
 (require json rosette/solver/smt/z3
     (prefix-in tokamak: "./picus/tokamak.rkt")
     (prefix-in utils: "./picus/utils.rkt")
+    (prefix-in z3: "./picus/z3-utils.rkt")
     (prefix-in config: "./picus/config.rkt")
-    (prefix-in r1cs: "./picus/r1cs.rkt")
+    (prefix-in r1cs: "./picus/r1cs-grammar.rkt")
     (prefix-in rint: "./picus/r1cs-z3-interpreter.rkt")
+    (prefix-in parser: "./picus/r1cs-parser.rkt")
+    (prefix-in osimp: "./picus/optimizers/r1cs-z3-simple-optimizer.rkt")
+    (prefix-in oab0: "./picus/optimizers/r1cs-z3-AB0-optimizer.rkt")
 )
 
-; stateful variable
-(define state-smt-path null)
 ; parse command line arguments
 (define arg-r1cs null)
 (define arg-timeout 5000)
@@ -39,92 +41,22 @@
 (printf "# r1cs file: ~a\n" arg-r1cs)
 (printf "# timeout: ~a\n" arg-timeout)
 
-(define (optimization-p smt-str)
-    (string-append
-        (format "(declare-const p Int)\n(assert (= p ~a))\n\n" config:p)
-        (string-replace
-            (string-replace smt-str (format "~a" config:p) "p")
-            (format "~a" (- config:p 1))
-            "(- p 1)"
-        )
-    )
-)
-
-; solving component
-(define (do-solve smt-str timeout #:verbose? [verbose? #f])
-    (define temp-folder (find-system-path 'temp-dir))
-    (define temp-file (format "picus~a.smt"
-        (string-replace (format "~a" (current-inexact-milliseconds)) "." "")))
-    (define temp-path (build-path temp-folder temp-file))
-    (define smt-file (open-output-file temp-path))
-    (display smt-str smt-file)
-    (close-output-port smt-file)
-    (set! state-smt-path temp-path) ; update global smt path
-    (when verbose?
-        (printf "# written to: ~a\n" temp-path)
-    )
-    (when verbose?
-        (printf "# solving...\n")
-    )
-    (define-values (sp out in err)
-            ; (note) use `apply` to expand the last argument
-            (apply subprocess #f #f #f (find-executable-path "z3") (list temp-path))
-    )
-    (define engine0 (engine (lambda (_)
-        (define out-str (port->string out))
-        (define err-str (port->string err))
-        (close-input-port out)
-        (close-output-port in)
-        (close-input-port err)
-        (subprocess-wait sp)
-        (cons out-str err-str)
-    )))
-    (define eres (engine-run timeout engine0))
-    (define esol (engine-result engine0))
-    (cond
-        [(! eres)
-            ; need to kill the process
-            (subprocess-kill sp #t)
-            (cons 'timeout "")
-        ]
-        [else
-            (define out-str (car esol))
-            (define err-str (cdr esol))
-            (when verbose?
-                (printf "# stdout:\n~a\n" out-str)
-                (printf "# stderr:\n~a\n" err-str)
-            )
-            (cond
-                [(non-empty-string? err-str) (cons 'error err-str)] ; something wrong, not solved
-                [(string-prefix? out-str "unsat") (cons 'unsat out-str)]
-                [(string-prefix? out-str "sat") (cons 'sat out-str)]
-                [(string-prefix? out-str "unknown") (cons 'unknown out-str)]
-                [else (cons 'else out-str)]
-            )
-        ]
-    )
-)
-
 (define r0 (r1cs:read-r1cs arg-r1cs))
 (define nwires (r1cs:get-nwires r0))
 (printf "# number of wires: ~a\n" nwires)
 (printf "# number of constraints: ~a\n" (r1cs:get-mconstraints r0))
 (printf "# field size (how many bytes): ~a\n" (r1cs:get-field-size r0))
 
-(printf "# interpreting original r1cs...\n")
-(define-values (xlist original-raw) (rint:interpret-r1cs r0 null)) ; interpret the constraint system
+; parse original r1cs
+(printf "# parsing original r1cs...\n")
+(define-values (xlist original-cmds) (parser:parse-r1cs r0 null)) ; interpret the constraint system
 (define input-list (r1cs:r1cs-inputs r0))
 (define output-list (r1cs:r1cs-outputs r0))
 (printf "# inputs: ~a.\n" input-list)
 (printf "# outputs: ~a.\n" output-list)
 (printf "# xlist: ~a.\n" xlist)
 
-; fix inputs, create alternative outputs
-; =======================================
-; output verification (weak verification)
-; clara fixed version
-;   |- create alternative variables for all non-input variables
-;   |- but restrict output variables as weak verification states
+; parse alternative r1cs
 (define xlist0 (for/list ([i (range nwires)])
     (if (not (utils:contains? input-list i))
         (format "y~a" i)
@@ -132,21 +64,22 @@
     )
 ))
 (printf "# xlist0: ~a.\n" xlist0)
-; then interpret again
-(printf "# interpreting alternative r1cs...\n")
-(define-values (_ alternative-raw) (rint:interpret-r1cs r0 xlist0))
+(printf "# parsing alternative r1cs...\n")
+(define-values (_ alternative-cmds) (parser:parse-r1cs r0 xlist0))
 
-(define partial-raw (append
-    (list "; ================================ ;")
-    (list "; ======== original block ======== ;")
-    (list "; ================================ ;")
-    (list "")
-    original-raw
-    (list "; =================================== ;")
-    (list "; ======== alternative block ======== ;")
-    (list "; =================================== ;")
-    (list "")
-    alternative-raw))
+(define partial-cmds (r1cs:append-rcmds
+    (r1cs:rcmds (list
+        (r1cs:rcmt (r1cs:rstr "================================"))
+        (r1cs:rcmt (r1cs:rstr "======== original block ========"))
+        (r1cs:rcmt (r1cs:rstr "================================"))
+    ))
+    original-cmds
+    (r1cs:rcmds (list
+        (r1cs:rcmt (r1cs:rstr "==================================="))
+        (r1cs:rcmt (r1cs:rstr "======== alternative block ========"))
+        (r1cs:rcmt (r1cs:rstr "==================================="))
+    ))
+    alternative-cmds))
 
 ; keep track of index of xlist (not xlist0 since that's incomplete)
 (define known-list (filter
@@ -179,30 +112,36 @@
     (define changed? #f)
     (for ([i ul])
         (printf "  # checking: (~a ~a), " (list-ref xlist i) (list-ref xlist0 i))
-        (define known-raw (for/list ([j tmp-kl])
-            (format "(assert (= ~a ~a))" (list-ref xlist j) (list-ref xlist0 j))
+        (define known-cmds (r1cs:rcmds (for/list ([j tmp-kl])
+            (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref xlist j)) (r1cs:rvar (list-ref xlist0 j))))
+        )))
+        (define final-cmds (r1cs:append-rcmds
+            (r1cs:rcmds (list (r1cs:rlogic (r1cs:rstr "QF_NIA"))))
+            partial-cmds
+            (r1cs:rcmds (list
+                (r1cs:rcmt (r1cs:rstr "============================="))
+                (r1cs:rcmt (r1cs:rstr "======== known block ========"))
+                (r1cs:rcmt (r1cs:rstr "============================="))
+            ))
+            known-cmds
+            (r1cs:rcmds (list
+                (r1cs:rcmt (r1cs:rstr "============================="))
+                (r1cs:rcmt (r1cs:rstr "======== query block ========"))
+                (r1cs:rcmt (r1cs:rstr "============================="))
+            ))
+            (r1cs:rcmds (list
+                (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref xlist i)) (r1cs:rvar (list-ref xlist0 i))))
+                (r1cs:rsolve )
+            ))
         ))
-        (define final-raw (append
-            partial-raw
-            (list "; =================================== ;")
-            (list "; ======== known constraints ======== ;")
-            (list "; =================================== ;")
-            (list "")
-            known-raw
-            (list "")
-            (list "; =================================== ;")
-            (list "; ======== query constraints ======== ;")
-            (list "; =================================== ;")
-            (list "")
-            (list (format "(assert (not (= ~a ~a)))" (list-ref xlist i) (list-ref xlist0 i))) (list "")
-            (list "(check-sat)\n(get-model)") (list "")
-        ))
-        ; (define final-str (string-join final-raw "\n"))
-        (define final-str (string-append
-            "(set-logic QF_NIA)\n\n"
-            (optimization-p (string-join final-raw "\n"))
-        ))
-        (define res (do-solve final-str arg-timeout))
+        ; perform optimization
+        (define optimized-cmds
+            ; final-cmds
+            ; (osimp:optimize-r1cs final-cmds)
+            (oab0:optimize-r1cs (osimp:optimize-r1cs final-cmds))
+        )
+        (define final-str (string-join (rint:interpret-r1cs optimized-cmds) "\n"))
+        (define res (z3:solve final-str arg-timeout #:output-smt? #f))
         (cond
             [(equal? 'unsat (car res))
                 (printf "verified.\n")
@@ -219,7 +158,7 @@
             ]
         )
         (when arg-smt
-            (printf "    # smt path: ~a\n" state-smt-path))
+            (printf "    # smt path: ~a\n" z3:state-smt-path))
     )
     ; return
     (if changed?

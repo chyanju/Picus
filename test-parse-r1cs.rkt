@@ -3,6 +3,8 @@
   (prefix-in tokamak: "./picus/tokamak.rkt")
   (prefix-in utils: "./picus/utils.rkt")
   (prefix-in r1cs: "./picus/r1cs-grammar.rkt")
+  (prefix-in parser: "./picus/r1cs-parser.rkt")
+  (prefix-in rint: "./picus/r1cs-z3-interpreter.rkt")
 )
 
 ; parse command line arguments
@@ -22,8 +24,14 @@
 (define t0 (r1cs:get-mconstraints r0))
 (define inputs0 (r1cs:r1cs-inputs r0))
 (define outputs0 (r1cs:r1cs-outputs r0))
-(for ([i (range t0)]) (printf "~a\n" (r1cs:r1cs->string r0 i)))
+; (for ([i (range t0)]) (printf "~a\n" (r1cs:r1cs->string r0 i)))
 (printf "# total constraints: ~a.\n" t0)
 (printf "# total number of wires: ~a.\n" (r1cs:get-nwires r0))
 (printf "# inputs: ~a (total: ~a).\n" inputs0 (length inputs0))
 (printf "# outputs: ~a (total: ~a).\n" outputs0 (length outputs0))
+
+(define-values (xlist cmds) (parser:parse-r1cs r0 null))
+; (display cmds)
+(define cstr (rint:interpret-r1cs cmds))
+(printf "~a\n" (string-join cstr "\n"))
+; cstr
