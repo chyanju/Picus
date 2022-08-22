@@ -48,16 +48,27 @@
         [(r1cs:rand vs) (foldr (make-format-op "and") null (for/list ([v vs]) (interpret-r1cs v)))]
         [(r1cs:ror vs) (foldr (make-format-op "or") null (for/list ([v vs]) (interpret-r1cs v)))]
 
-        [(r1cs:rint v) (format "~a" v)]
+        ; [(r1cs:rint v) (format "~a" v)]
+        [(r1cs:rint v) (format "#f~am~a" v config:p)]
         [(r1cs:rstr v) v]
         [(r1cs:rvar v) (format "~a" v)]
         [(r1cs:rtype v) (format "~a" v)]
 
-        [(r1cs:radd vs) (foldr (make-format-op "+") null (for/list ([v vs]) (interpret-r1cs v)))]
-        [(r1cs:rsub vs) (foldr (make-format-op "-") null (for/list ([v vs]) (interpret-r1cs v)))]
-        [(r1cs:rmul vs) (foldr (make-format-op "*") null (for/list ([v vs]) (interpret-r1cs v)))]
-        [(r1cs:rneg v) (format "(- ~a)" (interpret-r1cs v))]
-        [(r1cs:rmod v mod) (format "(mod ~a ~a)" (interpret-r1cs v) (interpret-r1cs mod))]
+        [(r1cs:radd vs) (foldr (make-format-op "ff.add") null (for/list ([v vs]) (interpret-r1cs v)))]
+        ; [(r1cs:rsub vs) (foldr (make-format-op "ff.sub") null (for/list ([v vs]) (interpret-r1cs v)))]
+        ; (note) cvc5 doesn't have sub, so rewrite it
+        [(r1cs:rsub vs)
+            (define tmp (if (empty? vs)
+                (r1cs:radd (list))
+                (r1cs:radd (cons (car vs) (for/list ([v (cdr vs)]) (r1cs:rneg v))))
+            ))
+            (interpret-r1cs tmp)
+        ]
+        [(r1cs:rmul vs) (foldr (make-format-op "ff.mul") null (for/list ([v vs]) (interpret-r1cs v)))]
+        [(r1cs:rneg v) (format "(ff.neg ~a)" (interpret-r1cs v))]
+        ; [(r1cs:rmod v mod) (format "(mod ~a ~a)" (interpret-r1cs v) (interpret-r1cs mod))]
+        ; (note) cvc5 has builtin mod, so ignore this
+        [(r1cs:rmod v mod) (format "~a" (interpret-r1cs v))]
 
         [else (tokamak:exit "not supported: ~a" arg-r1cs)]
     )

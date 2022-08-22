@@ -1,15 +1,15 @@
 #lang rosette
 (require racket/engine)
-(require json rosette/solver/smt/z3
+(require json
     (prefix-in tokamak: "./picus/tokamak.rkt")
     (prefix-in utils: "./picus/utils.rkt")
-    (prefix-in z3: "./picus/z3-utils.rkt")
+    (prefix-in cvc5: "./picus/cvc5-utils.rkt")
     (prefix-in config: "./picus/config.rkt")
     (prefix-in r1cs: "./picus/r1cs-grammar.rkt")
-    (prefix-in rint: "./picus/r1cs-z3-interpreter.rkt")
+    (prefix-in rint: "./picus/r1cs-cvc5-interpreter.rkt")
     (prefix-in parser: "./picus/r1cs-parser.rkt")
-    (prefix-in osimp: "./picus/optimizers/r1cs-z3-simple-optimizer.rkt")
-    (prefix-in oab0: "./picus/optimizers/r1cs-z3-AB0-optimizer.rkt")
+    ; (prefix-in osimp: "./picus/optimizers/r1cs-z3-simple-optimizer.rkt")
+    ; (prefix-in oab0: "./picus/optimizers/r1cs-z3-AB0-optimizer.rkt")
 )
 
 ; stateful variable
@@ -85,7 +85,12 @@
 
 (printf "# assembling final smt...\n")
 (define final-cmds (r1cs:append-rcmds
-    (r1cs:rcmds (list (r1cs:rlogic (r1cs:rstr "QF_NIA"))))
+    (r1cs:rcmds (list
+        (r1cs:rraw "(set-info :smt-lib-version 2.6)")
+        (r1cs:rraw "(set-info :category \"crafted\")")
+        (r1cs:rraw "(set-logic QF_FF)")
+        (r1cs:rraw "(define-sort F () (_ FiniteField 21888242871839275222246405745257275088548364400416034343698204186575808495617))")
+    ))
     (r1cs:rcmds (list
         (r1cs:rcmt (r1cs:rstr "================================"))
         (r1cs:rcmt (r1cs:rstr "======== original block ========"))
@@ -108,16 +113,17 @@
 ))
 ; perform optimization
 (define optimized-cmds
-    ; final-cmds
+    final-cmds
     ; (osimp:optimize-r1cs final-cmds)
-    (oab0:optimize-r1cs (osimp:optimize-r1cs final-cmds))
+    ; (oab0:optimize-r1cs (osimp:optimize-r1cs final-cmds))
 )
-; (define optimized-cmds final-cmds)
 (define final-str (string-join (rint:interpret-r1cs optimized-cmds) "\n"))
+; (note) replace Int with F for cvc5 only
+(set! final-str (string-replace final-str " Int" " F"))
+(set! final-str (regexp-replace* #rx"(; ======== range constraints ========.*?); ======== r1cs constraints ========" final-str "; ======== r1cs constraints ========"))
 (printf "# final str is:\n~a\n" final-str)
-
 ; solve!
-(define res (z3:solve final-str arg-timeout #:output-smt? arg-smt))
+(define res (cvc5:solve final-str arg-timeout #:output-smt? arg-smt))
 (if (equal? 'unsat (car res))
     (printf "# verified.\n")
     (printf "# failed / reason: ~a\n" res)

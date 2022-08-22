@@ -14,6 +14,7 @@
 ; r1cs commands (grammar)
 ; command level
 (struct rcmds (vs) #:mutable #:transparent #:reflection-name 'r1cs:rcmds) ; vs: list
+(struct rraw (v) #:mutable #:transparent #:reflection-name 'r1cs:rraw) ; any raw command, v: str
 (struct rlogic (v) #:mutable #:transparent #:reflection-name 'r1cs:rlogic) ; v: logic
 (struct rdef (var type) #:mutable #:transparent #:reflection-name 'r1cs:rdef) ; var: rvar, type: rtype
 (struct rassert (cnst) #:mutable #:transparent #:reflection-name 'r1cs:rassert) ; cnst: req | rneq | rleq | ...

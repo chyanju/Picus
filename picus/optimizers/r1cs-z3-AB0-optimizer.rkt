@@ -36,6 +36,7 @@
 
         ; command level
         [(r1cs:rcmds vs) (r1cs:rcmds (for/list ([v vs]) (optimize-r1cs v)))]
+        [(r1cs:rraw v) (r1cs:rraw v)]
         [(r1cs:rlogic v) (r1cs:rlogic (optimize-r1cs v))]
         [(r1cs:rdef v t) (r1cs:rdef v (optimize-r1cs t))]
         [(r1cs:rassert v) (r1cs:rassert (optimize-r1cs v))]

@@ -83,6 +83,7 @@
             )
         )]
 
+        [(r1cs:rraw v) (r1cs:rraw v)]
         [(r1cs:rlogic v) (r1cs:rlogic (optimize-r1cs v))]
         ; (note) don't optimize declaration line
         [(r1cs:rdef v t) (r1cs:rdef v (optimize-r1cs t))]
