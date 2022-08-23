@@ -18,8 +18,10 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 - Node.js: https://nodejs.org/en/
   - for circom parser
 - Circom (2.0.6 Required): https://docs.circom.io/
+  - older version may touch buggy corner cases
+
 - z3 solver (4.10.2+ Required): [https://github.com/Z3Prover/z3](https://github.com/Z3Prover/z3)
-  - older version may touch buggy corner case in zk constraints
+  - older version may touch buggy corner cases
 
 - cvc5-ff: [https://github.com/alex-ozdemir/CVC4/tree/ff](https://github.com/alex-ozdemir/CVC4/tree/ff)
   - see installation instructions [here](./NOTES.md#installing-cvc5-ff)
