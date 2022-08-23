@@ -18,16 +18,26 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 - Node.js: https://nodejs.org/en/
   - for circom parser
 - Circom (2.0.6 Required): https://docs.circom.io/
+- z3 solver (4.10.2+ Required): [https://github.com/Z3Prover/z3](https://github.com/Z3Prover/z3)
+  - older version may touch buggy corner case in zk constraints
+
+- cvc5-ff: [https://github.com/alex-ozdemir/CVC4/tree/ff](https://github.com/alex-ozdemir/CVC4/tree/ff)
+  - see installation instructions [here](./NOTES.md#installing-cvc5-ff)
+
 
 ## Usage
 
+### Normal Version
+
 ```bash
-usage: test-z3-inc-uniqueness.rkt [ <option> ... ]
+usage: test-uniqueness.rkt [ <option> ... ]
 
 <option> is one of
 
   --r1cs <p-r1cs>
      path to target r1cs
+  --solver <p-solver>
+     solver to use: z3 | cvc5 (default: z3)
   --timeout <p-timeout>
      timeout for every small query (default: 5000ms)
   --smt
@@ -41,19 +51,43 @@ usage: test-z3-inc-uniqueness.rkt [ <option> ... ]
  one `-`. For example, `-h-` is the same as `-h --`.
 ```
 
-## Commands
+### Slicing Version
+
+```bash
+usage: test-inc-uniqueness.rkt [ <option> ... ]
+
+<option> is one of
+
+  --r1cs <p-r1cs>
+     path to target r1cs
+  --solver <p-solver>
+     solver to use: z3 | cvc5 (default: z3)
+  --timeout <p-timeout>
+     timeout for every small query (default: 5000ms)
+  --smt
+     show path to generated smt files (default: false)
+  --help, -h
+     Show this help
+  --
+     Do not treat any remaining argument as a switch (at this level)
+
+ Multiple single-letter switches can be combined after
+ one `-`. For example, `-h-` is the same as `-h --`.
+```
+
+## Example Commands
 
 ```bash
 # example test for the r1cs utilities
 racket ./test-read-r1cs.rkt --r1cs ./benchmarks/circomlib/EscalarMulAny@escalarmulany.r1cs
 
-# check uniqueness in one shot
+# check uniqueness in one shot, using z3 solver
 # timeout is 10s, output and show path to smt
-racket ./test-z3-uniqueness.rkt --r1cs ./benchmarks/circomlib/Bits2Num@bitify.r1cs --timeout 10000 --smt
+racket ./test-uniqueness.rkt --r1cs ./benchmarks/circomlib/Bits2Num@bitify.r1cs --timeout 10000 --smt --solver z3
 
-# check uniqueness using naive slicing
+# check uniqueness using slicing, using cvc5
 # timeout is 3s, output and show path to smt
-racket ./test-z3-inc-uniqueness.rkt --r1cs ./benchmarks/circomlib/Mux4@mux4.r1cs --timeout 3000 --smt
+racket ./test-inc-uniqueness.rkt --r1cs ./benchmarks/circomlib/Mux4@mux4.r1cs --timeout 3000 --smt --solver cvc5
 ```
 
 ## Other Commands
