@@ -14,6 +14,10 @@ benchmarks/circom-bigint/*.json
 benchmarks/circom-bigint/*.sym
 benchmarks/circom-bigint/*.r1cs
 
+benchmarks/hermez-network/*.json
+benchmarks/hermez-network/*.sym
+benchmarks/hermez-network/*.r1cs
+
 # ========================================================== #
 # ======== gitignore template for the Rust language ======== #
 # ========================================================== #
