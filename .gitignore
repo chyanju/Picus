@@ -2,13 +2,17 @@ benchmarks/circomlib/*.json
 benchmarks/circomlib/*.sym
 benchmarks/circomlib/*.r1cs
 
-benchmarks/circomecdsa/*.json
-benchmarks/circomecdsa/*.sym
-benchmarks/circomecdsa/*.r1cs
+benchmarks/circom-ecdsa/*.json
+benchmarks/circom-ecdsa/*.sym
+benchmarks/circom-ecdsa/*.r1cs
 
-benchmarks/circompairing/*.json
-benchmarks/circompairing/*.sym
-benchmarks/circompairing/*.r1cs
+benchmarks/circom-pairing/*.json
+benchmarks/circom-pairing/*.sym
+benchmarks/circom-pairing/*.r1cs
+
+benchmarks/circom-bigint/*.json
+benchmarks/circom-bigint/*.sym
+benchmarks/circom-bigint/*.r1cs
 
 # ========================================================== #
 # ======== gitignore template for the Rust language ======== #
