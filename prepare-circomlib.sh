@@ -82,8 +82,8 @@ do
 	echo "    parsing..."
 	./circom-parser/target/debug/parser ./benchmarks/circomlib/${fn} > ./benchmarks/circomlib/${bn}.json
 
-	echo "    reading..."
-	racket ./test-read-r1cs.rkt --r1cs ./benchmarks/circomlib/${bn}.r1cs > ./benchmarks/circomlib/${bn}.r1cs.log
+	# echo "    reading..."
+	# racket ./test-read-r1cs.rkt --r1cs ./benchmarks/circomlib/${bn}.r1cs > ./benchmarks/circomlib/${bn}.r1cs.log
 
 	# echo "    testing..."
 	# racket ./test-functionality.rkt --cname ${bn}
