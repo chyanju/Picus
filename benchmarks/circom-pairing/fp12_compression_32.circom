@@ -1,6 +1,6 @@
 pragma circom 2.0.2;
 
-include "../libs/circom-pairing/final_exp.circom";
+include "../libs/circom-pairing-743d761/final_exp.circom";
 
 template test(n, k, p){
     signal input in[6][2][k];
