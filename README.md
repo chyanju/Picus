@@ -105,15 +105,18 @@ usage: test-pp-uniqueness.rkt [ <option> ... ]
 
 ```bash
 # example test for the r1cs utilities
-racket ./test-read-r1cs.rkt --r1cs ./benchmarks/circomlib/EscalarMulAny@escalarmulany.r1cs
+racket ./test-read-r1cs.rkt --r1cs ./benchmarks/circomlib-cff5ab6/EscalarMulAny@escalarmulany.r1cs
 
 # check uniqueness in one shot, using z3 solver
 # timeout is 10s, output and show path to smt
-racket ./test-uniqueness.rkt --r1cs ./benchmarks/circomlib/Bits2Num@bitify.r1cs --timeout 10000 --smt --solver z3
+racket ./test-uniqueness.rkt --r1cs ./benchmarks/circomlib-cff5ab6/Bits2Num@bitify.r1cs --timeout 10000 --smt --solver z3
 
 # check uniqueness using slicing, using cvc5
 # timeout is 3s, output and show path to smt
-racket ./test-inc-uniqueness.rkt --r1cs ./benchmarks/circomlib/Mux4@mux4.r1cs --timeout 3000 --smt --solver cvc5
+racket ./test-inc-uniqueness.rkt --r1cs ./benchmarks/circomlib-cff5ab6/Mux4@mux4.r1cs --timeout 3000 --smt --solver cvc5
+
+# prepare a set of benchmarks (run from repo root)
+./scripts/prepare-iden3-core.sh
 ```
 
 ## Other Commands
