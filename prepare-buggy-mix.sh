@@ -11,7 +11,7 @@ do
 	echo "=================== ${fn}: ${bn} ==================="
 	echo "    compiling..."
 	circom -o ./benchmarks/${dn}/ ./benchmarks/${fn} --r1cs --sym --O0
-	echo "    parsing..."
-	./circom-parser/target/debug/parser ./benchmarks/${fn} > ./benchmarks/${bn}.json
+	# echo "    parsing..."
+	# ./circom-parser/target/debug/parser ./benchmarks/${fn} > ./benchmarks/${bn}.json
 
 done
