@@ -29,7 +29,7 @@ Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 
 ## Usage
 
-### Normal Version
+### Normal Version (w/ No Special Algorithm)
 
 ```bash
 usage: test-uniqueness.rkt [ <option> ... ]
@@ -53,10 +53,34 @@ usage: test-uniqueness.rkt [ <option> ... ]
  one `-`. For example, `-h-` is the same as `-h --`.
 ```
 
-### Slicing Version
+### Naive Slicing Version (w/ Naive Slicing)
 
 ```bash
 usage: test-inc-uniqueness.rkt [ <option> ... ]
+
+<option> is one of
+
+  --r1cs <p-r1cs>
+     path to target r1cs
+  --solver <p-solver>
+     solver to use: z3 | cvc5 (default: z3)
+  --timeout <p-timeout>
+     timeout for every small query (default: 5000ms)
+  --smt
+     show path to generated smt files (default: false)
+  --help, -h
+     Show this help
+  --
+     Do not treat any remaining argument as a switch (at this level)
+
+ Multiple single-letter switches can be combined after
+ one `-`. For example, `-h-` is the same as `-h --`.
+```
+
+### Propagation & Preserving Version
+
+```bash
+usage: test-pp-uniqueness.rkt [ <option> ... ]
 
 <option> is one of
 
