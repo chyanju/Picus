@@ -19,6 +19,16 @@
     )
 )
 
+(define (union a b)
+    (if (null? b) 
+        a
+        (if (contains? a (car b))
+            (union a (cdr b))
+            (union (cons (car b) a) (cdr b))
+        )
+    )
+)
+
 
 (define (slice l offset n) (take (drop l offset) n))
 

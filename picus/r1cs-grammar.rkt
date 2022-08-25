@@ -447,3 +447,76 @@
     "")
 
 )
+
+
+(define (extract-signals cnst)
+    (define curr-block-a (constraint-a cnst))
+    (define curr-block-b (constraint-b cnst))
+    (define curr-block-c (constraint-c cnst))
+
+    (define wids-a (constraint-block-wids curr-block-a))
+    (define wids-b (constraint-block-wids curr-block-b))
+    (define wids-c (constraint-block-wids curr-block-c))
+
+    (utils:union (utils:union wids-a wids-b) wids-c)
+)
+
+(define (extract-solvable-signals cnst)
+    (define curr-block-a (constraint-a cnst))
+    (define curr-block-b (constraint-b cnst))
+    (define curr-block-c (constraint-c cnst))
+
+    (define wids-a (constraint-block-wids curr-block-a))
+    (define wids-b (constraint-block-wids curr-block-b))
+    (define wids-c (constraint-block-wids curr-block-c))
+
+    (filter 
+        (lambda (signal)
+            (and 
+                (not (utils:contains? wids-a signal)) 
+                (not (utils:contains? wids-b signal)) 
+            )
+        )
+        wids-c
+    )
+)
+
+
+(define (compute-signal2constraints arg-r1cs)
+    (define constraints (get-constraints arg-r1cs))
+    (define mconstraints (get-mconstraints arg-r1cs))
+    (define nwires (get-nwires arg-r1cs))
+
+    (for/list ([signal nwires])
+        (filter
+            (lambda (cnst) (
+                utils:contains? 
+                    (extract-signals (list-ref constraints cnst)) 
+                    signal   
+            )) 
+            (range mconstraints)
+        )
+    )
+)
+
+(define (compute-constraint2signals arg-r1cs)
+    (define constraints (get-constraints arg-r1cs))
+    (define mconstraints (get-mconstraints arg-r1cs))
+    (define nwires (get-nwires arg-r1cs))
+
+    (for/list ([cnst mconstraints])
+        (extract-signals (list-ref constraints cnst))
+    )
+    
+)
+
+
+(define (compute-constraint2solvablesignals arg-r1cs)
+    (define constraints (get-constraints arg-r1cs))
+    (define mconstraints (get-mconstraints arg-r1cs))
+    (define nwires (get-nwires arg-r1cs))
+
+    (for/list ([cnst mconstraints])
+        (extract-solvable-signals (list-ref constraints cnst))
+    )
+)

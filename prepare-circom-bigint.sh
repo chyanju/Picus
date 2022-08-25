@@ -8,7 +8,7 @@ do
 	echo "    compiling..."
 	# circom -o ./benchmarks/circom-bigint/ ./benchmarks/circom-bigint/${fn} --r1cs --sym
 	# to compare with Ecne, you need --O0 to disable optimization
-	circom -o ./benchmarks/circom-bigint/ ./benchmarks/circom-bigint/${fn} --r1cs --sym --O0
+	/home/clara/circom/iden3_circom_now/target/release/circom -o ./benchmarks/circom-bigint/ ./benchmarks/circom-bigint/${fn} --r1cs --sym --O0
 	echo "    parsing..."
 	./circom-parser/target/debug/parser ./benchmarks/circom-bigint/${fn} > ./benchmarks/circom-bigint/${bn}.json
 
