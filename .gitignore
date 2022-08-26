@@ -1,6 +1,6 @@
-benchmarks/*/*.json
-benchmarks/*/*.sym
-benchmarks/*/*.r1cs
+benchmarks/**/*.json
+benchmarks/**/*.sym
+benchmarks/**/*.r1cs
 
 # ========================================================== #
 # ======== gitignore template for the Rust language ======== #

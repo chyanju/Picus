@@ -1,13 +1,14 @@
 #!/bin/bash
 
 declare -a arr=(
-"buggy-mix/circom-ecdsa/test-bigmod22.circom"
+"buggy-mix/circom-ecdsa-436665b/test-bigmod22.circom"
+"buggy-mix/hermez-network-971c89f/test-rollup-main-L1.circom"
 )
 
 for fn in "${arr[@]}"
 do
 	bn="${fn%.*}"
-	dn="$(dirname "${arr[@]}")"
+	dn="$(dirname "${fn}")"
 	echo "=================== ${fn}: ${bn} ==================="
 	echo "    compiling..."
 	circom -o ./benchmarks/${dn}/ ./benchmarks/${fn} --r1cs --sym --O0
