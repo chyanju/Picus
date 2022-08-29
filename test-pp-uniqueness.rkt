@@ -228,19 +228,41 @@
     (values known unknown constraint2ukn)
 )
 
-(define (get-order-promising-signals constraint2ukn ukn)
-    (define constraint2numberknown 
-        (for/list ([index mconstraints])
-            (define nUkn (length (list-ref constraint2ukn index)))
-            (define nKnown (- (length (list-ref constraint2signals index)) nUkn))
-            nKnown
+(define (get-bounded-signals constraints2ukn)
+    (define bounds-constraints 
+        (filter
+            (lambda (x) (= (length x) 1))
+            constraints2ukn
         )
     )
-    (define signal2numberknown
+
+    (for/list ([cnst bounds-constraints])
+        (car cnst)
+    )
+)
+
+(define (get-order-promising-signals constraint2ukn ukn)
+    ;(printf "constraint2ukn: ~a" constraint2ukn)
+    (define bounded-signals (get-bounded-signals constraint2ukn))
+    ;(printf "Bounded signals: ~a" bounded-signals)
+    (define constraint2UnUkn 
+        (for/list ([index mconstraints])
+            (define nUkn (length (list-ref constraint2ukn index)))
+            (define nBoundedUkn (length 
+                (filter 
+                    (lambda (x) (utils:contains? bounded-signals x))
+                    (list-ref constraint2ukn index)
+                )
+            ))
+            (- nUkn nBoundedUkn)
+        )
+    )
+    ;(printf "Constraint to number Unbounded Ukn ~a" constraint2UnUkn)
+    (define signal2totalPoints
         (for/list ([signal ukn])
             (define total-known
                 (foldl 
-                    (lambda (y x)(+ x (list-ref constraint2numberknown y)))
+                    (lambda (y x)(+ x (list-ref constraint2UnUkn y)))
                     0
                     (list-ref signal2constraints signal)
                 )
@@ -249,7 +271,7 @@
         )
     )
     (define order-signal-val (
-        sort signal2numberknown (lambda (x y) (> (list-ref x 1) (list-ref y 1))))
+        sort signal2totalPoints (lambda (x y) (< (list-ref x 1) (list-ref y 1))))
     )
     (for/list ([value order-signal-val])
         (list-ref value 0)
@@ -267,8 +289,8 @@
             (set! kn (cons signal-smt kn))
             (set! ukn (remove signal-smt ukn))
             (for ([pot-cnst (list-ref signal2constraints signal-smt)])
-                (define new-value (remove signal-smt (list-ref constraint2ukn pot-cnst)))
-                (set! c2ukn (list-set constraint2ukn pot-cnst new-value))
+                (define new-value (remove signal-smt (list-ref c2ukn pot-cnst)))
+                (set! c2ukn (list-set c2ukn pot-cnst new-value))
             )
             (if (null? ukn)
                 null
