@@ -1,8 +1,9 @@
 #!/bin/bash
 
 declare -a arr=(
-"buggy-mix/circom-ecdsa-436665b/test-bigmod22.circom"
-"buggy-mix/hermez-network-971c89f/test-rollup-main-L1.circom"
+# "buggy-mix/circom-ecdsa-436665b/test-bigmod22.circom"
+# "buggy-mix/hermez-network-971c89f/test-rollup-main-L1.circom"
+"buggy-mix/iden3-core-3a3a300/credentialAtomicQuerySigTest.circom"
 )
 
 for fn in "${arr[@]}"
