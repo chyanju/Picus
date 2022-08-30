@@ -90,6 +90,6 @@
         [(r1cs:rneg v) (r1cs:rneg (optimize-r1cs v))]
         [(r1cs:rmod v mod) (r1cs:rmod (optimize-r1cs v) (optimize-r1cs mod))]
 
-        [else (tokamak:exit "not supported: ~a" arg-r1cs)]
+        [else (tokamak:exit "not supported for AB optimization: ~a" arg-r1cs)]
     )
 )

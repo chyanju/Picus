@@ -141,13 +141,9 @@
 
         [(r1cs:rint v)
             (cond
-                ; replace as p
-                [(= config:p v) (r1cs:rvar "p")]
-                [(= (- config:p 1) v) (r1cs:rsub (list (r1cs:rvar "p") (r1cs:rint 1)))]
-                [(= (- config:p 2) v) (r1cs:rsub (list (r1cs:rvar "p") (r1cs:rint 2)))]
-                [(= (- config:p 3) v) (r1cs:rsub (list (r1cs:rvar "p") (r1cs:rint 3)))]
-                [(= (- config:p 4) v) (r1cs:rsub (list (r1cs:rvar "p") (r1cs:rint 4)))]
-                [(= (- config:p 5) v) (r1cs:rsub (list (r1cs:rvar "p") (r1cs:rint 5)))]
+                ; replace to normalized form
+                [(> v (quotient config:p 2))
+                    (r1cs:rint (- v config:p))]
                 ; do nothing
                 [else (r1cs:rint v)]
             )

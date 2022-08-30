@@ -13,6 +13,7 @@
     (prefix-in z3-parser: "./picus/r1cs-z3-parser.rkt")
     (prefix-in z3-osimp: "./picus/optimizers/r1cs-z3-simple-optimizer.rkt")
     (prefix-in z3-oab0: "./picus/optimizers/r1cs-z3-AB0-optimizer.rkt")
+    ;(prefix-in z3-bounds: "./picus/optimizers/r1cs-z3-Bounds-optimizer.rkt")
 )
 ; cvc5 require
 (require
@@ -97,7 +98,9 @@
 )
 (define (optimizer:optimize)
     (cond
-        [(equal? "z3" arg-solver) (lambda (x) (z3-oab0:optimize-r1cs (z3-osimp:optimize-r1cs x)))]
+        [(equal? "z3" arg-solver) (lambda (x) (
+            z3-oab0:optimize-r1cs (z3-osimp:optimize-r1cs x)
+            ))]
         [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-osimp:optimize-r1cs x))]
         [else (tokamak:exit "you can't reach here")]
     )
@@ -130,7 +133,7 @@
 
 ; parse original r1cs
 (printf "# parsing original r1cs...\n")
-(define-values (xlist original-cmds) ((parser:parse-r1cs) r0 null)) ; interpret the constraint system
+(define-values (xlist original-definitions original-cnsts) ((parser:parse-r1cs) r0 null)) ; interpret the constraint system
 (define input-list (r1cs:r1cs-inputs r0))
 (define output-list (r1cs:r1cs-outputs r0))
 (printf "# inputs: ~a.\n" input-list)
@@ -146,7 +149,7 @@
 ))
 (printf "# xlist0: ~a.\n" xlist0)
 (printf "# parsing alternative r1cs...\n")
-(define-values (_ alternative-cmds) ((parser:parse-r1cs) r0 xlist0))
+(define-values (_ alternative-definitions alternative-cnsts) ((parser:parse-r1cs) r0 xlist0))
 
 (define partial-cmds (r1cs:append-rcmds
     (r1cs:rcmds (list
@@ -154,13 +157,16 @@
         (r1cs:rcmt (r1cs:rstr "======== original block ========"))
         (r1cs:rcmt (r1cs:rstr "================================"))
     ))
-    original-cmds
+    original-definitions
+    original-cnsts
     (r1cs:rcmds (list
         (r1cs:rcmt (r1cs:rstr "==================================="))
         (r1cs:rcmt (r1cs:rstr "======== alternative block ========"))
         (r1cs:rcmt (r1cs:rstr "==================================="))
     ))
-    alternative-cmds))
+    alternative-definitions
+    alternative-cnsts
+    ))
 
 ; keep track of index of xlist (not xlist0 since that's incomplete)
 (define known-list (filter
@@ -201,6 +207,59 @@
 (printf "# initial constraints2ukn ~a\n" initial-constraint2ukn)
 
 
+; compute the level-1 neighbors of the signals
+; (not taking into account as neighbors the known signals)
+(define (compute-signal2neighborconstraints signal known)   
+    (foldl 
+       (lambda (x y) 
+            (set-union y (foldl (lambda (x1 y1) (
+                set-union y1 (if (utils:contains? known-list x1) '() (list-ref signal2constraints x1))))
+                '()
+                (list-ref constraint2signals x)
+            ) )
+        )
+        (list-ref signal2constraints signal)
+        (list-ref signal2constraints signal)
+    )
+) 
+
+; generate a smt file containing the constraints of the set s
+(define (partial-cmds-list list-c) 
+    (r1cs:append-rcmds
+        (r1cs:rcmds 
+            (list (r1cs:rassert (r1cs:req
+            (r1cs:rint 1) (r1cs:rvar (format "~a" (list-ref xlist 0)))
+            )))
+        )
+        (r1cs:rcmds (list
+            (r1cs:rcmt (r1cs:rstr "================================"))
+            (r1cs:rcmt (r1cs:rstr "======== original block ========"))
+            (r1cs:rcmt (r1cs:rstr "================================"))
+        ))
+        original-definitions
+        (r1cs:get-subset-cmds original-cnsts list-c)
+        (r1cs:rcmds (list
+            (r1cs:rcmt (r1cs:rstr "==================================="))
+            (r1cs:rcmt (r1cs:rstr "======== alternative block ========"))
+            (r1cs:rcmt (r1cs:rstr "==================================="))
+        ))
+        alternative-definitions
+        (r1cs:get-subset-cmds alternative-cnsts list-c)
+    )
+)
+
+(define (partial-cmds-signal-level0 s)  
+    (partial-cmds-list (list-ref signal2constraints s))
+)
+
+(define (partial-cmds-signal-level1 s) 
+    (partial-cmds-list (compute-signal2neighborconstraints s input-list))
+)
+
+(define (partial-cmds-signal-level1known s known) 
+    (partial-cmds-list (compute-signal2neighborconstraints s known))
+)
+
 (define (apply-propagation known unknown constraint2ukn pot-easy)
     (printf "# ==== new round of propagation ===\n")
     (for ([cnst pot-easy])
@@ -229,49 +288,67 @@
 )
 
 (define (get-bounded-signals constraints2ukn)
-    (define bounds-constraints 
+    (define bounded-constraints 
         (filter
-            (lambda (x) (= (length x) 1))
-            constraints2ukn
+            (lambda (x) 
+                (= (length (list-ref constraints2ukn x)) 1)
+            )
+            (range mconstraints)
         )
     )
-
-    (for/list ([cnst bounds-constraints])
-        (car cnst)
+    (define bounded-signals
+        (for/list ([cnst bounded-constraints])
+            (car (list-ref constraints2ukn cnst))
+        )
     )
+    (values bounded-constraints bounded-signals) 
 )
 
-(define (get-order-promising-signals constraint2ukn ukn)
-    ;(printf "constraint2ukn: ~a" constraint2ukn)
-    (define bounded-signals (get-bounded-signals constraint2ukn))
-    ;(printf "Bounded signals: ~a" bounded-signals)
+(define (get-order-promising-signals constraint2ukn ukn triedAndFailed)
+    ;(printf "constraint2ukn: ~a\n" constraint2ukn)
+    (define-values (bounded-constraints bounded-signals) (get-bounded-signals constraint2ukn))
+    ;(printf "Bounded signals: ~a\n" bounded-signals)
+    ;(printf "Bounded constraints: ~a\n" bounded-constraints)
     (define constraint2UnUkn 
         (for/list ([index mconstraints])
-            (define nUkn (length (list-ref constraint2ukn index)))
-            (define nBoundedUkn (length 
-                (filter 
-                    (lambda (x) (utils:contains? bounded-signals x))
-                    (list-ref constraint2ukn index)
-                )
-            ))
-            (- nUkn nBoundedUkn)
+            (cond 
+            [(utils:contains? bounded-constraints index) -2]
+            [else 
+                (define nUkn (length (list-ref constraint2ukn index)))
+                (define nBoundedUkn (length 
+                    (filter 
+                        (lambda (x) (utils:contains? bounded-signals x))
+                     (list-ref constraint2ukn index)
+                    )
+                ))
+                (define nKnown (- (length (list-ref constraint2signals index)) (length (list-ref constraint2ukn index))))
+                ;(printf "Known ~a Bounded ~a Ukn ~a\n" nKnown nBoundedUkn nUkn)
+                (+ (* 0.1 nKnown) (* 0.5 nBoundedUkn) (- nUkn))
+            ]
+            )
+
         )
     )
-    ;(printf "Constraint to number Unbounded Ukn ~a" constraint2UnUkn)
+    ;(printf "Constraint to points ~a\n" constraint2UnUkn)
     (define signal2totalPoints
         (for/list ([signal ukn])
             (define total-known
                 (foldl 
-                    (lambda (y x)(+ x (list-ref constraint2UnUkn y)))
-                    0
+                    (lambda (y x)(max x (list-ref constraint2UnUkn y)))
+                    -1000
                     (list-ref signal2constraints signal)
                 )
             )
-            (list signal total-known) 
+            (define already-tried (utils:contains? triedAndFailed signal))
+            (if already-tried
+                (list signal (- total-known 100)) 
+                (list signal total-known) 
+            )
         )
     )
+    ;(printf "Signal to points ~a\n" signal2totalPoints)
     (define order-signal-val (
-        sort signal2totalPoints (lambda (x y) (< (list-ref x 1) (list-ref y 1))))
+        sort signal2totalPoints (lambda (x y) (> (list-ref x 1) (list-ref y 1))))
     )
     (for/list ([value order-signal-val])
         (list-ref value 0)
@@ -279,11 +356,11 @@
 )
 
 
-(define (apply-complete-iteration known unknown constraint2ukn pot-easy)
+(define (apply-complete-iteration known unknown constraint2ukn pot-easy tried-and-failed)
     (define-values (kn ukn c2ukn) (apply-propagation known unknown constraint2ukn pot-easy))
-    (define promising-signals-ordered (get-order-promising-signals c2ukn ukn))
+    (define promising-signals-ordered (get-order-promising-signals c2ukn ukn tried-and-failed))
     (printf "# ==== new round of SMT solvers ===\n")
-    (define signal-smt (try-solve-smt promising-signals-ordered kn))
+    (define-values (signal-smt new-failures) (try-solve-smt promising-signals-ordered kn tried-and-failed))
     (cond
         [(>= signal-smt 0)
             (set! kn (cons signal-smt kn))
@@ -294,31 +371,46 @@
             )
             (if (null? ukn)
                 null
-                (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt))
+                (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt) new-failures)
             )
         ]
         [else ukn]
     )
 )
 
-(define (try-solve-smt promising-signals-ordered known)
-    (if (null? promising-signals-ordered)
-        -1
-        (if (try-solve-smt-single-signal (car promising-signals-ordered) known)
-            (car promising-signals-ordered)
-            (try-solve-smt (cdr promising-signals-ordered) known)
-        )
+(define (try-solve-smt promising-signals-ordered known tried-and-failed)
+    (cond
+        [(null? promising-signals-ordered) (values -1 '())]
+        [else
+            (cond
+                [(try-solve-smt-single-signal (car promising-signals-ordered) known 0)
+                    (values (car promising-signals-ordered) tried-and-failed)
+                ]
+                [else
+                    (set! tried-and-failed (cons (car promising-signals-ordered) tried-and-failed))
+                    (try-solve-smt (cdr promising-signals-ordered) known tried-and-failed)
+                ]
+            )
+        
+        ]
     )
 )
 
-(define (try-solve-smt-single-signal signal known)
+(define (try-solve-smt-single-signal signal known level)
     (printf "  # checking: (~a ~a), " (list-ref xlist signal) (list-ref xlist0 signal))
     (define known-cmds (r1cs:rcmds (for/list ([j known])
         (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref xlist j)) (r1cs:rvar (list-ref xlist0 j))))
     )))
+    (define partial-cmds-level
+        (cond
+            [(= level 0) (partial-cmds-signal-level0 signal)]
+            [(= level 1) (partial-cmds-signal-level1 signal)]
+            [(= level 2) partial-cmds]
+        )
+    )
     (define final-cmds (r1cs:append-rcmds
         (r1cs:rcmds (list (r1cs:rlogic (r1cs:rstr (solver:get-theory)))))
-        partial-cmds
+        partial-cmds-level
         (r1cs:rcmds (list
             (r1cs:rcmt (r1cs:rstr "============================="))
             (r1cs:rcmt (r1cs:rstr "======== known block ========"))
@@ -347,17 +439,34 @@
              #t
         ]
         [(equal? 'sat (car res))
-            (printf "sat.\n")
-            #f
+            (cond 
+                [(< level 2) 
+                    (printf "sat\n")
+                    (try-solve-smt-single-signal signal known (+ level 1))
+                ]
+                [ else
+                    (printf "sat\n")
+                    #f
+                ]
+            )
+            
         ]
         [else
-            (printf "skip.\n")
-            #f
+            (cond 
+                [(< level 2) 
+                    (printf "skip\n")
+                    (try-solve-smt-single-signal signal known (+ level 1))
+                ]
+                [ else
+                    (printf "skip\n")
+                    #f
+                ]
+            )
         ]
     )
 )
 
-(define res-ul (apply-complete-iteration known-list unknown-list initial-constraint2ukn (range mconstraints)))
+(define res-ul (apply-complete-iteration known-list unknown-list initial-constraint2ukn (range mconstraints) '()))
 (printf "# final unknown list: ~a\n" res-ul)
 (if (empty? res-ul)
     (printf "# Strong safety verified.\n")

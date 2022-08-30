@@ -11,6 +11,7 @@
 ))
 
 (define (parse-r1cs arg-r1cs arg-xlist)
+    (define raw-declarations (list)) ; a list of commands
     (define raw-cmds (list)) ; a list of commands
 
     ; first create a list of all symbolic variables according to nwires
@@ -25,7 +26,7 @@
 
     ; add declarations for variables
     ; for cvc5, no range constraints are needed
-    (set! raw-cmds (append raw-cmds
+    (set! raw-declarations (append raw-declarations
         (list (r1cs:rcmt (r1cs:rstr "======== declaration constraints ========")))
         (for/list ([x xlist])
             (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
@@ -105,12 +106,12 @@
     ; update smt with comments and fixed constraints
     (set! raw-cmds (append
         raw-cmds
-        (list (r1cs:rcmt (r1cs:rstr "======== r1cs constraints ========")))
+        ;(list (r1cs:rcmt (r1cs:rstr "======== r1cs constraints ========")))
         sconstraints
         (list (r1cs:rassert (r1cs:req
             (r1cs:rint 1) (r1cs:rvar (format "~a" (list-ref xlist 0)))
         )))
     ))
 
-    (values xlist (r1cs:rcmds raw-cmds))
+    (values xlist (r1cs:rcmds raw-declarations) (r1cs:rcmds raw-cmds))
 )
