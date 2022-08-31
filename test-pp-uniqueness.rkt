@@ -21,6 +21,7 @@
     (prefix-in cvc5-rint: "./picus/r1cs-cvc5-interpreter.rkt")
     (prefix-in cvc5-parser: "./picus/r1cs-cvc5-parser.rkt")
     (prefix-in cvc5-osimp: "./picus/optimizers/r1cs-cvc5-simple-optimizer.rkt")
+    (prefix-in cvc5-brep: "./picus/optimizers/r1cs-cvc5-base-representation-optimizer.rkt")
     ; note: cvc5 doesn't have AB0 optimizer, use template instead
 )
 
@@ -108,10 +109,31 @@
         [(equal? "z3" arg-solver) (lambda (x) (
             z3-oab0:optimize-r1cs (z3-osimp:optimize-r1cs x)
             ))]
-        [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-osimp:optimize-r1cs x))]
+        [(equal? "cvc5" arg-solver) (lambda (x)
+            (cvc5-osimp:optimize-r1cs x)
+        )]
         [else (tokamak:exit "you can't reach here")]
     )
 )
+(define (optimizer:get-base-representation)
+    (cond
+        [(equal? "z3" arg-solver) '()]
+        [(equal? "cvc5" arg-solver) (lambda (x)
+            (cvc5-brep:get-base-representations x)
+        )]
+        [else (tokamak:exit "you can't reach here")]
+    )
+)
+(define (optimizer:generate-base-representations-constraints)
+    (cond
+        [(equal? "z3" arg-solver) '()]
+        [(equal? "cvc5" arg-solver) (lambda (x y)
+            (cvc5-brep:generate-base-representations-constraints x y)
+        )]
+        [else (tokamak:exit "you can't reach here")]
+    )
+)
+
 (define (rint:interpret-r1cs)
     (cond
         [(equal? "z3" arg-solver) z3-rint:interpret-r1cs]
@@ -158,6 +180,23 @@
 (printf "# parsing alternative r1cs...\n")
 (define-values (_ alternative-definitions alternative-cnsts) ((parser:parse-r1cs) r0 xlist0))
 
+(define optimized-original-cnsts ((optimizer:optimize) original-cnsts))
+(define optimized-alternative-cnsts ((optimizer:optimize) alternative-cnsts))
+
+; to generate the constraints checking for base-representations
+(define base-representations-original ((optimizer:get-base-representation) optimized-original-cnsts))
+(define base-representations-alternative ((optimizer:get-base-representation) optimized-alternative-cnsts))
+;(printf "# Base representations original: ~a.\n" base-representations-original)
+;(printf "# Base representations alternative: ~a.\n" base-representations-alternative)
+(define constraints-base-representations 
+    ((optimizer:generate-base-representations-constraints) 
+        base-representations-original
+        base-representations-alternative
+    )
+)
+(printf "# New constraints: ~a.\n" constraints-base-representations)
+
+
 (define partial-cmds (r1cs:append-rcmds
     (r1cs:rcmds (list
         (r1cs:rcmt (r1cs:rstr "================================"))
@@ -173,6 +212,13 @@
     ))
     alternative-definitions
     alternative-cnsts
+    (r1cs:rcmds (list
+        (r1cs:rcmt (r1cs:rstr "================================"))
+        (r1cs:rcmt (r1cs:rstr "========= Added lemmas ========="))
+        (r1cs:rcmt (r1cs:rstr "================================"))
+    ))
+    constraints-base-representations
+
     ))
 
 ; keep track of index of xlist (not xlist0 since that's incomplete)
@@ -252,6 +298,12 @@
         ))
         alternative-definitions
         (r1cs:get-subset-cmds alternative-cnsts list-c)
+        (r1cs:rcmds (list
+        (r1cs:rcmt (r1cs:rstr "================================"))
+        (r1cs:rcmt (r1cs:rstr "========= Added lemmas ========="))
+        (r1cs:rcmt (r1cs:rstr "================================"))
+        ))
+        constraints-base-representations
     )
 )
 

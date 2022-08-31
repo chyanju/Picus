@@ -47,6 +47,8 @@
 
         [(r1cs:rand vs) (foldr (make-format-op "and") null (for/list ([v vs]) (interpret-r1cs v)))]
         [(r1cs:ror vs) (foldr (make-format-op "or") null (for/list ([v vs]) (interpret-r1cs v)))]
+        [(r1cs:rimp lhs rhs) (format "(=> ~a ~a)" (interpret-r1cs lhs) (interpret-r1cs rhs))]
+
 
         [(r1cs:rint v) (format "~a" v)]
         [(r1cs:rstr v) v]

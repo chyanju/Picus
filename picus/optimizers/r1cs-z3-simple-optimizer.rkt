@@ -130,6 +130,8 @@
                 (r1cs:rand (for/list ([v new-vs]) v))
             )
         ]
+        [(r1cs:rimp lhs rhs) (r1cs:rimp (optimize-r1cs lhs) (optimize-r1cs rhs))]
+
         [(r1cs:ror vs)
             (define new-vs (for/list ([v vs]) (optimize-r1cs v)))
             ; if there's only one element, extract content directly

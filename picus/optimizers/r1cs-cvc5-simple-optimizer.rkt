@@ -151,6 +151,8 @@
                 (r1cs:ror (for/list ([v vs]) v))
             )
         ]
+        [(r1cs:rimp lhs rhs) (r1cs:rimp (optimize-r1cs lhs) (optimize-r1cs rhs))]
+
 
         [(r1cs:rint v)
             (cond

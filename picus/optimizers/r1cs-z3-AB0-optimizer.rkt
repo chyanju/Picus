@@ -79,6 +79,9 @@
 
         [(r1cs:rand vs) (r1cs:rand (for/list ([v vs]) (optimize-r1cs v)))]
         [(r1cs:ror vs) (r1cs:ror (for/list ([v vs]) (optimize-r1cs v)))]
+        [(r1cs:rimp lhs rhs) (r1cs:rimp (optimize-r1cs lhs) (optimize-r1cs rhs))]
+
+
         [(r1cs:rint v) (r1cs:rint v)]
         [(r1cs:rstr v) (r1cs:rstr v)]
         [(r1cs:rvar v) (r1cs:rvar v)]

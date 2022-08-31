@@ -35,6 +35,8 @@
 ; sub-command level
 (struct rand (vs) #:mutable #:transparent #:reflection-name 'r1cs:rand) ; vs: a list of bools
 (struct ror (vs) #:mutable #:transparent #:reflection-name 'r1cs:ror) ; vs: a list of bools
+(struct rimp (lhs rhs) #:mutable #:transparent #:reflection-name 'r1cs:imp)
+
 ; no rnot here out of simplicity, use neq, or other unequalty instead
 ; sub-command level
 (struct radd (vs) #:mutable #:transparent #:reflection-name 'r1cs:radd) ; vs: list
