@@ -34,6 +34,7 @@
 (define arg-solver "z3")
 (define arg-timeout 5000)
 (define arg-smt #f)
+(define arg-weak #f)
 (command-line
     #:once-each
     [("--r1cs") p-r1cs "path to target r1cs"
@@ -60,10 +61,16 @@
             (set! arg-smt #t)
         )
     ]
+    [("--weak") "only check weak safety, not strong safety  (default: false)"
+        (begin
+            (set! arg-weak #t)
+        )
+    ]
 )
 (printf "# r1cs file: ~a\n" arg-r1cs)
 (printf "# timeout: ~a\n" arg-timeout)
 (printf "# solver: ~a\n" arg-solver)
+
 
 ; =========================================
 ; ======== solver specific methods ========
@@ -371,7 +378,13 @@
             )
             (if (null? ukn)
                 null
-                (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt) new-failures)
+                (if arg-weak
+                    (if (utils:empty_inter? ukn output-list)
+                        ukn
+                        (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt) new-failures)
+                    )
+                    (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt) new-failures)
+                )
             )
         ]
         [else ukn]
@@ -468,9 +481,12 @@
 
 (define res-ul (apply-complete-iteration known-list unknown-list initial-constraint2ukn (range mconstraints) '()))
 (printf "# final unknown list: ~a\n" res-ul)
-(if (empty? res-ul)
-    (printf "# Strong safety verified.\n")
-    (printf "# Strong safey failed.\n")
+(if (not arg-weak)
+    (if (empty? res-ul)
+        (printf "# Strong safety verified.\n")
+        (printf "# Strong safey failed.\n")
+    )
+    (printf "# Weak flag activated: skipping check strong safey\n")
 )
 
 (if (utils:empty_inter? res-ul output-list)
