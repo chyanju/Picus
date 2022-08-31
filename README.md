@@ -90,8 +90,12 @@ usage: test-pp-uniqueness.rkt [ <option> ... ]
      solver to use: z3 | cvc5 (default: z3)
   --timeout <p-timeout>
      timeout for every small query (default: 5000ms)
+  --initlvl <p-initlvl>
+     initial level of neighboring method: 0 - full nb | 1 | 2 - disable nb (default:0)
   --smt
      show path to generated smt files (default: false)
+  --weak
+     only check weak safety, not strong safety  (default: false)
   --help, -h
      Show this help
   --

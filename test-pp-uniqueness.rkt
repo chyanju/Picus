@@ -35,6 +35,7 @@
 (define arg-timeout 5000)
 (define arg-smt #f)
 (define arg-weak #f)
+(define arg-initlvl 0)
 (command-line
     #:once-each
     [("--r1cs") p-r1cs "path to target r1cs"
@@ -56,6 +57,14 @@
             (set! arg-timeout (string->number p-timeout))
         )
     ]
+    [("--initlvl") p-initlvl "initial level of neighboring method: 0 - full nb | 1 | 2 - disable nb (default:0)"
+        (begin
+            (when (! (|| (equal? "0" p-initlvl) (equal? "1" p-initlvl) (equal? "2" p-initlvl)))
+                (tokamak:exit "initial level should be 0, 1 or 2")
+            )
+            (set! arg-initlvl (string->number p-initlvl))
+        )
+    ]
     [("--smt") "show path to generated smt files (default: false)"
         (begin
             (set! arg-smt #t)
@@ -70,7 +79,6 @@
 (printf "# r1cs file: ~a\n" arg-r1cs)
 (printf "# timeout: ~a\n" arg-timeout)
 (printf "# solver: ~a\n" arg-solver)
-
 
 ; =========================================
 ; ======== solver specific methods ========
@@ -396,7 +404,7 @@
         [(null? promising-signals-ordered) (values -1 '())]
         [else
             (cond
-                [(try-solve-smt-single-signal (car promising-signals-ordered) known 0)
+                [(try-solve-smt-single-signal (car promising-signals-ordered) known arg-initlvl)
                     (values (car promising-signals-ordered) tried-and-failed)
                 ]
                 [else
@@ -410,7 +418,7 @@
 )
 
 (define (try-solve-smt-single-signal signal known level)
-    (printf "  # checking: (~a ~a), " (list-ref xlist signal) (list-ref xlist0 signal))
+    (printf "  # checking: (~a ~a)@Lv.~a, " (list-ref xlist signal) (list-ref xlist0 signal) level)
     (define known-cmds (r1cs:rcmds (for/list ([j known])
         (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref xlist j)) (r1cs:rvar (list-ref xlist0 j))))
     )))
