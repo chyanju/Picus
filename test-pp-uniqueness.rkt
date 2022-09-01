@@ -175,7 +175,7 @@
 (define output-list (r1cs:r1cs-outputs r0))
 (printf "# inputs: ~a.\n" input-list)
 (printf "# outputs: ~a.\n" output-list)
-(printf "# xlist: ~a.\n" xlist)
+;(printf "# xlist: ~a.\n" xlist)
 
 ; parse alternative r1cs
 (define xlist0 (for/list ([i (range nwires)])
@@ -184,7 +184,7 @@
         (list-ref xlist i)
     )
 ))
-(printf "# xlist0: ~a.\n" xlist0)
+;(printf "# xlist0: ~a.\n" xlist0)
 (printf "# parsing alternative r1cs...\n")
 (define-values (_ alternative-definitions alternative-cnsts) ((parser:parse-r1cs) r0 xlist0))
 
@@ -192,17 +192,61 @@
 (define optimized-alternative-cnsts ((optimizer:optimize) alternative-cnsts))
 
 ; to generate the constraints checking for base-representations
-(define base-representations-original ((optimizer:get-base-representation) optimized-original-cnsts))
-(define base-representations-alternative ((optimizer:get-base-representation) optimized-alternative-cnsts))
-;(printf "# Base representations original: ~a.\n" base-representations-original)
-;(printf "# Base representations alternative: ~a.\n" base-representations-alternative)
-(define constraints-base-representations 
-    ((optimizer:generate-base-representations-constraints) 
-        base-representations-original
-        base-representations-alternative
+(define base-representations ((optimizer:get-base-representation) optimized-original-cnsts))
+(printf "# Base representations: ~a.\n" base-representations)
+
+; to obtain the bounds for checking the base representations -> can be used by the solver
+(define bounded-signals (r1cs:compute-bounded-signals r0))
+(printf "Bounded signals: ~a\n" bounded-signals)
+
+;;; function to check if the bounds of a base representation are satisfied 
+(define (is-valid-base-representation base elems bounds)
+    (define are-valid-elems
+    (for/list ([elem elems])
+        (define-values (is-bounded bound) (utils:get-elem-map bounds elem))
+        (match is-bounded
+            [#f #f]
+            [else 
+               (< bound base)
+            ]
+        )
+    )
+    )
+    (foldl (lambda (x y) (and x y)) #t are-valid-elems)
+)
+
+;;; base representations where the bounds are verified
+;;; in case the right side is unique, the elements at the left side is too
+(define valid-base-representations 
+    (filter 
+        (lambda (base-representation) (is-valid-base-representation 
+            (list-ref base-representation 0) 
+            (list-ref base-representation 1) 
+            bounded-signals
+        ))
+        base-representations
     )
 )
-(printf "# New constraints: ~a.\n" constraints-base-representations)
+(printf "Valid Base Representations ~a\n" valid-base-representations)
+
+(define base2activation-signal
+    (for/list ([base valid-base-representations])
+        (list-ref base 2)
+    )
+)
+
+(define base2propagation-signals
+    (for/list ([base valid-base-representations])
+        (filter 
+            (lambda (x) (not (utils:contains? input-list x)))
+            (list-ref base 1)
+        )
+    )
+)
+
+(printf "Base2Activation ~a\n" base2activation-signal)
+(printf "Base2Propagation ~a\n" base2propagation-signals)
+
 
 
 (define partial-cmds (r1cs:append-rcmds
@@ -220,12 +264,6 @@
     ))
     alternative-definitions
     alternative-cnsts
-    (r1cs:rcmds (list
-        (r1cs:rcmt (r1cs:rstr "================================"))
-        (r1cs:rcmt (r1cs:rstr "========= Added lemmas ========="))
-        (r1cs:rcmt (r1cs:rstr "================================"))
-    ))
-    constraints-base-representations
 
     ))
 
@@ -306,15 +344,11 @@
         ))
         alternative-definitions
         (r1cs:get-subset-cmds alternative-cnsts list-c)
-        (r1cs:rcmds (list
-        (r1cs:rcmt (r1cs:rstr "================================"))
-        (r1cs:rcmt (r1cs:rstr "========= Added lemmas ========="))
-        (r1cs:rcmt (r1cs:rstr "================================"))
-        ))
-        constraints-base-representations
+
     )
 )
 
+;;; to generate the cluster of constraints of a signal depending on the level
 (define (partial-cmds-signal-level0 s)  
     (partial-cmds-list (list-ref signal2constraints s))
 )
@@ -327,6 +361,34 @@
     (partial-cmds-list (compute-signal2neighborconstraints s known))
 )
 
+;;; applies the base checking to the different bases: in case the activation 
+;;; is unique then all the propagation signals are unique
+(define (apply-basis-lemma known unknown constraint2ukn used-basis)
+    (printf "# ==== new round of applying lemmas ===\n")
+    (define pot-easy '())
+    (for ([index (range (length base2activation-signal))]) 
+        (define pot-activation (list-ref base2activation-signal index))
+        (cond
+            [(and (not (utils:contains? used-basis index)) (utils:contains? known pot-activation))
+                (for ([pro-signal (list-ref base2propagation-signals index)])
+                    (printf "# Verified uniqueness of signal ~a via unique basis reasoning\n" pro-signal)
+                    (set! known (cons pro-signal known))
+                    (set! unknown (remove pro-signal unknown))
+                    (for ([pot-cnst (list-ref signal2constraints pro-signal)])
+                        (define new-value (remove pro-signal (list-ref constraint2ukn pot-cnst)))
+                        (set! constraint2ukn (list-set constraint2ukn pot-cnst new-value))
+                    )
+                    (set! pot-easy (append (list-ref signal2constraints pro-signal) pot-easy))
+                )
+                (set! used-basis (cons index used-basis))
+            ]
+        )
+    )
+
+    (values known unknown constraint2ukn pot-easy used-basis)
+)
+
+;;; applies the propagation phase
 (define (apply-propagation known unknown constraint2ukn pot-easy)
     (printf "# ==== new round of propagation ===\n")
     (for ([cnst pot-easy])
@@ -354,6 +416,8 @@
     (values known unknown constraint2ukn)
 )
 
+
+;;; Functions related with the heuristics
 (define (get-bounded-signals constraints2ukn)
     (define bounded-constraints 
         (filter
@@ -423,34 +487,57 @@
 )
 
 
-(define (apply-complete-iteration known unknown constraint2ukn pot-easy tried-and-failed)
-    (define-values (kn ukn c2ukn) (apply-propagation known unknown constraint2ukn pot-easy))
-    (define promising-signals-ordered (get-order-promising-signals c2ukn ukn tried-and-failed))
-    (printf "# ==== new round of SMT solvers ===\n")
-    (define-values (signal-smt new-failures) (try-solve-smt promising-signals-ordered kn tried-and-failed))
+;;; function that applies a complete iteration of the algorithm
+(define (apply-complete-iteration known unknown constraint2ukn pot-easy0 used-basis0 tried-and-failed)
+    (define-values (kn0 ukn0 c2ukn0) 
+        (apply-propagation known unknown constraint2ukn pot-easy0)
+    )
+    
+    (define-values (kn ukn c2ukn pot-easy used-basis) 
+        (apply-basis-lemma kn0 ukn0 c2ukn0 used-basis0)
+    )
+
     (cond
-        [(>= signal-smt 0)
-            (set! kn (cons signal-smt kn))
-            (set! ukn (remove signal-smt ukn))
-            (for ([pot-cnst (list-ref signal2constraints signal-smt)])
-                (define new-value (remove signal-smt (list-ref c2ukn pot-cnst)))
-                (set! c2ukn (list-set c2ukn pot-cnst new-value))
-            )
-            (if (null? ukn)
-                null
-                (if arg-weak
-                    (if (utils:empty_inter? ukn output-list)
-                        ukn
-                        (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt) new-failures)
+        [(null? pot-easy)
+            (cond
+                [(and arg-weak (utils:empty_inter? ukn output-list))
+                    null
+                ]
+                [else
+                    (define promising-signals-ordered (get-order-promising-signals c2ukn ukn tried-and-failed))
+                    (printf "# ==== new round of SMT solvers ===\n")
+                    (define-values (signal-smt new-failures) (try-solve-smt promising-signals-ordered kn tried-and-failed))
+                    (cond
+                        [(>= signal-smt 0)
+                            (set! kn (cons signal-smt kn))
+                            (set! ukn (remove signal-smt ukn))
+                            (for ([pot-cnst (list-ref signal2constraints signal-smt)])
+                                (define new-value (remove signal-smt (list-ref c2ukn pot-cnst)))
+                                (set! c2ukn (list-set c2ukn pot-cnst new-value))
+                            )
+                            (if (null? ukn)
+                                null
+                                (if arg-weak
+                                    (if (utils:empty_inter? ukn output-list)
+                                        ukn
+                                        (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt) used-basis new-failures)
+                                    )
+                                    (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt) used-basis new-failures)
+                                )
+                            )
+                        ]
+                        [else ukn]
                     )
-                    (apply-complete-iteration kn ukn c2ukn (list-ref signal2constraints signal-smt) new-failures)
-                )
+                ]
             )
         ]
-        [else ukn]
+        [ else
+            (apply-complete-iteration kn ukn c2ukn pot-easy used-basis tried-and-failed)
+        ]
     )
 )
 
+;;; function that applies the smt phase of the algorithm
 (define (try-solve-smt promising-signals-ordered known tried-and-failed)
     (cond
         [(null? promising-signals-ordered) (values -1 '())]
@@ -469,6 +556,8 @@
     )
 )
 
+;;; function that tries to verify the uniqueness of signal s, assuming that the signals in known are unique 
+;;; level indicates the cluster of constraints that it sends to the SMT solver
 (define (try-solve-smt-single-signal signal known level)
     (printf "  # checking: (~a ~a)@Lv.~a, " (list-ref xlist signal) (list-ref xlist0 signal) level)
     (define known-cmds (r1cs:rcmds (for/list ([j known])
@@ -538,8 +627,7 @@
         ]
     )
 )
-
-(define res-ul (apply-complete-iteration known-list unknown-list initial-constraint2ukn (range mconstraints) '()))
+(define res-ul (apply-complete-iteration known-list unknown-list initial-constraint2ukn (range mconstraints) '() '()))
 (printf "# final unknown list: ~a\n" res-ul)
 (if (not arg-weak)
     (if (empty? res-ul)

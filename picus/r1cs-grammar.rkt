@@ -463,6 +463,63 @@
     (utils:union (utils:union wids-a wids-b) wids-c)
 )
 
+(define (solve-eq value-1 value-2) ; returns c1/-c2
+    (/ value-1 (- config:p value-2))
+)
+
+(define (pos-values signals factors)
+    (if (= (length signals) 1)
+        (if (= (car signals) 0)
+            (list 0 1)
+            (list (car signals) 0)
+        )
+        (if (= (car signals) 0) ; case length 2
+            (list 
+                (car (cdr signals)) 
+                (solve-eq (car factors) (car (cdr factors)))
+            )
+            (if (= (car (cdr signals)) 0)
+                (list 
+                    (car signals) 
+                    (solve-eq (car (cdr factors)) (car factors))
+                )
+                (list 0 1)
+            )
+        )
+    )
+)
+
+(define (extract-bounded-signals cnst)
+    (define curr-block-a (constraint-a cnst))
+    (define curr-block-b (constraint-b cnst))
+    (define curr-block-c (constraint-c cnst))
+
+    (define wids-a (constraint-block-wids curr-block-a))
+    (define wids-b (constraint-block-wids curr-block-b))
+    (define wids-c (constraint-block-wids curr-block-c))
+
+    (define factors-a (constraint-block-factors curr-block-a))
+    (define factors-b (constraint-block-factors curr-block-b))
+    (define factors-c (constraint-block-factors curr-block-c))
+
+    (cond 
+        [(and
+            (= (length wids-c) 0)
+            (<= (length wids-a) 2)
+            (<= (length wids-b) 2)
+        ) 
+        (define bound-a (pos-values wids-a factors-a))
+        (define bound-b (pos-values wids-b factors-b))
+        (if (= (car bound-a) (car bound-b))
+            (list (car bound-a) (max (list-ref bound-a 1)(list-ref bound-b 1)))
+            (list 0 1)
+        )
+        ]
+        [else (list 0 1)]
+    )
+    
+)
+
 (define (extract-solvable-signals cnst)
     (define curr-block-a (constraint-a cnst))
     (define curr-block-b (constraint-b cnst))
@@ -519,6 +576,18 @@
 
     (for/list ([cnst mconstraints])
         (extract-solvable-signals (list-ref constraints cnst))
+    )
+)
+
+(define (compute-bounded-signals arg-r1cs)
+    (define constraints (get-constraints arg-r1cs))
+    (define mconstraints (get-mconstraints arg-r1cs))
+    (define bounds (for/list ([cnst mconstraints])
+        (extract-bounded-signals (list-ref constraints cnst))
+    ))
+    (filter
+        (lambda (x) (not (= (list-ref x 0) 0)))
+        bounds
     )
 )
 

@@ -157,7 +157,7 @@
         [(r1cs:rint v)
             (cond
                 ; replace as p
-                [(= config:p v) (r1cs:rvar "p")]
+                [(= config:p v) (r1cs:rint 0)]
                 ;[(= (- config:p 1) v) (r1cs:rvar "ps1")]
                 ;[(= (- config:p 2) v) (r1cs:rvar "ps2")]
                 ;[(= (- config:p 3) v) (r1cs:rvar "ps3")]

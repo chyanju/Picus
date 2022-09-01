@@ -19,6 +19,16 @@
     )
 )
 
+(define (get-elem-map l x)
+    (if (null? l)
+        (values #f -1)
+        (if (= (car (list-ref l 0)) x)
+            (values #t (list-ref (car l) 1))
+            (get-elem-map (cdr l) x)
+        )
+    )
+)
+
 (define (union a b)
     (if (null? b) 
         a
