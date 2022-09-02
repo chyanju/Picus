@@ -41,7 +41,7 @@ declare -a arr=(
 # "IsZero@isZero.circom" # isZero.circom is not in latest circomlib
 "MiMC7@mimc.circom"
 "MultiMiMC7@mimc.circom"
-"MIMCFeistel@mimcsponge.circom"
+"MiMCFeistel@mimcsponge.circom"
 "MiMCSponge@mimcsponge.circom"
 "Edwards2Montgomery@montgomery.circom"
 "Montgomery2Edwards@montgomery.circom"
