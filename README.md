@@ -33,8 +33,15 @@ docker run -it --rm picus:v0 bash
 - cvc5-ff: [https://github.com/alex-ozdemir/CVC4/tree/ff](https://github.com/alex-ozdemir/CVC4/tree/ff)
   - see installation instructions [here](./NOTES.md#installing-cvc5-ff)
 
-
 ## Usage
+
+Note: To run the uniqueness checking on benchmarks included (circom files), you'll need to prepare them (compiling to r1cs files) first, by running:
+
+```bash
+./script/prepare-??.sh
+```
+
+where `??` corresponds to corresponding benchmark set label.
 
 ### Normal Version (w/ No Special Algorithm)
 
