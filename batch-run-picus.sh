@@ -1,6 +1,6 @@
 #!/bin/bash
 # usage: this.sh <timeout> <log_path> <target_folder>
-# example: ./batch-run-picus.sh 600000 ./logs/test/ ./benchmarks/circomlib-cff5ab6/
+# example: ./batch-run-picus.sh 600 ./logs/test/ ./benchmarks/circomlib-cff5ab6/
 
 otime=$1
 logpath=$2

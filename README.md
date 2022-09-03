@@ -6,7 +6,14 @@
 </div>
 Picus is a symbolic virtual machine for automated verification tasks on R1CS.
 
-## Dependencies
+## Building from Docker
+
+```bash
+docker build -t picus:v0 .
+docker run -it --rm picus:v0 bash
+```
+
+## Dependencies (Building from Source)
 
 - Racket (8.0+): https://racket-lang.org/
   - Rosette (4.0+): https://github.com/emina/rosette

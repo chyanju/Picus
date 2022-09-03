@@ -1,0 +1,135 @@
+FROM ubuntu:20.04
+
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV PATH /opt/conda/bin:$PATH
+SHELL ["/bin/bash", "-c"]
+
+# anaconda
+# hadolint ignore=DL3008
+RUN set -x && \
+    apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends \
+        bzip2 \
+        ca-certificates \
+        git \
+        libglib2.0-0 \
+        libsm6 \
+        libxcomposite1 \
+        libxcursor1 \
+        libxdamage1 \
+        libxext6 \
+        libxfixes3 \
+        libxi6 \
+        libxinerama1 \
+        libxrandr2 \
+        libxrender1 \
+        mercurial \
+        openssh-client \
+        procps \
+        subversion \
+        wget \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* && \
+    UNAME_M="$(uname -m)" && \
+    if [ "${UNAME_M}" = "x86_64" ]; then \
+        ANACONDA_URL="https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-x86_64.sh"; \
+        SHA256SUM="fedf9e340039557f7b5e8a8a86affa9d299f5e9820144bd7b92ae9f7ee08ac60"; \
+    elif [ "${UNAME_M}" = "s390x" ]; then \
+        ANACONDA_URL="https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-s390x.sh"; \
+        SHA256SUM="1504e9259816c5804eff1304fe7e339517b9fc1a08bfd991bc525a7efb6568f1"; \
+    elif [ "${UNAME_M}" = "aarch64" ]; then \
+        ANACONDA_URL="https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-aarch64.sh"; \
+        SHA256SUM="4daacb88fbd3a6c14e28cd3b37004ed4c2643e2b187302e927eb81a074e837bc"; \
+    elif [ "${UNAME_M}" = "ppc64le" ]; then \
+        ANACONDA_URL="https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-ppc64le.sh"; \
+        SHA256SUM="7eb6a95925ee756240818599f8dcbba7a155adfb05ef6cd5336aa3c083de65f3"; \
+    fi && \
+    wget "${ANACONDA_URL}" -O anaconda.sh -q && \
+    echo "${SHA256SUM} anaconda.sh" > shasum && \
+    sha256sum --check --status shasum && \
+    /bin/bash anaconda.sh -b -p /opt/conda && \
+    rm anaconda.sh shasum && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc && \
+    find /opt/conda/ -follow -type f -name '*.a' -delete && \
+    find /opt/conda/ -follow -type f -name '*.js.map' -delete && \
+    /opt/conda/bin/conda clean -afy
+
+# Antlr
+RUN apt-get update && \
+    apt-get install -y build-essential && \
+    apt-get install -y antlr4 && \
+    apt-get install -y zip unzip
+
+# racket and rosette and other racket packages
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:plt/racket && \
+    apt-get update && \
+    apt-get install -y racket && \
+    raco pkg install --auto rosette
+
+# build rust & circom 2.0.7
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    source "$HOME/.cargo/env" && \
+    git clone https://github.com/iden3/circom.git && \
+    cd circom/ && \
+    git checkout v2.0.7 && \
+    cargo build --release && \
+    cargo install --path circom && \
+    cd ..
+
+# install z3
+RUN wget https://github.com/Z3Prover/z3/releases/download/z3-4.11.0/z3-4.11.0-x64-glibc-2.31.zip && \
+    unzip z3-4.11.0-x64-glibc-2.31.zip && \
+    cp z3-4.11.0-x64-glibc-2.31/bin/z3 /bin/
+
+# install CoCoALib
+RUN apt-get update && \
+    apt-get install -y libgmp-dev && \
+    wget https://cocoa.dima.unige.it/cocoa/cocoalib/tgz/CoCoALib-0.99800.tgz && \
+    tar -xvzf CoCoALib-0.99800.tgz && \
+    cd CoCoALib-0.99800/ && \
+    ./configure && \
+    make && \
+    cd ..
+
+
+# re-compile CoCoALib with patch from cvc5-ff
+RUN apt-get update && \
+    apt-get install -y cmake && \
+    git clone https://github.com/alex-ozdemir/CVC4.git && \
+    cd ./CVC4/ && \
+    git checkout ddcecc5 && \
+    ./configure.sh --cocoa --auto-download && \
+    cd .. && \
+    cp ./CVC4/cmake/deps-utils/CoCoALib-0.99800-trace.patch ./ && \
+    mv ./CoCoALib-0.99800 ./a && \
+    patch -s -p0 < CoCoALib-0.99800-trace.patch && \
+    mv ./a ./CoCoALib-0.99800 && \
+    cd CoCoALib-0.99800/ && \
+    ./configure && \
+    make && \
+    cd ..
+
+# install libpoly
+RUN apt-get update && \
+    apt-get install gcc cmake make libgmp-dev && \
+    git clone https://github.com/SRI-CSL/libpoly.git && \
+    cd ./libpoly/ && \
+    cd ./build/ && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    make && \
+    make install && \
+    cd ../../
+
+# actually install cvc5-ff
+RUN cd ./CVC4/ && \
+    ./configure.sh --cocoa --auto-download && \
+    cd ./build/ && \
+    make -j4 install && \
+    cd ..
+
+CMD [ "/bin/bash" ]
