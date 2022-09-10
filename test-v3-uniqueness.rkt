@@ -5,6 +5,7 @@
     (prefix-in utils: "./picus/utils.rkt")
     (prefix-in config: "./picus/config.rkt")
     (prefix-in r1cs: "./picus/r1cs-grammar.rkt")
+    (prefix-in nb: "./picus/algorithms/clara-nb.rkt")
 )
 ; z3 require
 (require
@@ -13,6 +14,7 @@
     (prefix-in z3-parser: "./picus/r1cs-z3-parser.rkt")
     (prefix-in z3-osimp: "./picus/optimizers/r1cs-z3-simple-optimizer.rkt")
     (prefix-in z3-oab0: "./picus/optimizers/r1cs-z3-AB0-optimizer.rkt")
+    ;(prefix-in z3-bounds: "./picus/optimizers/r1cs-z3-Bounds-optimizer.rkt")
 )
 ; cvc5 require
 (require
@@ -33,6 +35,8 @@
 (define arg-solver "z3")
 (define arg-timeout 5000)
 (define arg-smt #f)
+(define arg-weak #f)
+(define arg-initlvl 0)
 (command-line
     #:once-each
     [("--r1cs") p-r1cs "path to target r1cs"
@@ -54,9 +58,22 @@
             (set! arg-timeout (string->number p-timeout))
         )
     ]
+    [("--initlvl") p-initlvl "initial level of neighboring method: 0 - full nb | 1 | 2 - disable nb (default:0)"
+        (begin
+            (when (! (|| (equal? "0" p-initlvl) (equal? "1" p-initlvl) (equal? "2" p-initlvl)))
+                (tokamak:exit "initial level should be 0, 1 or 2")
+            )
+            (set! arg-initlvl (string->number p-initlvl))
+        )
+    ]
     [("--smt") "show path to generated smt files (default: false)"
         (begin
             (set! arg-smt #t)
+        )
+    ]
+    [("--weak") "only check weak safety, not strong safety  (default: false)"
+        (begin
+            (set! arg-weak #t)
         )
     ]
 )
@@ -81,6 +98,13 @@
         [else (tokamak:exit "you can't reach here")]
     )
 )
+(define (solver:state-smt-path)
+    (cond
+        [(equal? "z3" arg-solver) z3-solver:state-smt-path]
+        [(equal? "cvc5" arg-solver) cvc5-solver:state-smt-path]
+        [else (tokamak:exit "you can't reach here")]
+    )
+)
 (define (parser:parse-r1cs)
     (cond
         [(equal? "z3" arg-solver) z3-parser:parse-r1cs]
@@ -90,8 +114,12 @@
 )
 (define (optimizer:optimize)
     (cond
-        [(equal? "z3" arg-solver) (lambda (x) (z3-oab0:optimize-r1cs (z3-osimp:optimize-r1cs x)))]
-        [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-osimp:optimize-r1cs x))]
+        [(equal? "z3" arg-solver) (lambda (x) (
+            z3-oab0:optimize-r1cs (z3-osimp:optimize-r1cs x)
+            ))]
+        [(equal? "cvc5" arg-solver) (lambda (x)
+            (cvc5-osimp:optimize-r1cs x)
+        )]
         [else (tokamak:exit "you can't reach here")]
     )
 )
@@ -106,21 +134,21 @@
 ; ======================
 ; ======== main ========
 ; ======================
-; load r1cs binary
 (define r0 (r1cs:read-r1cs arg-r1cs))
 (define nwires (r1cs:get-nwires r0))
+(define mconstraints (r1cs:get-mconstraints r0))
 (printf "# number of wires: ~a\n" nwires)
-(printf "# number of constraints: ~a\n" (r1cs:get-mconstraints r0))
+(printf "# number of constraints: ~a\n" mconstraints)
 (printf "# field size (how many bytes): ~a\n" (r1cs:get-field-size r0))
 
 ; parse original r1cs
 (printf "# parsing original r1cs...\n")
-(define-values (xlist original-cmds) ((parser:parse-r1cs) r0 null)) ; interpret the constraint system
+(define-values (xlist original-definitions original-cnsts) ((parser:parse-r1cs) r0 null)) ; interpret the constraint system
 (define input-list (r1cs:r1cs-inputs r0))
 (define output-list (r1cs:r1cs-outputs r0))
 (printf "# inputs: ~a.\n" input-list)
 (printf "# outputs: ~a.\n" output-list)
-(printf "# xlist: ~a.\n" xlist)
+;(printf "# xlist: ~a.\n" xlist)
 
 ; parse alternative r1cs
 (define xlist0 (for/list ([i (range nwires)])
@@ -129,57 +157,27 @@
         (list-ref xlist i)
     )
 ))
-(printf "# xlist0: ~a.\n" xlist0)
+;(printf "# xlist0: ~a.\n" xlist0)
 (printf "# parsing alternative r1cs...\n")
-(define-values (_ alternative-cmds) ((parser:parse-r1cs) r0 xlist0))
+(define-values (_ alternative-definitions alternative-cnsts) ((parser:parse-r1cs) r0 xlist0))
 
-; assemble solve query
-(printf "# assembling query...\n")
-(define tmp0 (r1cs:rassert (r1cs:ror
-    (filter (lambda (x) (! (null? x))) (for/list ([i (range nwires)])
-        (if (utils:contains? output-list i)
-            (r1cs:rneq (r1cs:rvar (list-ref xlist i)) (r1cs:rvar (list-ref xlist0 i)))
-            null
-        )
-    ))
-)))
-(define query-cmds (r1cs:rcmds (list tmp0)))
-
-(printf "# assembling final smt...\n")
-(define final-cmds (r1cs:append-rcmds
-    (r1cs:rcmds (list
-        ; (note) setlogic needs to go first so optimizer can detect it
-        (r1cs:rlogic (r1cs:rstr (solver:get-theory)))
-    ))
-    (r1cs:rcmds (list
-        (r1cs:rcmt (r1cs:rstr "================================"))
-        (r1cs:rcmt (r1cs:rstr "======== original block ========"))
-        (r1cs:rcmt (r1cs:rstr "================================"))
-    ))
-    original-cmds
-    (r1cs:rcmds (list
-        (r1cs:rcmt (r1cs:rstr "==================================="))
-        (r1cs:rcmt (r1cs:rstr "======== alternative block ========"))
-        (r1cs:rcmt (r1cs:rstr "==================================="))
-    ))
-    alternative-cmds
-    (r1cs:rcmds (list
-        (r1cs:rcmt (r1cs:rstr "============================="))
-        (r1cs:rcmt (r1cs:rstr "======== query block ========"))
-        (r1cs:rcmt (r1cs:rstr "============================="))
-    ))
-    query-cmds
-    (r1cs:rcmds (list (r1cs:rsolve )))
+(define res-ul (nb:apply-nb
+    r0 nwires mconstraints input-list output-list
+    xlist original-definitions original-cnsts
+    xlist0 alternative-definitions alternative-cnsts
+    arg-weak arg-timeout arg-smt arg-initlvl
+    solver:get-theory solver:solve solver:state-smt-path parser:parse-r1cs optimizer:optimize rint:interpret-r1cs
 ))
+(printf "# final unknown list: ~a\n" res-ul)
+(if (not arg-weak)
+    (if (empty? res-ul)
+        (printf "# Strong safety verified.\n")
+        (printf "# Strong safey failed.\n")
+    )
+    (printf "# Weak flag activated: skipping check strong safey\n")
+)
 
-; perform optimization
-(define optimized-cmds ((optimizer:optimize) final-cmds))
-(define final-str (string-join ((rint:interpret-r1cs) optimized-cmds) "\n"))
-; (printf "# final str is:\n~a\n" final-str)
-
-; solve!
-(define res ((solver:solve) final-str arg-timeout #:output-smt? arg-smt))
-(if (equal? 'unsat (car res))
-    (printf "# verified.\n")
-    (printf "# failed / reason: ~a\n" res)
+(if (utils:empty_inter? res-ul output-list)
+    (printf "# Weak safety verified.\n")
+    (printf "# Weak safey failed.\n")
 )

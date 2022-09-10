@@ -35,6 +35,12 @@ docker run -it --rm picus:v0 bash
 
 ## Usage
 
+> Note: Picus is under development, so there are several experimental versions for the purpose of comparison. The larger the version number, the most recent the version. Ideally you should try to use the most recent version.
+
+> WIP: Lemmas applied in different versions may be different. We are working on a unified interface to it.
+
+### Constraint Preparations
+
 Note: To run the uniqueness checking on benchmarks included (circom files), you'll need to prepare them (compiling to r1cs files) first, by running:
 
 ```bash
@@ -43,80 +49,64 @@ Note: To run the uniqueness checking on benchmarks included (circom files), you'
 
 where `??` corresponds to corresponding benchmark set label.
 
-### Normal Version (w/ No Special Algorithm)
+### V0: Naive Version
+
+This version directly issues the raw constraints to the solver (with some simple optimizations to the constraints to make it more readable by the user).
 
 ```bash
-usage: test-uniqueness.rkt [ <option> ... ]
-
+usage: test-v0-uniqueness.rkt [ <option> ... ]
 <option> is one of
-
-  --r1cs <p-r1cs>
-     path to target r1cs
-  --solver <p-solver>
-     solver to use: z3 | cvc5 (default: z3)
-  --timeout <p-timeout>
-     timeout for every small query (default: 5000ms)
-  --smt
-     show path to generated smt files (default: false)
-  --help, -h
-     Show this help
-  --
-     Do not treat any remaining argument as a switch (at this level)
-
- Multiple single-letter switches can be combined after
- one `-`. For example, `-h-` is the same as `-h --`.
+  --r1cs <p-r1cs> path to target r1cs
+  --solver <p-solver> solver to use: z3 | cvc5 (default: z3)
+  --timeout <p-timeout> timeout for every small query (default: 5000ms)
+  --smt show path to generated smt files (default: false)
+  --help, -h Show this help
 ```
 
-### Naive Slicing Version (w/ Naive Slicing)
+### V1: Naive Slicing Version
+
+This builds on top of v0 version. This version incorporates the slicing features where each time only one key variable's uniqueness property is queried. The core algorithm is located at `picus/algorithms/inc.rkt`.
 
 ```bash
-usage: test-inc-uniqueness.rkt [ <option> ... ]
-
+usage: test-v1-uniqueness.rkt [ <option> ... ]
 <option> is one of
-
-  --r1cs <p-r1cs>
-     path to target r1cs
-  --solver <p-solver>
-     solver to use: z3 | cvc5 (default: z3)
-  --timeout <p-timeout>
-     timeout for every small query (default: 5000ms)
-  --smt
-     show path to generated smt files (default: false)
-  --help, -h
-     Show this help
-  --
-     Do not treat any remaining argument as a switch (at this level)
-
- Multiple single-letter switches can be combined after
- one `-`. For example, `-h-` is the same as `-h --`.
+  --r1cs <p-r1cs> path to target r1cs
+  --solver <p-solver> solver to use: z3 | cvc5 (default: z3)
+  --timeout <p-timeout> timeout for every small query (default: 5000ms)
+  --smt show path to generated smt files (default: false)
+  --help, -h Show this help
 ```
 
-### Propagation & Preserving Version
+### V2: Propagation & Preserving Version
+
+This builds on top of v1 version. This version incorporates a propagation procedure of the uniqueness property between two slicing queries so as to improve scalability. The core algorithm is located at `picus/algorithms/pp.rkt`.
 
 ```bash
-usage: test-pp-uniqueness.rkt [ <option> ... ]
-
+usage: test-v2-uniqueness.rkt [ <option> ... ]
 <option> is one of
+  --r1cs <p-r1cs> path to target r1cs
+  --solver <p-solver> solver to use: z3 | cvc5 (default: z3)
+  --timeout <p-timeout> timeout for every small query (default: 5000ms)
+  --initlvl <p-initlvl> initial level of neighboring method: 0 - full nb | 1 | 2 - disable nb (default:0)
+  --smt show path to generated smt files (default: false)
+  --weak only check weak safety, not strong safety  (default: false)
+  --help, -h Show this help
+```
 
-  --r1cs <p-r1cs>
-     path to target r1cs
-  --solver <p-solver>
-     solver to use: z3 | cvc5 (default: z3)
-  --timeout <p-timeout>
-     timeout for every small query (default: 5000ms)
-  --initlvl <p-initlvl>
-     initial level of neighboring method: 0 - full nb | 1 | 2 - disable nb (default:0)
-  --smt
-     show path to generated smt files (default: false)
-  --weak
-     only check weak safety, not strong safety  (default: false)
-  --help, -h
-     Show this help
-  --
-     Do not treat any remaining argument as a switch (at this level)
+### V3: Propagation & Preserving with Neighboring Version
 
- Multiple single-letter switches can be combined after
- one `-`. For example, `-h-` is the same as `-h --`.
+This builds on top of v2 version. This version incorporates neighboring checking to narrow down the search scope, which will improve the performance if the ground truth of a circuit is safe. The core algorithm is located at `picus/algorithms/nb.rkt`. Note that the current neighboring version also has propagation & preserving version built inside.
+
+```bash
+usage: test-v3-uniqueness.rkt [ <option> ... ]
+<option> is one of
+  --r1cs <p-r1cs> path to target r1cs
+  --solver <p-solver> solver to use: z3 | cvc5 (default: z3)
+  --timeout <p-timeout> timeout for every small query (default: 5000ms)
+  --initlvl <p-initlvl> initial level of neighboring method: 0 - full nb | 1 | 2 - disable nb (default:0)
+  --smt show path to generated smt files (default: false)
+  --weak only check weak safety, not strong safety  (default: false)
+  --help, -h Show this help
 ```
 
 ## Example Commands
@@ -125,13 +115,9 @@ usage: test-pp-uniqueness.rkt [ <option> ... ]
 # example test for the r1cs utilities
 racket ./test-read-r1cs.rkt --r1cs ./benchmarks/circomlib-cff5ab6/EscalarMulAny@escalarmulany.r1cs
 
-# check uniqueness in one shot, using z3 solver
-# timeout is 10s, output and show path to smt
-racket ./test-uniqueness.rkt --r1cs ./benchmarks/circomlib-cff5ab6/Bits2Num@bitify.r1cs --timeout 10000 --smt --solver z3
-
 # check uniqueness using slicing, using cvc5
 # timeout is 3s, output and show path to smt
-racket ./test-inc-uniqueness.rkt --r1cs ./benchmarks/circomlib-cff5ab6/Mux4@mux4.r1cs --timeout 3000 --smt --solver cvc5
+racket ./test-v1-uniqueness.rkt --r1cs ./benchmarks/circomlib-cff5ab6/Mux4@mux4.r1cs --timeout 3000 --smt --solver cvc5
 
 # prepare a set of benchmarks (run from repo root)
 ./scripts/prepare-iden3-core.sh

@@ -158,15 +158,15 @@
             (cond
                 ; replace as p
                 [(= config:p v) (r1cs:rint 0)]
-                ;[(= (- config:p 1) v) (r1cs:rvar "ps1")]
-                ;[(= (- config:p 2) v) (r1cs:rvar "ps2")]
-                ;[(= (- config:p 3) v) (r1cs:rvar "ps3")]
-                ;[(= (- config:p 4) v) (r1cs:rvar "ps4")]
-                ;[(= (- config:p 5) v) (r1cs:rvar "ps5")]
+                [(= (- config:p 1) v) (r1cs:rvar "ps1")]
+                [(= (- config:p 2) v) (r1cs:rvar "ps2")]
+                [(= (- config:p 3) v) (r1cs:rvar "ps3")]
+                [(= (- config:p 4) v) (r1cs:rvar "ps4")]
+                [(= (- config:p 5) v) (r1cs:rvar "ps5")]
                 ; replace as zero
-                ;[(= 0 v) (r1cs:rvar "zero")]
+                [(= 0 v) (r1cs:rvar "zero")]
                 ; replace as one
-                ;[(= 1 v) (r1cs:rvar "one")]
+                [(= 1 v) (r1cs:rvar "one")]
                 ; do nothing
                 [else (r1cs:rint v)]
             )

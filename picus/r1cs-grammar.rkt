@@ -578,26 +578,3 @@
         (extract-solvable-signals (list-ref constraints cnst))
     )
 )
-
-(define (compute-bounded-signals arg-r1cs)
-    (define constraints (get-constraints arg-r1cs))
-    (define mconstraints (get-mconstraints arg-r1cs))
-    (define bounds (for/list ([cnst mconstraints])
-        (extract-bounded-signals (list-ref constraints cnst))
-    ))
-    (filter
-        (lambda (x) (not (= (list-ref x 0) 0)))
-        bounds
-    )
-)
-
-
-(define (get-subset-cmds cmd l-values)
-    (match cmd 
-        [(rcmds vs) 
-            (rcmds (for/list ([v l-values]) (list-ref vs v)))
-        ]
-        [else (tokamak:exit "error: not a list command ~a" cmd)]
-    )
-
-)

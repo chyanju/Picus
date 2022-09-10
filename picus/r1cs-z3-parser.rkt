@@ -25,7 +25,7 @@
     ))
 
     ; add declarations for variables
-    (set! raw-declarations (append raw-cmds
+    (set! raw-declarations (append raw-declarations
         (list (r1cs:rcmt (r1cs:rstr "======== declaration constraints ========")))
         (for/list ([x xlist])
             (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
@@ -38,7 +38,7 @@
     ))
     
     ; add range constraints for declared variables
-    (set! raw-declarations (append raw-cmds
+    (set! raw-declarations (append raw-declarations
         (list (r1cs:rcmt (r1cs:rstr "======== range constraints ========")))
         (for/list ([x xlist])
             (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))

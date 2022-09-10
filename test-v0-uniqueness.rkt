@@ -81,13 +81,6 @@
         [else (tokamak:exit "you can't reach here")]
     )
 )
-(define (solver:state-smt-path)
-    (cond
-        [(equal? "z3" arg-solver) z3-solver:state-smt-path]
-        [(equal? "cvc5" arg-solver) cvc5-solver:state-smt-path]
-        [else (tokamak:exit "you can't reach here")]
-    )
-)
 (define (parser:parse-r1cs)
     (cond
         [(equal? "z3" arg-solver) z3-parser:parse-r1cs]
@@ -113,6 +106,7 @@
 ; ======================
 ; ======== main ========
 ; ======================
+; load r1cs binary
 (define r0 (r1cs:read-r1cs arg-r1cs))
 (define nwires (r1cs:get-nwires r0))
 (printf "# number of wires: ~a\n" nwires)
@@ -121,7 +115,7 @@
 
 ; parse original r1cs
 (printf "# parsing original r1cs...\n")
-(define-values (xlist original-cmds) ((parser:parse-r1cs) r0 null)) ; interpret the constraint system
+(define-values (xlist original-definitions original-cnsts) ((parser:parse-r1cs) r0 null)) ; interpret the constraint system
 (define input-list (r1cs:r1cs-inputs r0))
 (define output-list (r1cs:r1cs-outputs r0))
 (printf "# inputs: ~a.\n" input-list)
@@ -137,112 +131,57 @@
 ))
 (printf "# xlist0: ~a.\n" xlist0)
 (printf "# parsing alternative r1cs...\n")
-(define-values (_ alternative-cmds) ((parser:parse-r1cs) r0 xlist0))
+(define-values (_ alternative-definitions alternative-cnsts) ((parser:parse-r1cs) r0 xlist0))
 
-(define partial-cmds (r1cs:append-rcmds
+; assemble solve query
+(printf "# assembling query...\n")
+(define tmp0 (r1cs:rassert (r1cs:ror
+    (filter (lambda (x) (! (null? x))) (for/list ([i (range nwires)])
+        (if (utils:contains? output-list i)
+            (r1cs:rneq (r1cs:rvar (list-ref xlist i)) (r1cs:rvar (list-ref xlist0 i)))
+            null
+        )
+    ))
+)))
+(define query-cmds (r1cs:rcmds (list tmp0)))
+
+(printf "# assembling final smt...\n")
+(define final-cmds (r1cs:append-rcmds
+    (r1cs:rcmds (list
+        ; (note) setlogic needs to go first so optimizer can detect it
+        (r1cs:rlogic (r1cs:rstr (solver:get-theory)))
+    ))
     (r1cs:rcmds (list
         (r1cs:rcmt (r1cs:rstr "================================"))
         (r1cs:rcmt (r1cs:rstr "======== original block ========"))
         (r1cs:rcmt (r1cs:rstr "================================"))
     ))
-    original-cmds
+    original-definitions
+    original-cnsts
     (r1cs:rcmds (list
         (r1cs:rcmt (r1cs:rstr "==================================="))
         (r1cs:rcmt (r1cs:rstr "======== alternative block ========"))
         (r1cs:rcmt (r1cs:rstr "==================================="))
     ))
-    alternative-cmds))
-
-; keep track of index of xlist (not xlist0 since that's incomplete)
-(define known-list (filter
-    (lambda (x) (! (null? x)))
-    (for/list ([i (range nwires)])
-        (if (utils:contains? xlist0 (list-ref xlist i))
-            i
-            null
-        )
-    )
+    alternative-definitions
+    alternative-cnsts
+    (r1cs:rcmds (list
+        (r1cs:rcmt (r1cs:rstr "============================="))
+        (r1cs:rcmt (r1cs:rstr "======== query block ========"))
+        (r1cs:rcmt (r1cs:rstr "============================="))
+    ))
+    query-cmds
+    (r1cs:rcmds (list (r1cs:rsolve )))
 ))
-(define unknown-list (filter
-    (lambda (x) (! (null? x)))
-    (for/list ([i (range nwires)])
-        (if (utils:contains? xlist0 (list-ref xlist i))
-            null
-            i
-        )
-    )
-))
-(printf "# initial knwon-list: ~a\n" known-list)
-(printf "# initial unknown-list: ~a\n" unknown-list)
 
-; returns final unknown list, and if it's empty, it means all are known
-; and thus verified
-(define (inc-solve kl ul)
-    (printf "# ==== new round inc-solve ===\n")
-    (define tmp-kl (for/list ([i kl]) i))
-    (define tmp-ul (list ))
-    (define changed? #f)
-    (for ([i ul])
-        (printf "  # checking: (~a ~a), " (list-ref xlist i) (list-ref xlist0 i))
-        (define known-cmds (r1cs:rcmds (for/list ([j tmp-kl])
-            (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref xlist j)) (r1cs:rvar (list-ref xlist0 j))))
-        )))
-        (define final-cmds (r1cs:append-rcmds
-            (r1cs:rcmds (list (r1cs:rlogic (r1cs:rstr (solver:get-theory)))))
-            partial-cmds
-            (r1cs:rcmds (list
-                (r1cs:rcmt (r1cs:rstr "============================="))
-                (r1cs:rcmt (r1cs:rstr "======== known block ========"))
-                (r1cs:rcmt (r1cs:rstr "============================="))
-            ))
-            known-cmds
-            (r1cs:rcmds (list
-                (r1cs:rcmt (r1cs:rstr "============================="))
-                (r1cs:rcmt (r1cs:rstr "======== query block ========"))
-                (r1cs:rcmt (r1cs:rstr "============================="))
-            ))
-            (r1cs:rcmds (list
-                (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref xlist i)) (r1cs:rvar (list-ref xlist0 i))))
-                (r1cs:rsolve )
-            ))
-        ))
-        ; perform optimization
-        (define optimized-cmds ((optimizer:optimize) final-cmds))
-        (define final-str (string-join ((rint:interpret-r1cs) optimized-cmds) "\n"))
-        (define res ((solver:solve) final-str arg-timeout #:output-smt? #f))
-        (cond
-            [(equal? 'unsat (car res))
-                (printf "verified.\n")
-                (set! tmp-kl (cons i tmp-kl))
-                (set! changed? #t)
-            ]
-            [(equal? 'sat (car res))
-                (printf "sat.\n")
-                (set! tmp-ul (cons i tmp-ul))
-            ]
-            [else
-                (printf "skip.\n")
-                (set! tmp-ul (cons i tmp-ul))
-            ]
-        )
-        (when arg-smt
-            (printf "    # smt path: ~a\n" (solver:state-smt-path)))
-    )
-    ; return
-    (if changed?
-        (inc-solve (reverse tmp-kl) (reverse tmp-ul))
-        tmp-ul
-    )
-)
+; perform optimization
+(define optimized-cmds ((optimizer:optimize) final-cmds))
+(define final-str (string-join ((rint:interpret-r1cs) optimized-cmds) "\n"))
+; (printf "# final str is:\n~a\n" final-str)
 
-(define res-ul (inc-solve known-list unknown-list))
-(printf "# final unknown list: ~a\n" res-ul)
-(if (empty? res-ul)
-    (printf "# Strong safety verified.\n")
-    (printf "# Strong safey failed.\n")
-)
-
-(if (utils:empty_inter? res-ul output-list)
-    (printf "# Weak safety verified.\n")
-    (printf "# Weak safey failed.\n")
+; solve!
+(define res ((solver:solve) final-str arg-timeout #:output-smt? arg-smt))
+(if (equal? 'unsat (car res))
+    (printf "# verified.\n")
+    (printf "# failed / reason: ~a\n" res)
 )

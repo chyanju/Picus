@@ -1,5 +1,5 @@
 #!/bin/bash
-# usage: this.sh <timeout> <ecne_path> <log_path> <target_folder>
+# usage: this.sh <timeout:seconds> <ecne_path> <log_path> <target_folder>
 # example: ./batch-run-ecne.sh 600 ../EcneProject/ ./logs/ecne-circomlib ./benchmarks/circomlib-cff5ab6/
 
 otime=$1
