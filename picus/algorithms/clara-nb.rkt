@@ -319,12 +319,13 @@
     arg-weak arg-timeout arg-smt arg-initlvl
     solver:get-theory solver:solve solver:state-smt-path parser:parse-r1cs optimizer:optimize rint:interpret-r1cs
     )
+    (printf "# computing mappings...\n")
     ; parse signal2constraints and constraints2signals
     (define signal2constraints (r1cs:compute-signal2constraints r0))
-    (define constraint2signals (r1cs:compute-constraint2signals r0))
-    (define constraint2solvablesignals (r1cs:compute-constraint2solvablesignals r0))
     (printf "# map from signal to constraints: ~a\n" signal2constraints)
+    (define constraint2signals (r1cs:compute-constraint2signals r0))
     (printf "# map from constraints to signals: ~a\n" constraint2signals)
+    (define constraint2solvablesignals (r1cs:compute-constraint2solvablesignals r0))
     (printf "# map from constraints to solvable signals: ~a\n" constraint2solvablesignals)
 
     (define optimized-original-cnsts ((optimizer:optimize) original-cnsts))
