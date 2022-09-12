@@ -4,7 +4,6 @@
 ;   - remove *1 in mul
 ;   - remove +0 in add
 ;   - rewrite *x as x
-;   - rewrite -x as -x
 ;   - rewrite +x as x
 ;   - replace x0 with 1
 ;   - partial evaluation: compute concrete results, e.g., 0*0 => 0
@@ -13,7 +12,7 @@
     (prefix-in tokamak: "../tokamak.rkt")
     (prefix-in utils: "../utils.rkt")
     (prefix-in config: "../config.rkt")
-    (prefix-in r1cs: "../r1cs-grammar.rkt")
+    (prefix-in r1cs: "../r1cs/r1cs-grammar.rkt")
 )
 (provide (rename-out
     [optimize-r1cs optimize-r1cs]
@@ -58,40 +57,6 @@
     (match arg-r1cs
 
         ; command level
-        ; probably the original block
-        [(r1cs:rcmds (list (r1cs:rlogic v0) vs ...))
-            (r1cs:rcmds
-                (append
-                    (list
-                        (r1cs:rlogic v0)
-                        (r1cs:rraw "(set-info :smt-lib-version 2.6)")
-                        (r1cs:rraw "(set-info :category \"crafted\")")
-                        (r1cs:rraw "(define-sort F () (_ FiniteField 21888242871839275222246405745257275088548364400416034343698204186575808495617))")
-                        ; add p definition
-                        (r1cs:rdef (r1cs:rvar "p") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "p") (r1cs:rint config:p)))
-                        (r1cs:rdef (r1cs:rvar "ps1") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "ps1") (r1cs:rint (- config:p 1))))
-                        (r1cs:rdef (r1cs:rvar "ps2") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "ps2") (r1cs:rint (- config:p 2))))
-                        (r1cs:rdef (r1cs:rvar "ps3") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "ps3") (r1cs:rint (- config:p 3))))
-                        (r1cs:rdef (r1cs:rvar "ps4") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "ps4") (r1cs:rint (- config:p 4))))
-                        (r1cs:rdef (r1cs:rvar "ps5") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "ps5") (r1cs:rint (- config:p 5))))
-                        ; add 0 definition
-                        (r1cs:rdef (r1cs:rvar "zero") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "zero") (r1cs:rint 0)))
-                        ; add 1 definition
-                        (r1cs:rdef (r1cs:rvar "one") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "one") (r1cs:rint 1)))
-                    )
-                    (for/list ([v vs]) (optimize-r1cs v))
-                )
-            )
-        ]
-        ; probably the alternative block, no need to define F again
         [(r1cs:rcmds vs) (r1cs:rcmds
             (append
                 (list
@@ -187,7 +152,6 @@
                 (lambda (x) (! (is-rint-zero x)))
                 (for/list ([v vs]) (optimize-r1cs v))
             ))
-            ; (printf "radd new-vs is: ~a\n" new-vs)
             (cond
                 ; no element, all values are 0 and filtered out, return base 0
                 [(= 0 (length new-vs)) (r1cs:rint 0)]
@@ -197,15 +161,11 @@
                 [else (r1cs:radd new-vs)]
             )
         ]
-        ; (fixme) this could have rewrite issues
-        [(r1cs:rsub vs) (tokamak:exit "cvc5 doesn't support sub")]
         [(r1cs:rmul vs)
             (define new-vs (filter
                 (lambda (x) (! (is-rint-one x)))
                 (for/list ([v vs]) (optimize-r1cs v))
             ))
-            ; (printf "# rmul new-vs is: ~a\n" new-vs)
-            ; (printf "# cont: ~a\n vs ~a\n" (contains-rint-zero vs) vs)
             (cond
                 ; if there's zero already in multiplication, directly return 0
                 [(contains-rint-zero new-vs) (r1cs:rint 0)]
@@ -217,8 +177,6 @@
                 [else (r1cs:rmul new-vs)]
             )
         ]
-        [(r1cs:rneg v) (r1cs:rneg (optimize-r1cs v))]
-        [(r1cs:rmod v mod) (tokamak:exit "cvc5 doesn't support mod")]
 
         [else (tokamak:exit "not supported: ~a" arg-r1cs)]
     )

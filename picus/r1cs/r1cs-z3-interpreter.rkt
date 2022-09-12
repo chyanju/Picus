@@ -1,9 +1,9 @@
 #lang rosette
 ; this interprets r1cs commands into z3 constraints
 (require
-    (prefix-in tokamak: "./tokamak.rkt")
-    (prefix-in utils: "./utils.rkt")
-    (prefix-in config: "./config.rkt")
+    (prefix-in tokamak: "../tokamak.rkt")
+    (prefix-in utils: "../utils.rkt")
+    (prefix-in config: "../config.rkt")
     (prefix-in r1cs: "./r1cs-grammar.rkt")
 )
 (provide (rename-out
@@ -49,16 +49,14 @@
         [(r1cs:ror vs) (foldr (make-format-op "or") null (for/list ([v vs]) (interpret-r1cs v)))]
         [(r1cs:rimp lhs rhs) (format "(=> ~a ~a)" (interpret-r1cs lhs) (interpret-r1cs rhs))]
 
-        [(r1cs:rint v) (format "#f~am~a" v config:p)]
+        [(r1cs:rint v) (format "~a" v)]
         [(r1cs:rstr v) v]
         [(r1cs:rvar v) (format "~a" v)]
         [(r1cs:rtype v) (format "~a" v)]
 
-        [(r1cs:radd vs) (foldr (make-format-op "ff.add") null (for/list ([v vs]) (interpret-r1cs v)))]
-        [(r1cs:rsub vs) (tokamak:exit "cvc5 doesn't support sub")]
-        [(r1cs:rmul vs) (foldr (make-format-op "ff.mul") null (for/list ([v vs]) (interpret-r1cs v)))]
-        [(r1cs:rneg v) (format "(ff.neg ~a)" (interpret-r1cs v))]
-        [(r1cs:rmod v mod) (tokamak:exit "cvc5 doesn't support mod")]
+        [(r1cs:radd vs) (foldr (make-format-op "+") null (for/list ([v vs]) (interpret-r1cs v)))]
+        [(r1cs:rmul vs) (foldr (make-format-op "*") null (for/list ([v vs]) (interpret-r1cs v)))]
+        [(r1cs:rmod v mod) (format "(mod ~a ~a)" (interpret-r1cs v) (interpret-r1cs mod))]
 
         [else (tokamak:exit "not supported: ~a" arg-r1cs)]
     )

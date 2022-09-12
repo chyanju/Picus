@@ -16,7 +16,7 @@
     (display smt-str smt-file)
     (close-output-port smt-file)
     (when (|| verbose? output-smt?)
-        (printf "# written to: ~a\n" temp-path)
+        (printf "(written to: ~a)\n" temp-path)
     )
 
     (when verbose?

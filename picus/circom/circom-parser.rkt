@@ -1,6 +1,6 @@
 #lang rosette
 (require
-    (prefix-in tokamak: "./tokamak.rkt")
+    (prefix-in tokamak: "../tokamak.rkt")
     (prefix-in circom: "./circom-grammar.rkt")
 )
 (provide (all-defined-out))

@@ -4,7 +4,7 @@
     (prefix-in tokamak: "../tokamak.rkt")
     (prefix-in utils: "../utils.rkt")
     (prefix-in config: "../config.rkt")
-    (prefix-in r1cs: "../r1cs-grammar.rkt")
+    (prefix-in r1cs: "../r1cs/r1cs-grammar.rkt")
 )
 (provide (rename-out
     [apply-inc apply-inc]
@@ -12,10 +12,10 @@
 
 (define (apply-inc
     r0 nwires mconstraints input-list output-list
-    xlist original-definitions original-cnsts
+    xlist original-options original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
     arg-timeout arg-smt
-    solver:get-theory solver:solve solver:state-smt-path parser:parse-r1cs optimizer:optimize rint:interpret-r1cs
+    solve state-smt-path parse-r1cs optimize interpret-r1cs
     )
     (define partial-cmds (r1cs:append-rcmds
         (r1cs:rcmds (list
@@ -69,7 +69,6 @@
                 (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref xlist j)) (r1cs:rvar (list-ref xlist0 j))))
             )))
             (define final-cmds (r1cs:append-rcmds
-                (r1cs:rcmds (list (r1cs:rlogic (r1cs:rstr (solver:get-theory)))))
                 partial-cmds
                 (r1cs:rcmds (list
                     (r1cs:rcmt (r1cs:rstr "============================="))
@@ -88,9 +87,12 @@
                 ))
             ))
             ; perform optimization
-            (define optimized-cmds ((optimizer:optimize) final-cmds))
-            (define final-str (string-join ((rint:interpret-r1cs) optimized-cmds) "\n"))
-            (define res ((solver:solve) final-str arg-timeout #:output-smt? #f))
+            (define optimized-cmds (optimize final-cmds))
+            (define final-str (string-join (interpret-r1cs
+                (r1cs:append-rcmds original-options optimized-cmds))
+                "\n"
+            ))
+            (define res (solve final-str arg-timeout #:output-smt? #f))
             (cond
                 [(equal? 'unsat (car res))
                     (printf "verified.\n")
@@ -107,7 +109,7 @@
                 ]
             )
             (when arg-smt
-                (printf "    # smt path: ~a\n" (solver:state-smt-path)))
+                (printf "    # smt path: ~a\n" (state-smt-path)))
         )
         ; return
         (if changed?

@@ -4,30 +4,13 @@
     (prefix-in tokamak: "./picus/tokamak.rkt")
     (prefix-in utils: "./picus/utils.rkt")
     (prefix-in config: "./picus/config.rkt")
-    (prefix-in r1cs: "./picus/r1cs-grammar.rkt")
-)
-; z3 require
-(require
-    (prefix-in z3-solver: "./picus/z3-utils.rkt")
-    (prefix-in z3-rint: "./picus/r1cs-z3-interpreter.rkt")
-    (prefix-in z3-parser: "./picus/r1cs-z3-parser.rkt")
-    (prefix-in z3-osimp: "./picus/optimizers/r1cs-z3-simple-optimizer.rkt")
-    (prefix-in z3-oab0: "./picus/optimizers/r1cs-z3-AB0-optimizer.rkt")
-)
-; cvc5 require
-(require
-    (prefix-in cvc5-solver: "./picus/cvc5-utils.rkt")
-    (prefix-in cvc5-rint: "./picus/r1cs-cvc5-interpreter.rkt")
-    (prefix-in cvc5-parser: "./picus/r1cs-cvc5-parser.rkt")
-    (prefix-in cvc5-osimp: "./picus/optimizers/r1cs-cvc5-simple-optimizer.rkt")
-    ; note: cvc5 doesn't have AB0 optimizer, use template instead
+    (prefix-in r1cs: "./picus/r1cs/r1cs-grammar.rkt")
+    (prefix-in solver: "./picus/solver.rkt")
 )
 
 ; =====================================
 ; ======== commandline parsing ========
 ; =====================================
-; stateful variable
-(define state-smt-path null)
 ; parse command line arguments
 (define arg-r1cs null)
 (define arg-solver "z3")
@@ -63,45 +46,16 @@
 (printf "# r1cs file: ~a\n" arg-r1cs)
 (printf "# timeout: ~a\n" arg-timeout)
 (printf "# solver: ~a\n" arg-solver)
+(printf "# smt: ~a\n" arg-smt)
 
-; =========================================
-; ======== solver specific methods ========
-; =========================================
-(define (solver:get-theory)
-    (cond
-        [(equal? "z3" arg-solver) "QF_NIA"]
-        [(equal? "cvc5" arg-solver) "QF_FF"]
-        [else (tokamak:exit "you can't reach here")]
-    )
-)
-(define (solver:solve)
-    (cond
-        [(equal? "z3" arg-solver) z3-solver:solve]
-        [(equal? "cvc5" arg-solver) cvc5-solver:solve]
-        [else (tokamak:exit "you can't reach here")]
-    )
-)
-(define (parser:parse-r1cs)
-    (cond
-        [(equal? "z3" arg-solver) z3-parser:parse-r1cs]
-        [(equal? "cvc5" arg-solver) cvc5-parser:parse-r1cs]
-        [else (tokamak:exit "you can't reach here")]
-    )
-)
-(define (optimizer:optimize)
-    (cond
-        [(equal? "z3" arg-solver) (lambda (x) (z3-oab0:optimize-r1cs (z3-osimp:optimize-r1cs x)))]
-        [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-osimp:optimize-r1cs x))]
-        [else (tokamak:exit "you can't reach here")]
-    )
-)
-(define (rint:interpret-r1cs)
-    (cond
-        [(equal? "z3" arg-solver) z3-rint:interpret-r1cs]
-        [(equal? "cvc5" arg-solver) cvc5-rint:interpret-r1cs]
-        [else (tokamak:exit "you can't reach here")]
-    )
-)
+; =================================================
+; ======== resolve solver specific methods ========
+; =================================================
+(define state-smt-path (solver:state-smt-path arg-solver))
+(define solve (solver:solve arg-solver))
+(define parse-r1cs (solver:parse-r1cs arg-solver))
+(define optimize (solver:optimize arg-solver))
+(define interpret-r1cs (solver:interpret-r1cs arg-solver))
 
 ; ======================
 ; ======== main ========
@@ -115,7 +69,7 @@
 
 ; parse original r1cs
 (printf "# parsing original r1cs...\n")
-(define-values (xlist original-definitions original-cnsts) ((parser:parse-r1cs) r0 null)) ; interpret the constraint system
+(define-values (xlist original-options original-definitions original-cnsts) (parse-r1cs r0 null)) ; interpret the constraint system
 (define input-list (r1cs:r1cs-inputs r0))
 (define output-list (r1cs:r1cs-outputs r0))
 (printf "# inputs: ~a.\n" input-list)
@@ -131,7 +85,7 @@
 ))
 (printf "# xlist0: ~a.\n" xlist0)
 (printf "# parsing alternative r1cs...\n")
-(define-values (_ alternative-definitions alternative-cnsts) ((parser:parse-r1cs) r0 xlist0))
+(define-values (_ __ alternative-definitions alternative-cnsts) (parse-r1cs r0 xlist0))
 
 ; assemble solve query
 (printf "# assembling query...\n")
@@ -147,10 +101,6 @@
 
 (printf "# assembling final smt...\n")
 (define final-cmds (r1cs:append-rcmds
-    (r1cs:rcmds (list
-        ; (note) setlogic needs to go first so optimizer can detect it
-        (r1cs:rlogic (r1cs:rstr (solver:get-theory)))
-    ))
     (r1cs:rcmds (list
         (r1cs:rcmt (r1cs:rstr "================================"))
         (r1cs:rcmt (r1cs:rstr "======== original block ========"))
@@ -175,12 +125,15 @@
 ))
 
 ; perform optimization
-(define optimized-cmds ((optimizer:optimize) final-cmds))
-(define final-str (string-join ((rint:interpret-r1cs) optimized-cmds) "\n"))
-; (printf "# final str is:\n~a\n" final-str)
+(define optimized-cmds (optimize final-cmds))
+; add options at last
+(define final-str (string-join (interpret-r1cs
+    (r1cs:append-rcmds original-options optimized-cmds))
+    "\n"
+))
 
 ; solve!
-(define res ((solver:solve) final-str arg-timeout #:output-smt? arg-smt))
+(define res (solve final-str arg-timeout #:output-smt? arg-smt))
 (if (equal? 'unsat (car res))
     (printf "# verified.\n")
     (printf "# failed / reason: ~a\n" res)

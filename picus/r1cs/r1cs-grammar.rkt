@@ -1,8 +1,8 @@
 #lang rosette
 (require
-    (prefix-in tokamak: "./tokamak.rkt")
-    (prefix-in utils: "./utils.rkt")
-    (prefix-in config: "./config.rkt")
+    (prefix-in tokamak: "../tokamak.rkt")
+    (prefix-in utils: "../utils.rkt")
+    (prefix-in config: "../config.rkt")
 )
 (provide (all-defined-out))
 
@@ -10,6 +10,10 @@
 ; reference: https://github.com/franklynwang/EcneProject/blob/master/src/R1CSConstraintSolver.jl#L13
 ; map back to field
 (define (F x) (modulo x config:p))
+
+; ====================================
+; ======== utils for r1cs ast ========
+; ====================================
 
 ; r1cs commands (grammar)
 ; command level
@@ -40,11 +44,12 @@
 ; no rnot here out of simplicity, use neq, or other unequalty instead
 ; sub-command level
 (struct radd (vs) #:mutable #:transparent #:reflection-name 'r1cs:radd) ; vs: list
-(struct rsub (vs) #:mutable #:transparent #:reflection-name 'r1cs:rsub) ; vs: list
+; (struct rsub (vs) #:mutable #:transparent #:reflection-name 'r1cs:rsub) ; vs: list
 (struct rmul (vs) #:mutable #:transparent #:reflection-name 'r1cs:rmul) ; vs: list
-(struct rneg (v) #:mutable #:transparent #:reflection-name 'r1cs:rneg) ; v: int
+; (struct rneg (v) #:mutable #:transparent #:reflection-name 'r1cs:rneg) ; v: int
 (struct rmod (v mod) #:mutable #:transparent #:reflection-name 'r1cs:rmod) ; v: int, mod: int
 
+; concatenate multiple rcmd
 (define (append-rcmds . obj)
     (if (null? obj)
         (rcmds (list ))
@@ -54,6 +59,10 @@
         ))
     )
 )
+
+; =======================================
+; ======== utils for binary r1cs ========
+; =======================================
 
 ; r1cs structs for binary files (*.r1cs)
 (struct r1cs (magic version nsec header constraint w2l inputs outputs) #:mutable #:transparent #:reflection-name 'r1cs)
@@ -448,133 +457,4 @@
         ) 
     "")
 
-)
-
-
-(define (extract-signals cnst)
-    (define curr-block-a (constraint-a cnst))
-    (define curr-block-b (constraint-b cnst))
-    (define curr-block-c (constraint-c cnst))
-
-    (define wids-a (constraint-block-wids curr-block-a))
-    (define wids-b (constraint-block-wids curr-block-b))
-    (define wids-c (constraint-block-wids curr-block-c))
-
-    (utils:union (utils:union wids-a wids-b) wids-c)
-)
-
-(define (solve-eq value-1 value-2) ; returns c1/-c2
-    (/ value-1 (- config:p value-2))
-)
-
-(define (pos-values signals factors)
-    (if (= (length signals) 1)
-        (if (= (car signals) 0)
-            (list 0 1)
-            (list (car signals) 0)
-        )
-        (if (= (car signals) 0) ; case length 2
-            (list 
-                (car (cdr signals)) 
-                (solve-eq (car factors) (car (cdr factors)))
-            )
-            (if (= (car (cdr signals)) 0)
-                (list 
-                    (car signals) 
-                    (solve-eq (car (cdr factors)) (car factors))
-                )
-                (list 0 1)
-            )
-        )
-    )
-)
-
-(define (extract-bounded-signals cnst)
-    (define curr-block-a (constraint-a cnst))
-    (define curr-block-b (constraint-b cnst))
-    (define curr-block-c (constraint-c cnst))
-
-    (define wids-a (constraint-block-wids curr-block-a))
-    (define wids-b (constraint-block-wids curr-block-b))
-    (define wids-c (constraint-block-wids curr-block-c))
-
-    (define factors-a (constraint-block-factors curr-block-a))
-    (define factors-b (constraint-block-factors curr-block-b))
-    (define factors-c (constraint-block-factors curr-block-c))
-
-    (cond 
-        [(and
-            (= (length wids-c) 0)
-            (<= (length wids-a) 2)
-            (<= (length wids-b) 2)
-        ) 
-        (define bound-a (pos-values wids-a factors-a))
-        (define bound-b (pos-values wids-b factors-b))
-        (if (= (car bound-a) (car bound-b))
-            (list (car bound-a) (max (list-ref bound-a 1)(list-ref bound-b 1)))
-            (list 0 1)
-        )
-        ]
-        [else (list 0 1)]
-    )
-    
-)
-
-(define (extract-solvable-signals cnst)
-    (define curr-block-a (constraint-a cnst))
-    (define curr-block-b (constraint-b cnst))
-    (define curr-block-c (constraint-c cnst))
-
-    (define wids-a (constraint-block-wids curr-block-a))
-    (define wids-b (constraint-block-wids curr-block-b))
-    (define wids-c (constraint-block-wids curr-block-c))
-
-    (filter 
-        (lambda (signal)
-            (and 
-                (not (utils:contains? wids-a signal)) 
-                (not (utils:contains? wids-b signal)) 
-            )
-        )
-        wids-c
-    )
-)
-
-
-(define (compute-signal2constraints arg-r1cs)
-    (define constraints (get-constraints arg-r1cs))
-    (define mconstraints (get-mconstraints arg-r1cs))
-    (define nwires (get-nwires arg-r1cs))
-
-    (for/list ([signal nwires])
-        (filter
-            (lambda (cnst) (
-                utils:contains? 
-                    (extract-signals (list-ref constraints cnst)) 
-                    signal   
-            )) 
-            (range mconstraints)
-        )
-    )
-)
-
-(define (compute-constraint2signals arg-r1cs)
-    (define constraints (get-constraints arg-r1cs))
-    (define mconstraints (get-mconstraints arg-r1cs))
-    (define nwires (get-nwires arg-r1cs))
-
-    (for/list ([cnst mconstraints])
-        (extract-signals (list-ref constraints cnst))
-    )
-    
-)
-
-(define (compute-constraint2solvablesignals arg-r1cs)
-    (define constraints (get-constraints arg-r1cs))
-    (define mconstraints (get-mconstraints arg-r1cs))
-    (define nwires (get-nwires arg-r1cs))
-
-    (for/list ([cnst mconstraints])
-        (extract-solvable-signals (list-ref constraints cnst))
-    )
 )
