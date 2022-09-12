@@ -14,7 +14,7 @@
     r0 nwires mconstraints input-list output-list
     xlist original-options original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
-    arg-timeout arg-smt
+    arg-timeout arg-smt arg-weak
     solve state-smt-path parse-r1cs optimize interpret-r1cs
     )
     (define partial-cmds (r1cs:append-rcmds
@@ -111,10 +111,23 @@
             (when arg-smt
                 (printf "    # smt path: ~a\n" (state-smt-path)))
         )
+        ; if checking weak only
+        (define wret? #f) ; weak return
+        (when arg-weak
+            (when (empty? (set-intersect output-list tmp-ul))
+                ; no output is unknown, done
+                (set! wret? #t)
+            )
+        )
         ; return
-        (if changed?
-            (inc-solve (reverse tmp-kl) (reverse tmp-ul))
+        (if wret?
+            ; weak return
             tmp-ul
+            ; normal
+            (if changed?
+                (inc-solve (reverse tmp-kl) (reverse tmp-ul))
+                tmp-ul
+            )
         )
     )
 
