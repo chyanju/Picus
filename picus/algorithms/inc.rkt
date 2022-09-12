@@ -19,16 +19,16 @@
     )
     (define partial-cmds (r1cs:append-rcmds
         (r1cs:rcmds (list
-            (r1cs:rcmt (r1cs:rstr "================================"))
-            (r1cs:rcmt (r1cs:rstr "======== original block ========"))
-            (r1cs:rcmt (r1cs:rstr "================================"))
+            (r1cs:rcmt "================================")
+            (r1cs:rcmt "======== original block ========")
+            (r1cs:rcmt "================================")
         ))
         original-definitions
         original-cnsts
         (r1cs:rcmds (list
-            (r1cs:rcmt (r1cs:rstr "==================================="))
-            (r1cs:rcmt (r1cs:rstr "======== alternative block ========"))
-            (r1cs:rcmt (r1cs:rstr "==================================="))
+            (r1cs:rcmt "===================================")
+            (r1cs:rcmt "======== alternative block ========")
+            (r1cs:rcmt "===================================")
         ))
         alternative-definitions
         alternative-cnsts
@@ -71,15 +71,15 @@
             (define final-cmds (r1cs:append-rcmds
                 partial-cmds
                 (r1cs:rcmds (list
-                    (r1cs:rcmt (r1cs:rstr "============================="))
-                    (r1cs:rcmt (r1cs:rstr "======== known block ========"))
-                    (r1cs:rcmt (r1cs:rstr "============================="))
+                    (r1cs:rcmt "=============================")
+                    (r1cs:rcmt "======== known block ========")
+                    (r1cs:rcmt "=============================")
                 ))
                 known-cmds
                 (r1cs:rcmds (list
-                    (r1cs:rcmt (r1cs:rstr "============================="))
-                    (r1cs:rcmt (r1cs:rstr "======== query block ========"))
-                    (r1cs:rcmt (r1cs:rstr "============================="))
+                    (r1cs:rcmt "=============================")
+                    (r1cs:rcmt "======== query block ========")
+                    (r1cs:rcmt "=============================")
                 ))
                 (r1cs:rcmds (list
                     (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref xlist i)) (r1cs:rvar (list-ref xlist0 i))))

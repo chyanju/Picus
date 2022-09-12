@@ -11,7 +11,7 @@
 ))
 
 (define (get-dep arg-eq)
-    
+
 )
 
 ; get constraint dependency map
@@ -43,16 +43,16 @@
     )
     (define partial-cmds (r1cs:append-rcmds
         (r1cs:rcmds (list
-            (r1cs:rcmt (r1cs:rstr "================================"))
-            (r1cs:rcmt (r1cs:rstr "======== original block ========"))
-            (r1cs:rcmt (r1cs:rstr "================================"))
+            (r1cs:rcmt "================================")
+            (r1cs:rcmt "======== original block ========")
+            (r1cs:rcmt "================================")
         ))
         original-definitions
         original-cnsts
         (r1cs:rcmds (list
-            (r1cs:rcmt (r1cs:rstr "==================================="))
-            (r1cs:rcmt (r1cs:rstr "======== alternative block ========"))
-            (r1cs:rcmt (r1cs:rstr "==================================="))
+            (r1cs:rcmt "===================================")
+            (r1cs:rcmt "======== alternative block ========")
+            (r1cs:rcmt "===================================")
         ))
         alternative-definitions
         alternative-cnsts

@@ -13,3 +13,7 @@
 
 (define vars (r1cs:get-assert-variables ocnsts))
 (define vars-linear (r1cs:get-assert-variables/linear ocnsts))
+(printf "linear vars: ~a\n" vars-linear)
+
+(define n (length (r1cs:rcmds-vs ocnsts)))
+(for ([i (range n)]) (printf "~a\n" (r1cs:rcmds->string ocnsts i)))

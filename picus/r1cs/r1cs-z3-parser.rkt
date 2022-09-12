@@ -14,7 +14,7 @@
 
     ; a list of options
     (define raw-options (list
-        (r1cs:rlogic (r1cs:rstr "QF_NIA"))
+        (r1cs:rlogic "QF_NIA")
     ))
 
     (define raw-cmds (list)) ; a list of commands
@@ -32,11 +32,11 @@
 
     ; add declarations for variables
     (set! raw-declarations (append raw-declarations
-        (list (r1cs:rcmt (r1cs:rstr "======== declaration constraints ========")))
+        (list (r1cs:rcmt "======== declaration constraints ========"))
         (for/list ([x xlist])
             (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
                 ; provided list with already defined x, skip
-                (r1cs:rcmt (r1cs:rstr (format "~a: already defined" x)))
+                (r1cs:rcmt (format "~a: already defined" x))
                 ; otherwise you need to define this variable
                 (r1cs:rdef (r1cs:rvar (format "~a" x)) (r1cs:rtype "Int"))
             )
@@ -45,11 +45,11 @@
     
     ; add range constraints for declared variables
     (set! raw-declarations (append raw-declarations
-        (list (r1cs:rcmt (r1cs:rstr "======== range constraints ========")))
+        (list (r1cs:rcmt "======== range constraints ========"))
         (for/list ([x xlist])
             (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
                 ; provided list with already defined x, skip
-                (r1cs:rcmt (r1cs:rstr (format "~a: already defined" x)))
+                (r1cs:rcmt (format "~a: already defined" x))
                 ; otherwise you need to define this variable
                 (r1cs:rassert (r1cs:rand (list
                     (r1cs:rleq (r1cs:rint 0) (r1cs:rvar (format "~a" x)))

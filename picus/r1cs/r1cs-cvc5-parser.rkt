@@ -14,7 +14,7 @@
 
     ; a list of options
     (define raw-options (list
-        (r1cs:rlogic (r1cs:rstr "QF_FF"))
+        (r1cs:rlogic "QF_FF")
         (r1cs:rraw "(set-info :smt-lib-version 2.6)")
         (r1cs:rraw "(set-info :category \"crafted\")")
         (r1cs:rraw (format "(define-sort F () (_ FiniteField ~a))" config:p))
@@ -36,11 +36,11 @@
     ; add declarations for variables
     ; for cvc5, no range constraints are needed
     (set! raw-declarations (append raw-declarations
-        (list (r1cs:rcmt (r1cs:rstr "======== declaration constraints ========")))
+        (list (r1cs:rcmt "======== declaration constraints ========"))
         (for/list ([x xlist])
             (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
                 ; provided list with already defined x, skip
-                (r1cs:rcmt (r1cs:rstr (format "~a: already defined" x)))
+                (r1cs:rcmt (format "~a: already defined" x))
                 ; otherwise you need to define this variable
                 (r1cs:rdef (r1cs:rvar (format "~a" x)) (r1cs:rtype "F"))
             )

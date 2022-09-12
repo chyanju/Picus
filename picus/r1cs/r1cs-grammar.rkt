@@ -26,7 +26,6 @@
 (struct rsolve () #:mutable #:transparent #:reflection-name 'r1cs:rsolve)
 ; sub-command level
 (struct rint (v) #:mutable #:transparent #:reflection-name 'r1cs:rint) ; v: int
-(struct rstr (v) #:mutable #:transparent #:reflection-name 'r1cs:rstr) ; v: str
 (struct rvar (v) #:mutable #:transparent #:reflection-name 'r1cs:rvar) ; v: str
 (struct rtype (v) #:mutable #:transparent #:reflection-name 'r1cs:rtype) ; v: str
 ; sub-command level
@@ -91,7 +90,6 @@
                 )
             ]
             [(rint v) (format "~a" v)]
-            [(rstr v) (format "~a" v)]
             [(rvar v) (format "~a" v)]
             [(radd vs)
                 (string-join (for/list ([v vs]) (format "~a" (do v)))
@@ -117,8 +115,9 @@
 )
 
 ; return a list of all variables occuring in a (partial) r1cs ast
-; obj can be any sub-structure
-; variables should only appear in r1cs:rassert, NOT including others like r1cs:rsolve
+; (note) you should normalize the constraints before calling this method
+;        to get the most precise results; e.g., 1*x would not otherwise be considered
+;        in form of x0*x
 (define (get-assert-variables obj)
     ; define internal function
     (define (do obj0)
@@ -155,7 +154,6 @@
                 )
             ]
             [(rint v) (list )]
-            [(rstr v) (list )]
             [(rvar v) (list v)]
             [(rtype v) (list )]
             [(radd vs)
@@ -184,9 +182,11 @@
     (remove-duplicates (do obj))
 )
 
-; samr as get-assert-variables, but limited to linear ones
+; same as get-assert-variables, but limited to linear ones
 ; linear meaning: variable that do not multiply with another variable (even itself)
-; (note) you should normalize/optimize(simple) the constraints before calling this method
+;                 a linear variable exists to a single constraints, not a constraint system
+;                 i.e., it could be linear in one constraint, while not in another
+; (note) you should normalize the constraints before calling this method
 ;        to get the most precise results; e.g., 1*x would not otherwise be considered
 ;        in form of x0*x
 (define (get-assert-variables/linear obj)
@@ -225,7 +225,6 @@
                 )
             ]
             [(rint v) (list )]
-            [(rstr v) (list )]
             [(rvar v) (list v)]
             [(rtype v) (list )]
             [(radd vs)

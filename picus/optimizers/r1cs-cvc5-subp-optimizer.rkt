@@ -43,11 +43,11 @@
         )]
 
         [(r1cs:rraw v) (r1cs:rraw v)]
-        [(r1cs:rlogic v) (r1cs:rlogic (optimize-r1cs v))]
+        [(r1cs:rlogic v) (r1cs:rlogic v)]
         ; (note) don't optimize declaration line
         [(r1cs:rdef v t) (r1cs:rdef v (optimize-r1cs t))]
         [(r1cs:rassert v) (r1cs:rassert (optimize-r1cs v))]
-        [(r1cs:rcmt v) (r1cs:rcmt (optimize-r1cs v))]
+        [(r1cs:rcmt v) (r1cs:rcmt v)]
         [(r1cs:rsolve ) (r1cs:rsolve )]
 
         ; sub-command level
@@ -74,7 +74,6 @@
                 [else (r1cs:rint v)]
             )
         ]
-        [(r1cs:rstr v) (r1cs:rstr v)]
         ; (note) we assume "x0" is the first wire with prefix "x"
         [(r1cs:rvar v) (r1cs:rvar v)]
         [(r1cs:rtype v) (r1cs:rtype v)]

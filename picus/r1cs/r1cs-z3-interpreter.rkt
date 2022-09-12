@@ -31,10 +31,10 @@
         [(r1cs:rcmds vs) (for/list ([v vs]) (interpret-r1cs v))]
 
         [(r1cs:rraw v) (format "~a" v)]
-        [(r1cs:rlogic v) (format "(set-logic ~a)" (interpret-r1cs v))]
+        [(r1cs:rlogic v) (format "(set-logic ~a)" v)]
         [(r1cs:rdef v t) (format "(declare-const ~a ~a)" (interpret-r1cs v) (interpret-r1cs t))]
         [(r1cs:rassert v) (format "(assert ~a)" (interpret-r1cs v))]
-        [(r1cs:rcmt v) (format "; ~a" (interpret-r1cs v))]
+        [(r1cs:rcmt v) (format "; ~a" v)]
         [(r1cs:rsolve ) "(check-sat)\n(get-model)"]
 
         ; sub-command level
@@ -50,7 +50,6 @@
         [(r1cs:rimp lhs rhs) (format "(=> ~a ~a)" (interpret-r1cs lhs) (interpret-r1cs rhs))]
 
         [(r1cs:rint v) (format "~a" v)]
-        [(r1cs:rstr v) v]
         [(r1cs:rvar v) (format "~a" v)]
         [(r1cs:rtype v) (format "~a" v)]
 
