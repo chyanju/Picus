@@ -1,4 +1,7 @@
 #lang rosette
+; (note) this should be applied prior to any other optimizations
+;        since it only supports original (and a few extra) operations in r1cs
+;        i.e., rsub are not supported
 ; this contains a list of simple and basic optimization steps
 ;   - add p related definition and replace p
 ;   - remove *1 in mul
@@ -7,7 +10,6 @@
 ;   - rewrite +x as x
 ;   - replace x0 with 1
 ;   - partial evaluation: compute concrete results, e.g., 0*0 => 0
-;     - (fixme) current only modify 0*...*x to 0
 (require
     (prefix-in tokamak: "../tokamak.rkt")
     (prefix-in utils: "../utils.rkt")
@@ -57,25 +59,7 @@
     (match arg-r1cs
 
         ; command level
-        [(r1cs:rcmds vs) (r1cs:rcmds
-            (append
-                (list
-                    (r1cs:rdef (r1cs:rvar "p") (r1cs:rtype "Int"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "p") (r1cs:rint config:p)))
-                    (r1cs:rdef (r1cs:rvar "ps1") (r1cs:rtype "Int"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps1") (r1cs:rint (- config:p 1))))
-                    (r1cs:rdef (r1cs:rvar "ps2") (r1cs:rtype "Int"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps2") (r1cs:rint (- config:p 2))))
-                    (r1cs:rdef (r1cs:rvar "ps3") (r1cs:rtype "Int"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps3") (r1cs:rint (- config:p 3))))
-                    (r1cs:rdef (r1cs:rvar "ps4") (r1cs:rtype "Int"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps4") (r1cs:rint (- config:p 4))))
-                    (r1cs:rdef (r1cs:rvar "ps5") (r1cs:rtype "Int"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps5") (r1cs:rint (- config:p 5))))
-                )
-                (for/list ([v vs]) (optimize-r1cs v))
-            )
-        )]
+        [(r1cs:rcmds vs) (r1cs:rcmds (for/list ([v vs]) (optimize-r1cs v)))]
 
         [(r1cs:rraw v) (r1cs:rraw v)]
         [(r1cs:rlogic v) (r1cs:rlogic (optimize-r1cs v))]
@@ -101,7 +85,6 @@
                 (r1cs:rand (for/list ([v new-vs]) v))
             )
         ]
-        [(r1cs:rimp lhs rhs) (r1cs:rimp (optimize-r1cs lhs) (optimize-r1cs rhs))]
 
         [(r1cs:ror vs)
             (define new-vs (for/list ([v vs]) (optimize-r1cs v)))
@@ -112,19 +95,7 @@
             )
         ]
 
-        [(r1cs:rint v)
-            (cond
-                ; replace as p
-                [(= config:p v) (r1cs:rvar "p")]
-                [(= (- config:p 1) v) (r1cs:rvar "ps1")]
-                [(= (- config:p 2) v) (r1cs:rvar "ps2")]
-                [(= (- config:p 3) v) (r1cs:rvar "ps3")]
-                [(= (- config:p 4) v) (r1cs:rvar "ps4")]
-                [(= (- config:p 5) v) (r1cs:rvar "ps5")]
-                ; do nothing
-                [else (r1cs:rint v)]
-            )
-        ]
+        [(r1cs:rint v) (r1cs:rint v)]
         [(r1cs:rstr v) (r1cs:rstr v)]
         ; (note) we assume "x0" is the first wire with prefix "x"
         [(r1cs:rvar v)

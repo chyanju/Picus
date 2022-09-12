@@ -54,6 +54,7 @@
 (define state-smt-path (solver:state-smt-path arg-solver))
 (define solve (solver:solve arg-solver))
 (define parse-r1cs (solver:parse-r1cs arg-solver))
+(define normalize (solver:normalize arg-solver))
 (define optimize (solver:optimize arg-solver))
 (define interpret-r1cs (solver:interpret-r1cs arg-solver))
 
@@ -125,7 +126,7 @@
 ))
 
 ; perform optimization
-(define optimized-cmds (optimize final-cmds))
+(define optimized-cmds (optimize (normalize final-cmds)))
 ; add options at last
 (define final-str (string-join (interpret-r1cs
     (r1cs:append-rcmds original-options optimized-cmds))

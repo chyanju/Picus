@@ -40,10 +40,6 @@
         ; sub-command level
         [(r1cs:req lhs rhs) (format "(= ~a ~a)" (interpret-r1cs lhs) (interpret-r1cs rhs))]
         [(r1cs:rneq lhs rhs) (format "(not (= ~a ~a))" (interpret-r1cs lhs) (interpret-r1cs rhs))]
-        [(r1cs:rleq lhs rhs) (format "(<= ~a ~a)" (interpret-r1cs lhs) (interpret-r1cs rhs))]
-        [(r1cs:rlt lhs rhs) (format "(< ~a ~a)" (interpret-r1cs lhs) (interpret-r1cs rhs))]
-        [(r1cs:rgeq lhs rhs) (format "(>= ~a ~a)" (interpret-r1cs lhs) (interpret-r1cs rhs))]
-        [(r1cs:rgt lhs rhs) (format "(> ~a ~a)" (interpret-r1cs lhs) (interpret-r1cs rhs))]
 
         [(r1cs:rand vs) (foldr (make-format-op "and") null (for/list ([v vs]) (interpret-r1cs v)))]
         [(r1cs:ror vs) (foldr (make-format-op "or") null (for/list ([v vs]) (interpret-r1cs v)))]

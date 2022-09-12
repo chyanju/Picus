@@ -44,9 +44,9 @@
 ; no rnot here out of simplicity, use neq, or other unequalty instead
 ; sub-command level
 (struct radd (vs) #:mutable #:transparent #:reflection-name 'r1cs:radd) ; vs: list
-; (struct rsub (vs) #:mutable #:transparent #:reflection-name 'r1cs:rsub) ; vs: list
+(struct rsub (vs) #:mutable #:transparent #:reflection-name 'r1cs:rsub) ; vs: list
 (struct rmul (vs) #:mutable #:transparent #:reflection-name 'r1cs:rmul) ; vs: list
-; (struct rneg (v) #:mutable #:transparent #:reflection-name 'r1cs:rneg) ; v: int
+(struct rneg (v) #:mutable #:transparent #:reflection-name 'r1cs:rneg) ; v: int
 (struct rmod (v mod) #:mutable #:transparent #:reflection-name 'r1cs:rmod) ; v: int, mod: int
 
 ; concatenate multiple rcmd
@@ -58,6 +58,198 @@
             (rcmds-vs (apply append-rcmds (cdr obj)))
         ))
     )
+)
+
+; returns a human readable string of one specified equation
+; no mode is shown for better reading
+; this will skip the solver specific commands
+(define (rcmds->string arg-rcmds arg-id)
+    ; define print function
+    (define (do obj0)
+        (match obj0
+            [(rraw v) ""]
+            [(rlogic v) ""]
+            [(rdef v t) ""]
+            [(rassert v) (do v)]
+            [(rcmt v) ""]
+            [(rsolve ) ""]
+            [(req lhs rhs) (format "~a = ~a" (do lhs) (do rhs))]
+            [(rneq lhs rhs) (format "~a != ~a" (do lhs) (do rhs))]
+            [(rleq lhs rhs) (format "~a <= ~a" (do lhs) (do rhs))]
+            [(rlt lhs rhs) (format "~a < ~a" (do lhs) (do rhs))]
+            [(rgeq lhs rhs) (format "~a >= ~a" (do lhs) (do rhs))]
+            [(rgt lhs rhs) (format "~a > ~a" (do lhs) (do rhs))]
+            [(rand vs)
+                (string-join (for/list ([v vs]) (format "(~a)" (do v)))
+                    " /\\ "
+                )
+            ]
+            [(rimp lhs rhs) (format "~a => ~a" (do lhs) (do rhs))]
+            [(ror vs)
+                (string-join (for/list ([v vs]) (format "(~a)" (do v)))
+                    " \\/ "
+                )
+            ]
+            [(rint v) (format "~a" v)]
+            [(rstr v) (format "~a" v)]
+            [(rvar v) (format "~a" v)]
+            [(radd vs)
+                (string-join (for/list ([v vs]) (format "~a" (do v)))
+                    " + "
+                )
+            ]
+            [(rsub vs)
+                (string-join (for/list ([v vs]) (format "~a" (do v)))
+                    " - "
+                )
+            ]
+            [(rmul vs)
+                (string-join (for/list ([v vs]) (format "~a" (do v)))
+                    " * "
+                )
+            ]
+            [(rmod v mod) (do v)]
+            [else (tokamak:exit "not supported: ~a" obj0)]
+        )
+    )
+    ; call print function and return the printed string
+    (do (list-ref (rcmds-vs arg-rcmds) arg-id))
+)
+
+; return a list of all variables occuring in a (partial) r1cs ast
+; obj can be any sub-structure
+; variables should only appear in r1cs:rassert, NOT including others like r1cs:rsolve
+(define (get-assert-variables obj)
+    ; define internal function
+    (define (do obj0)
+        (match obj0
+            [(rcmds vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rraw v) (list )]
+            [(rlogic v) (list )]
+            [(rdef v t) (list )]
+            [(rassert v) (do v)]
+            [(rcmt v) (list )]
+            [(rsolve ) (list )]
+            [(req lhs rhs) (append (do lhs) (do rhs))]
+            [(rneq lhs rhs) (append (do lhs) (do rhs))]
+            [(rleq lhs rhs) (append (do lhs) (do rhs))]
+            [(rlt lhs rhs) (append (do lhs) (do rhs))]
+            [(rgeq lhs rhs) (append (do lhs) (do rhs))]
+            [(rgt lhs rhs) (append (do lhs) (do rhs))]
+            [(rand vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rimp lhs rhs) (append (do lhs) (do rhs))]
+            [(ror vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rint v) (list )]
+            [(rstr v) (list )]
+            [(rvar v) (list v)]
+            [(rtype v) (list )]
+            [(radd vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rsub vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rmul vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rmod v mod) (append (do v) (do mod))]
+            [else (tokamak:exit "not supported: ~a" obj0)]
+        )
+    )
+    ; then call it and remove duplicates, and return
+    (remove-duplicates (do obj))
+)
+
+; samr as get-assert-variables, but limited to linear ones
+; linear meaning: variable that do not multiply with another variable (even itself)
+; (note) you should normalize/optimize(simple) the constraints before calling this method
+;        to get the most precise results; e.g., 1*x would not otherwise be considered
+;        in form of x0*x
+(define (get-assert-variables/linear obj)
+    ; define internal function
+    (define (do obj0)
+        (match obj0
+            [(rcmds vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rraw v) (list )]
+            [(rlogic v) (list )]
+            [(rdef v t) (list )]
+            [(rassert v) (do v)]
+            [(rcmt v) (list )]
+            [(rsolve ) (list )]
+            [(req lhs rhs) (append (do lhs) (do rhs))]
+            [(rneq lhs rhs) (append (do lhs) (do rhs))]
+            [(rleq lhs rhs) (append (do lhs) (do rhs))]
+            [(rlt lhs rhs) (append (do lhs) (do rhs))]
+            [(rgeq lhs rhs) (append (do lhs) (do rhs))]
+            [(rgt lhs rhs) (append (do lhs) (do rhs))]
+            [(rand vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rimp lhs rhs) (append (do lhs) (do rhs))]
+            [(ror vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rint v) (list )]
+            [(rstr v) (list )]
+            [(rvar v) (list v)]
+            [(rtype v) (list )]
+            [(radd vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            [(rsub vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v))))
+                    res
+                )
+            ]
+            ; (assumed optimized version)
+            ; 1*x will be x, which will not be captured by rmul
+            ; others are not linear
+            [(rmul vs) (list )]
+            [(rmod v mod) (append (do v) (do mod))]
+            [else (tokamak:exit "not supported: ~a" obj0)]
+        )
+    )
+    ; then call it and remove duplicates, and return
+    (remove-duplicates (do obj))
 )
 
 ; =======================================
@@ -310,7 +502,7 @@
 )
 
 ; returns a human readable string of one specified equation
-; original form is A*B-C=0, but we do A*B=C
+; no mode is shown for better reading
 (define (r1cs->string arg-r1cs arg-id)
     (define w2l (w2l-section-v (r1cs-w2l arg-r1cs))) ; w2l mapping, a list
     (define clist (constraint-section-constraints (r1cs-constraint arg-r1cs))) ; a list of constraints
@@ -379,81 +571,6 @@
             (if (zero? (string-length str-b)) "0" str-b)
             " ) = "
             (if (zero? (string-length str-c)) "0" str-c)
-        ) 
-    "")
-
-)
-
-; mathematica string
-(define (r1cs->mstring arg-r1cs arg-id)
-    (define w2l (w2l-section-v (r1cs-w2l arg-r1cs))) ; w2l mapping, a list
-    (define clist (constraint-section-constraints (r1cs-constraint arg-r1cs))) ; a list of constraints
-
-    (define example-constraint (list-ref clist arg-id)) ; a constraint
-    (define example-block-a (constraint-a example-constraint))
-    (define example-block-b (constraint-b example-constraint))
-    (define example-block-c (constraint-c example-constraint))
-
-    ; process block a
-    (define nnz-a (constraint-block-nnz example-block-a))
-    (define wids-a (constraint-block-wids example-block-a))
-    (define factors-a (constraint-block-factors example-block-a))
-    (define str-a (string-join
-        (for/list ([w0 wids-a] [f0 factors-a])
-            (string-join (list
-                "("
-                (number->string f0)
-                " * x"
-                (number->string w0)
-                ")"
-            ) "")
-        )
-        " + "
-    ))
-
-    ; process block b
-    (define nnz-b (constraint-block-nnz example-block-b))
-    (define wids-b (constraint-block-wids example-block-b))
-    (define factors-b (constraint-block-factors example-block-b))
-    (define str-b (string-join
-        (for/list ([w0 wids-b] [f0 factors-b])
-            (string-join (list
-                "("
-                (number->string f0)
-                " * x"
-                (number->string w0)
-                ")"
-            ) "")
-        )
-        " + "
-    ))
-
-    ; process block c
-    (define nnz-c (constraint-block-nnz example-block-c))
-    (define wids-c (constraint-block-wids example-block-c))
-    (define factors-c (constraint-block-factors example-block-c))
-    (define str-c (string-join
-        (for/list ([w0 wids-c] [f0 factors-c])
-            (string-join (list
-                "("
-                (number->string f0)
-                " * x"
-                (number->string w0)
-                ")"
-            ) "")
-        )
-        " + "
-    ))
-
-    (string-join 
-        (list 
-            "(( "
-            (if (zero? (string-length str-a)) "0" str-a)
-            " ) * ( "
-            (if (zero? (string-length str-b)) "0" str-b)
-            " )) mod p == ("
-            (if (zero? (string-length str-c)) "0" str-c)
-            ") mod p"
         ) 
     "")
 

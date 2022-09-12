@@ -2,7 +2,7 @@
 (require
   (prefix-in tokamak: "./picus/tokamak.rkt")
   (prefix-in utils: "./picus/utils.rkt")
-  (prefix-in r1cs: "./picus/r1cs-grammar.rkt")
+  (prefix-in r1cs: "./picus/r1cs/r1cs-grammar.rkt")
 )
 
 ; parse command line arguments

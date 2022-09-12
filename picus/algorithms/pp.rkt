@@ -10,6 +10,10 @@
     [apply-inc apply-inc]
 ))
 
+(define (get-dep arg-eq)
+    
+)
+
 ; get constraint dependency map
 ; input is the *optimized (by simple) main constraint part* of r1cs ast
 ;   - main constraints meaning the actual r1cs:eq part
@@ -23,7 +27,11 @@
 ;     because for x*y=k, x can't be guaranteed to be unique,
 ;     even if knowing y and k (due to field mul)
 ; (define (get-cdmap arg-eqs)
+;     (for ([q arg-eqs])
+;         (define cnst-ab (r1cs:req-lhs q))
+;         (define cnst-c (r1cs:req-rhs q))
 
+;     )
 ; )
 
 (define (apply-inc

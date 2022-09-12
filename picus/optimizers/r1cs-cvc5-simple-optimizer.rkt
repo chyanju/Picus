@@ -1,4 +1,7 @@
 #lang rosette
+; (note) this should be applied prior to any other optimizations
+;        since it only supports original (and a few extra) operations in r1cs
+;        i.e., rsub are not supported
 ; this contains a list of simple and basic optimization steps
 ;   - add p related definition and replace p
 ;   - remove *1 in mul
@@ -57,32 +60,7 @@
     (match arg-r1cs
 
         ; command level
-        [(r1cs:rcmds vs) (r1cs:rcmds
-            (append
-                (list
-                    ; add p definition
-                    (r1cs:rdef (r1cs:rvar "p") (r1cs:rtype "F"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "p") (r1cs:rint config:p)))
-                    (r1cs:rdef (r1cs:rvar "ps1") (r1cs:rtype "F"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps1") (r1cs:rint (- config:p 1))))
-                    (r1cs:rdef (r1cs:rvar "ps2") (r1cs:rtype "F"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps2") (r1cs:rint (- config:p 2))))
-                    (r1cs:rdef (r1cs:rvar "ps3") (r1cs:rtype "F"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps3") (r1cs:rint (- config:p 3))))
-                    (r1cs:rdef (r1cs:rvar "ps4") (r1cs:rtype "F"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps4") (r1cs:rint (- config:p 4))))
-                    (r1cs:rdef (r1cs:rvar "ps5") (r1cs:rtype "F"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "ps5") (r1cs:rint (- config:p 5))))
-                    ; add 0 definition
-                    (r1cs:rdef (r1cs:rvar "zero") (r1cs:rtype "F"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "zero") (r1cs:rint 0)))
-                    ; add 1 definition
-                    (r1cs:rdef (r1cs:rvar "one") (r1cs:rtype "F"))
-                    (r1cs:rassert (r1cs:req (r1cs:rvar "one") (r1cs:rint 0)))
-                )
-                (for/list ([v vs]) (optimize-r1cs v))
-            )
-        )]
+        [(r1cs:rcmds vs) (r1cs:rcmds (for/list ([v vs]) (optimize-r1cs v)))]
 
         [(r1cs:rraw v) (r1cs:rraw v)]
         [(r1cs:rlogic v) (r1cs:rlogic (optimize-r1cs v))]
@@ -95,10 +73,6 @@
         ; sub-command level
         [(r1cs:req lhs rhs) (r1cs:req (optimize-r1cs lhs) (optimize-r1cs rhs))]
         [(r1cs:rneq lhs rhs) (r1cs:rneq (optimize-r1cs lhs) (optimize-r1cs rhs))]
-        [(r1cs:rleq lhs rhs) (r1cs:rleq (optimize-r1cs lhs) (optimize-r1cs rhs))]
-        [(r1cs:rlt lhs rhs) (r1cs:rlt (optimize-r1cs lhs) (optimize-r1cs rhs))]
-        [(r1cs:rgeq lhs rhs) (r1cs:rgeq (optimize-r1cs lhs) (optimize-r1cs rhs))]
-        [(r1cs:rgt lhs rhs) (r1cs:rgt (optimize-r1cs lhs) (optimize-r1cs rhs))]
 
         [(r1cs:rand vs)
             (define new-vs (for/list ([v vs]) (optimize-r1cs v)))
@@ -116,26 +90,8 @@
                 (r1cs:ror (for/list ([v vs]) v))
             )
         ]
-        [(r1cs:rimp lhs rhs) (r1cs:rimp (optimize-r1cs lhs) (optimize-r1cs rhs))]
 
-
-        [(r1cs:rint v)
-            (cond
-                ; replace as p
-                [(= config:p v) (r1cs:rint 0)]
-                [(= (- config:p 1) v) (r1cs:rvar "ps1")]
-                [(= (- config:p 2) v) (r1cs:rvar "ps2")]
-                [(= (- config:p 3) v) (r1cs:rvar "ps3")]
-                [(= (- config:p 4) v) (r1cs:rvar "ps4")]
-                [(= (- config:p 5) v) (r1cs:rvar "ps5")]
-                ; replace as zero
-                [(= 0 v) (r1cs:rvar "zero")]
-                ; replace as one
-                [(= 1 v) (r1cs:rvar "one")]
-                ; do nothing
-                [else (r1cs:rint v)]
-            )
-        ]
+        [(r1cs:rint v) (r1cs:rint v)]
         [(r1cs:rstr v) (r1cs:rstr v)]
         ; (note) we assume "x0" is the first wire with prefix "x"
         [(r1cs:rvar v)

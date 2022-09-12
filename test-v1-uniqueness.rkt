@@ -63,6 +63,7 @@
 (define state-smt-path (solver:state-smt-path arg-solver))
 (define solve (solver:solve arg-solver))
 (define parse-r1cs (solver:parse-r1cs arg-solver))
+(define normalize (solver:normalize arg-solver))
 (define optimize (solver:optimize arg-solver))
 (define interpret-r1cs (solver:interpret-r1cs arg-solver))
 
@@ -104,7 +105,7 @@
     xlist original-options original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
     arg-timeout arg-smt arg-weak
-    solve state-smt-path parse-r1cs optimize interpret-r1cs
+    solve state-smt-path parse-r1cs normalize optimize interpret-r1cs
 ))
 (printf "# final unknown list: ~a.\n" res-ul)
 (if (not arg-weak)

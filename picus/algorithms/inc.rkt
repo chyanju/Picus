@@ -15,7 +15,7 @@
     xlist original-options original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
     arg-timeout arg-smt arg-weak
-    solve state-smt-path parse-r1cs optimize interpret-r1cs
+    solve state-smt-path parse-r1cs normalize optimize interpret-r1cs
     )
     (define partial-cmds (r1cs:append-rcmds
         (r1cs:rcmds (list
@@ -87,7 +87,7 @@
                 ))
             ))
             ; perform optimization
-            (define optimized-cmds (optimize final-cmds))
+            (define optimized-cmds (optimize (normalize final-cmds)))
             (define final-str (string-join (interpret-r1cs
                 (r1cs:append-rcmds original-options optimized-cmds))
                 "\n"
