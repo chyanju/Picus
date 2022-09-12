@@ -11,14 +11,6 @@
     )
 )
 
-; auxiliar function to check if the intersection of two sets is empty
-(define (empty_inter? l1 l2) 
-    (cond ((null? l1) #t)
-        ((contains? l2 (car l1)) #f)
-       (else (empty_inter? (cdr l1) l2))
-    )
-)
-
 (define (get-elem-map l x)
     (if (null? l)
         (values #f -1)

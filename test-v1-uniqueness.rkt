@@ -114,7 +114,7 @@
     )
     (printf "# strong safey: skipped.\n")
 )
-(if (utils:empty_inter? res-ul output-list)
+(if (empty? (set-intersect res-ul output-list))
     (printf "# weak safety: verified.\n")
     (printf "# weak safey: failed.\n")
 )
