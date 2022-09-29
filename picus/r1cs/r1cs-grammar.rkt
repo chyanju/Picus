@@ -114,11 +114,12 @@
     (do (list-ref (rcmds-vs arg-rcmds) arg-id))
 )
 
-; return a list of all variables occuring in a (partial) r1cs ast
+; return a set of all variables occuring in a (partial) r1cs ast
+;   - arg-indexonly: whether to extract the indices instead of keeping the full variable name
 ; (note) you should normalize the constraints before calling this method
 ;        to get the most precise results; e.g., 1*x would not otherwise be considered
 ;        in form of x0*x
-(define (get-assert-variables obj)
+(define (get-assert-variables obj [arg-indexonly #f])
     ; define internal function
     (define (do obj0)
         (match obj0
@@ -154,7 +155,15 @@
                 )
             ]
             [(rint v) (list )]
-            [(rvar v) (list v)]
+            [(rvar v)
+                (if arg-indexonly
+                    ; extracted variable index
+                    ; (fixme) we here assume prefix is either "x" or "y"
+                    (list (string->number (substring v 1)))
+                    ; original string variable
+                    (list v)
+                )
+            ]
             [(rtype v) (list )]
             [(radd vs)
                 (let ([res (list )])
@@ -179,7 +188,7 @@
         )
     )
     ; then call it and remove duplicates, and return
-    (remove-duplicates (do obj))
+    (list->set (do obj))
 )
 
 ; same as get-assert-variables, but limited to linear ones
@@ -189,7 +198,11 @@
 ; (note) you should normalize the constraints before calling this method
 ;        to get the most precise results; e.g., 1*x would not otherwise be considered
 ;        in form of x0*x
-(define (get-assert-variables/linear obj)
+; (important) one variable can simultaneously appear as linear and non-linear
+;             in the interest of uniqueness, it should be marked as non-linear
+;             but this method does not make the decision for the user
+;             you need to determine by yourself
+(define (get-assert-variables/linear obj [arg-indexonly #f])
     ; define internal function
     (define (do obj0)
         (match obj0
@@ -225,7 +238,15 @@
                 )
             ]
             [(rint v) (list )]
-            [(rvar v) (list v)]
+            [(rvar v)
+                (if arg-indexonly
+                    ; extracted variable index
+                    ; (fixme) we here assume prefix is either "x" or "y"
+                    (list (string->number (substring v 1)))
+                    ; original string variable
+                    (list v)
+                )
+            ]
             [(rtype v) (list )]
             [(radd vs)
                 (let ([res (list )])
@@ -248,7 +269,83 @@
         )
     )
     ; then call it and remove duplicates, and return
-    (remove-duplicates (do obj))
+    (list->set (do obj))
+)
+
+(define (get-assert-variables/nonlinear obj [arg-indexonly #f])
+    ; define internal function
+    (define (do obj0 [include? #f])
+        (match obj0
+            [(rcmds vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v include?))))
+                    res
+                )
+            ]
+            [(rraw v) (list )]
+            [(rlogic v) (list )]
+            [(rdef v t) (list )]
+            [(rassert v) (do v include?)]
+            [(rcmt v) (list )]
+            [(rsolve ) (list )]
+            [(req lhs rhs) (append (do lhs include?) (do rhs include?))]
+            [(rneq lhs rhs) (append (do lhs include?) (do rhs include?))]
+            [(rleq lhs rhs) (append (do lhs include?) (do rhs include?))]
+            [(rlt lhs rhs) (append (do lhs include?) (do rhs include?))]
+            [(rgeq lhs rhs) (append (do lhs include?) (do rhs include?))]
+            [(rgt lhs rhs) (append (do lhs include?) (do rhs include?))]
+            [(rand vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v include?))))
+                    res
+                )
+            ]
+            [(rimp lhs rhs) (append (do lhs) (do rhs))]
+            [(ror vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v include?))))
+                    res
+                )
+            ]
+            [(rint v) (list )]
+            [(rvar v)
+                ; only include when include? is #t
+                (if include?
+                    (if arg-indexonly
+                        ; extracted variable index
+                        ; (fixme) we here assume prefix is either "x" or "y"
+                        (list (string->number (substring v 1)))
+                        ; original string variable
+                        (list v)
+                    )
+                    (list)
+                )
+            ]
+            [(rtype v) (list )]
+            [(radd vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v include?))))
+                    res
+                )
+            ]
+            [(rsub vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v include?))))
+                    res
+                )
+            ]
+            [(rmul vs)
+                (let ([res (list )])
+                    (for ([v vs]) (set! res (append res (do v #t))))
+                    res
+                )
+            ]
+            [(rmod v mod) (append (do v include?) (do mod include?))]
+            [else (tokamak:exit "not supported: ~a" obj0)]
+        )
+    )
+    ; then call it and remove duplicates, and return
+    (list->set (do obj))
 )
 
 ; =======================================
