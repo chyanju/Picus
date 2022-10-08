@@ -29,12 +29,33 @@ jobs:
           file: Dockerfile
           tags: veridise/picus:git-latest , veridise/picus:git-${{ github.sha }}
 
-  test:
-
+  test-compile-circomlib:
+    needs: publish-docker
     runs-on: ubuntu-latest
     container: docker/picus:git-latest
-
     steps:
       - uses: actions/checkout@v1
       - name: compile circomlib
         run: bash ./scripts/prepare-circomlib.sh
+
+  test-z3-solving:
+    needs: test-circomlib-compilation
+    runs-on: ubuntu-latest
+    container: docker/picus:git-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: compile circomlib
+        run: bash ./scripts/prepare-circomlib.sh
+      - name: run picus with z3, using v3
+        run: racket ./test-v3-uniqueness.rkt --solver z3 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
+
+  test-cvc5-solving:
+    needs: test-circomlib-compilation
+    runs-on: ubuntu-latest
+    container: docker/picus:git-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: compile circomlib
+        run: bash ./scripts/prepare-circomlib.sh
+      - name: run picus with cvc5, using v3
+        run: racket ./test-v3-uniqueness.rkt --solver cvc5 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
