@@ -32,30 +32,52 @@ jobs:
   test-compile-circomlib:
     needs: publish-docker
     runs-on: ubuntu-latest
-    container: docker/picus:git-latest
+    container: 
+      image: veridise/picus:git-${{ github.sha }}
+      credentials:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v1
+      - name: linking circom
+        run: ln -s /root/.cargo/bin/circom /usr/bin/circom
       - name: compile circomlib
         run: bash ./scripts/prepare-circomlib.sh
 
-  test-z3-solving:
-    needs: test-circomlib-compilation
+  test-solve-with-z3:
+    needs: test-compile-circomlib
     runs-on: ubuntu-latest
-    container: docker/picus:git-latest
+    container: 
+      image: veridise/picus:git-${{ github.sha }}
+      credentials:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v1
+      - name: linking circom
+        run: ln -s /root/.cargo/bin/circom /usr/bin/circom
       - name: compile circomlib
         run: bash ./scripts/prepare-circomlib.sh
+      - name: preparing rosette
+        run: raco pkg install --auto rosette
       - name: run picus with z3, using v3
         run: racket ./test-v3-uniqueness.rkt --solver z3 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
 
-  test-cvc5-solving:
-    needs: test-circomlib-compilation
+  test-solve-with-cvc5:
+    needs: test-compile-circomlib
     runs-on: ubuntu-latest
-    container: docker/picus:git-latest
+    container: 
+      image: veridise/picus:git-${{ github.sha }}
+      credentials:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v1
+      - name: linking circom
+        run: ln -s /root/.cargo/bin/circom /usr/bin/circom
       - name: compile circomlib
         run: bash ./scripts/prepare-circomlib.sh
+      - name: preparing rosette
+        run: raco pkg install --auto rosette
       - name: run picus with cvc5, using v3
         run: racket ./test-v3-uniqueness.rkt --solver cvc5 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
