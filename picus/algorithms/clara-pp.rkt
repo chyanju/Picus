@@ -307,7 +307,7 @@
     r0 nwires mconstraints input-list output-list
     xlist original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
-    arg-weak arg-timeout arg-smt
+    arg-weak arg-timeout arg-smt arg-model
     solver:get-theory solver:solve solver:state-smt-path parser:parse-r1cs optimizer:optimize rint:interpret-r1cs
     )
     ; parse signal2constraints and constraints2signals
@@ -680,7 +680,10 @@
                 #t
             ]
             [(equal? 'sat (car res))
-                (printf "sat\n")
+                (if arg-model
+                    (printf "sat\n    # model: ~a" (cdr res))
+                    (printf "sat\n")
+                )
                 #f
             ]
             [else

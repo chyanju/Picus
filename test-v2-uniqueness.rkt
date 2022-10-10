@@ -36,6 +36,7 @@
 (define arg-timeout 5000)
 (define arg-smt #f)
 (define arg-weak #f)
+(define arg-model #f)
 (command-line
     #:once-each
     [("--r1cs") p-r1cs "path to target r1cs"
@@ -65,6 +66,11 @@
     [("--weak") "only check weak safety, not strong safety  (default: false)"
         (begin
             (set! arg-weak #t)
+        )
+    ]
+    [("--get-model") "produce and print out counter example for every query (default: false)"
+        (begin
+            (set! arg-model #t)
         )
     ]
 )
@@ -156,7 +162,7 @@
     r0 nwires mconstraints input-list output-list
     xlist original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
-    arg-weak arg-timeout arg-smt
+    arg-weak arg-timeout arg-smt arg-model
     solver:get-theory solver:solve solver:state-smt-path parser:parse-r1cs optimizer:optimize rint:interpret-r1cs
 ))
 (printf "# final unknown list: ~a\n" res-ul)

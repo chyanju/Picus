@@ -90,6 +90,7 @@ usage: test-v2-uniqueness.rkt [ <option> ... ]
   --initlvl <p-initlvl> initial level of neighboring method: 0 - full nb | 1 | 2 - disable nb (default:0)
   --smt show path to generated smt files (default: false)
   --weak only check weak safety, not strong safety  (default: false)
+  --get-model produce and print out counter example for every query (default: false)
   --help, -h Show this help
 ```
 
