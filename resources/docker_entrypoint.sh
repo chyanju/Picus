@@ -18,7 +18,7 @@ MAIN_FILES="${MAIN_FILES:-${CIRCOM_SRC_DIR}}"
 CIRCOM_OUT_DIR="${CIRCOM_OUT_DIR:-/artifact_dir}"
 
 # The backend solver that picus should use.
-SOLVER="${SOLVER:-z3}"
+SOLVER="${SOLVER:-cvc5}"
 
 # The picus version to use.
 VERSION="${VERSION:-v3}"
