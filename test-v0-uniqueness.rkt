@@ -182,6 +182,6 @@
 ; solve!
 (define res ((solver:solve) final-str arg-timeout #:output-smt? arg-smt))
 (if (equal? 'unsat (car res))
-    (printf "# verified.\n")
-    (printf "# failed / reason: ~a\n" res)
+    (printf "# weak uniqueness: safe.\n")
+    (printf "# weak uniqueness: unsafe or unknown / reason: ~a\n" res)
 )

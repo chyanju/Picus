@@ -158,7 +158,7 @@
 (printf "# parsing alternative r1cs...\n")
 (define-values (_ alternative-definitions alternative-cnsts) ((parser:parse-r1cs) r0 xlist0))
 
-(define res-ul (pp:apply-pp
+(define-values (res-ul round-has-unknown) (pp:apply-pp
     r0 nwires mconstraints input-list output-list
     xlist original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
@@ -168,13 +168,19 @@
 (printf "# final unknown list: ~a\n" res-ul)
 (if (not arg-weak)
     (if (empty? res-ul)
-        (printf "# Strong safety verified.\n")
-        (printf "# Strong safey failed.\n")
+        (printf "# strong uniqueness: safe.\n")
+        (if round-has-unknown
+            (printf "# strong uniqueness: unknown.\n")
+            (printf "# strong uniqueness: unsafe.\n")
+        )
     )
-    (printf "# Weak flag activated: skipping check strong safey\n")
+    (printf "# strong uniqueness: skipped (--weak)\n")
 )
 
 (if (utils:empty_inter? res-ul output-list)
-    (printf "# Weak safety verified.\n")
-    (printf "# Weak safey failed.\n")
+    (printf "# weak uniqueness: safe.\n")
+    (if round-has-unknown
+        (printf "# weak uniqueness: unknown.\n")
+        (printf "# weak uniqueness: unsafe.\n")
+    )
 )

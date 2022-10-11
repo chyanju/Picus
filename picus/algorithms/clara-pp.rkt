@@ -310,6 +310,11 @@
     arg-weak arg-timeout arg-smt arg-model
     solver:get-theory solver:solve solver:state-smt-path parser:parse-r1cs optimizer:optimize rint:interpret-r1cs
     )
+    
+    ; state variable of whether the current round has unknown/timeout queries
+    ; need to reset to #f at each new round
+    (define round-has-unknown null)
+
     ; parse signal2constraints and constraints2signals
     (define signal2constraints (r1cs:compute-signal2constraints r0))
     (define constraint2signals (r1cs:compute-constraint2signals r0))
@@ -593,6 +598,7 @@
                     [else
                         (define promising-signals-ordered (get-order-promising-signals c2ukn ukn tried-and-failed))
                         (printf "# ==== new round of SMT solvers ===\n")
+                        (set! round-has-unknown #f)
                         (define-values (signal-smt new-failures) (try-solve-smt promising-signals-ordered kn tried-and-failed))
                         (cond
                             [(>= signal-smt 0)
@@ -688,6 +694,7 @@
             ]
             [else
                 (printf "skip\n")
+                (set! round-has-unknown #t)
                 #f
             ]
         )
@@ -695,5 +702,5 @@
 
     (define res-ul (apply-complete-iteration known-list unknown-list initial-constraint2ukn (range mconstraints) '() '()))
     ; return
-    res-ul
+    (values res-ul round-has-unknown)
 )

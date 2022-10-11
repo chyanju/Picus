@@ -144,7 +144,7 @@
 ; ============================
 ; ======== main solve ========
 ; ============================
-(define res-ul (inc:apply-inc
+(define-values (res-ul round-has-unknown) (inc:apply-inc
     r0 nwires mconstraints input-list output-list
     xlist original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
@@ -153,11 +153,17 @@
 ))
 (printf "# final unknown list: ~a\n" res-ul)
 (if (empty? res-ul)
-    (printf "# Strong safety verified.\n")
-    (printf "# Strong safey failed.\n")
+    (printf "# strong uniqueness: safe.\n")
+    (if round-has-unknown
+        (printf "# strong uniqueness: unknown.\n")
+        (printf "# strong uniqueness: unsafe.\n")
+    )
 )
 
 (if (utils:empty_inter? res-ul output-list)
-    (printf "# Weak safety verified.\n")
-    (printf "# Weak safey failed.\n")
+    (printf "# weak uniqueness: safe.\n")
+    (if round-has-unknown
+        (printf "# weak uniqueness: unknown.\n")
+        (printf "# weak uniqueness: unsafe.\n")
+    )
 )

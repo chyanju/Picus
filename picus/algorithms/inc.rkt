@@ -17,6 +17,11 @@
     arg-timeout arg-smt
     solver:get-theory solver:solve solver:state-smt-path parser:parse-r1cs optimizer:optimize rint:interpret-r1cs
     )
+
+    ; state variable of whether the current round has unknown/timeout queries
+    ; need to reset to #f at each new round
+    (define round-has-unknown null)
+
     (define partial-cmds (r1cs:append-rcmds
         (r1cs:rcmds (list
             (r1cs:rcmt (r1cs:rstr "================================"))
@@ -103,6 +108,7 @@
                 ]
                 [else
                     (printf "skip.\n")
+                    (set! round-has-unknown #t)
                     (set! tmp-ul (cons i tmp-ul))
                 ]
             )
@@ -116,7 +122,8 @@
         )
     )
 
+    (set! round-has-unknown #f)
     (define res-ul (inc-solve known-list unknown-list))
     ; return
-    res-ul
+    (values res-ul round-has-unknown)
 )
