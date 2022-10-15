@@ -48,6 +48,8 @@
 (struct rneg (v) #:mutable #:transparent #:reflection-name 'r1cs:rneg) ; v: int
 (struct rmod (v mod) #:mutable #:transparent #:reflection-name 'r1cs:rmod) ; v: int, mod: int
 
+(define (ref-rcmds obj ind) (list-ref (rcmds-vs obj) ind))
+
 ; concatenate multiple rcmd
 (define (append-rcmds . obj)
     (if (null? obj)
@@ -261,9 +263,21 @@
                 )
             ]
             ; (assumed optimized version)
-            ; 1*x will be x, which will not be captured by rmul
+            ; - 1*x will be x, which will not be captured by rmul
+            ; - (fixme) this could be wrong, a*x is treated as linear,
+            ;           since prime field has unique multiplicative inverse, so a*x=b
+            ;           will have unique solution for x
             ; others are not linear
-            [(rmul vs) (list )]
+            [(rmul vs)
+                (let ([vv (filter (lambda (x) (rvar? x)) vs)])
+                    (if (= 1 (length vv))
+                        ; only 1 var, good as linear
+                        (do (car vv))
+                        ; no var or more than 1 var, not good for linear
+                        (list )
+                    )
+                )
+            ]
             [(rmod v mod) (append (do v) (do mod))]
             [else (tokamak:exit "not supported: ~a" obj0)]
         )
@@ -335,8 +349,13 @@
                 )
             ]
             [(rmul vs)
-                (let ([res (list )])
-                    (for ([v vs]) (set! res (append res (do v #t))))
+                (let ([res (list )][vv (filter (lambda (x) (rvar? x)) vs)])
+                    (if (<= (length vv) 1)
+                        ; less than 1 var, this is just linear
+                        (set! res (list ))
+                        ; more than 1 var, all involved vars are non-linear
+                        (for ([v vv]) (set! res (append res (do v #t))))
+                    )
                     res
                 )
             ]

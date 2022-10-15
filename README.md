@@ -147,6 +147,10 @@ circom -o ./target/ ./ecne_circomlib_tests/ooo.circom --r1cs --sym --O0
 julia --project=. src/Ecne.jl --r1cs target/ooo.r1cs --name oooo --sym target/ooo.sym
 ```
 
+## Potential Issues
+
+- "too many open files" errors, see [https://github.com/davidemms/OrthoFinder/issues/384](https://github.com/davidemms/OrthoFinder/issues/384)
+
 ## Resources
 
 - Parsing a circuit into AST: https://circom.party/

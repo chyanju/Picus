@@ -5,17 +5,16 @@
     (prefix-in utils: "../utils.rkt")
     (prefix-in config: "../config.rkt")
     (prefix-in r1cs: "../r1cs/r1cs-grammar.rkt")
-    (prefix-in selector: "./selectors.rkt")
 )
 (provide (rename-out
     [get-cdmap get-cdmap]
     [get-rcdmap get-rcdmap]
+    [get-s2cmap get-s2cmap]
+    [get-c2smap get-c2smap]
+    [get-nb-cnsts get-nb-cnsts]
     [pp-propagate pp-propagate]
     [apply-pp apply-pp]
 ))
-
-; use pp-counter-select
-(define pp-select selector:pp-counter-select)
 
 ; get constraint dependency map
 ; input is the *normalized main constraint part* of r1cs ast
@@ -31,7 +30,6 @@
 ;     even if knowing y and k (due to field mul)
 (define (get-cdmap arg-cnsts [arg-indexonly #f])
     (define res (make-hash))
-    ; for every single constraint
     (for ([p (r1cs:rcmds-vs arg-cnsts)])
         (define all-vars (r1cs:get-assert-variables p arg-indexonly))
         (define nonlinear-vars (r1cs:get-assert-variables/nonlinear p arg-indexonly))
@@ -101,6 +99,44 @@
         (pp-propagate rcdmap new-ks new-us)
     )
 )
+
+
+(define state-rcdkey-counter null) ; cached rcdkey counter, key: index, val: count
+(define state-blame-counter null) ; adjustment weight, key: index, val: weight delta +
+; key first select: select the key with higher appearance in rcdmap
+(define (pp-select rcdmap uspool)
+    ; check for existence of counter
+    (when (null? state-rcdkey-counter)
+        ; counter not created yet, create one
+        (define tmp-counter (make-hash))
+        (for ([keys (hash-keys rcdmap)])
+            (for ([key keys])
+                (when (! (hash-has-key? tmp-counter key)) (hash-set! tmp-counter key 0))
+                (hash-set! tmp-counter key (+ 1 (hash-ref tmp-counter key)))
+            )
+        )
+        (set! state-rcdkey-counter tmp-counter)
+    )
+    ; copy the counter and filter out non uspool ones
+    (define tmp-counter (make-hash))
+    (for ([key (hash-keys state-rcdkey-counter)])
+        (when (set-member? uspool key)
+            ; copy and calculate the weight
+            (hash-set! tmp-counter key
+                (+ (hash-ref state-rcdkey-counter key) (hash-ref state-blame-counter key))
+            )
+        )
+    )
+    ; add remaining uspool ones into the counter
+    (for ([key uspool])
+        (when (! (hash-has-key? tmp-counter key)) (hash-set! tmp-counter key 0)))
+    ; sort and pick
+    (define p0 (argmax cdr (hash->list tmp-counter)))
+    ; return
+    (car p0)
+)
+; naive select
+; (define (pp-select rcdmap uspool) (set-first uspool))
 
 (define (pp-solve
     arg-timeout arg-smt
@@ -188,7 +224,7 @@
                 ; not solved, update uspool and recursively call again
                 [else
                     ; decrease the weight of the selected id since it's not solved
-                    (selector:signal-weights-dec! sid 1)
+                    (hash-set! state-blame-counter sid (- (hash-ref state-blame-counter sid) 1))
                     ; still has something to choose from, invoke recursively again
                     (pp-select-and-solve
                         arg-timeout arg-smt
@@ -252,6 +288,71 @@
     )
 )
 
+; get a signal-to-constraint map
+;   - key: signal id
+;   - val: set of ids of constraints that contain the corresponding signal specified in key
+; (note) constraint ids are for arg-rcmds
+;   - arg-rcmds: should be union of original-cnsts and alternative-cnsts
+;                (note)
+(define (get-s2cmap arg-rcmds [arg-indexonly #f])
+    (define res (make-hash))
+    (let ([cmds (r1cs:rcmds-vs arg-rcmds)])
+        (for ([ind (range (length cmds))])
+            (define cmd (list-ref cmds ind))
+            (define vset (r1cs:get-assert-variables cmd arg-indexonly))
+            ; add all signal-ind pair to the map
+            (for ([v vset])
+                (when (! (hash-has-key? res v)) (hash-set! res v (set )))
+                (hash-set! res v (set-add (hash-ref res v) ind))
+            )
+        )
+    )
+    ; return
+    res
+)
+
+; reversed version of s2cmap
+(define (get-c2smap arg-rcmds [arg-indexonly #f])
+    (define s2cmap (get-s2cmap arg-rcmds arg-indexonly))
+    (define rmap (make-hash))
+    (for ([key (hash-keys s2cmap)])
+        (define vals (hash-ref s2cmap key))
+        (for ([val vals])
+            (when (! (hash-has-key? rmap val)) (hash-set! rmap val (list )))
+            (hash-set! rmap val (cons key (hash-ref rmap val)))
+        )
+    )
+    ; make immutable
+    (for ([key (hash-keys rmap)])
+        (hash-set! rmap key (list->set (hash-ref rmap key))))
+    ; return
+    rmap
+)
+
+; filter the constraints with signal index to level/degree lv
+;   - s2cmap: signal-to-constraint map
+;   - ind: target signal to compute degree from
+;   - lv: target level, >= 1
+(define (get-nb-cnsts arg-rcmds s2cmap c2smap ind lv)
+    (define sset (set ind))
+    (define cset (set ))
+    (for ([i (range lv)])
+        (define sset0 (set ))
+        (for ([i0 sset])
+            (set! cset (set-union cset (hash-ref s2cmap i0)))
+            ; prepare for potential next loop
+            (for ([j0 cset])
+                (set! sset0 (set-union sset0 (hash-ref c2smap j0)))
+            )
+        )
+        (set! sset sset0)
+    )
+    ; get a sorted list of constraints
+    (define slist (filter (lambda (ind) (set-member? cset ind)) (range (length (r1cs:rcmds-vs arg-rcmds)))))
+    ; return
+    (r1cs:rcmds (for/list ([i slist]) (r1cs:ref-rcmds arg-rcmds i)))
+)
+
 (define (apply-pp
     r0 nwires mconstraints input-set output-set
     xlist original-options original-definitions original-cnsts
@@ -307,8 +408,8 @@
     ; (for ([key (hash-keys rcdmap)]) (printf "~a => ~a\n" key (hash-ref rcdmap key)))
 
     ; initialization of state: weights are all set to 0
-    (selector:signal-weights-reset!)
-    (for ([key (range nwires)]) (selector:signal-weights-set! key 0))
+    (set! state-blame-counter (make-hash))
+    (for ([key (range nwires)]) (hash-set! state-blame-counter key 0))
 
     (pp-iteration
         arg-timeout arg-smt arg-weak
