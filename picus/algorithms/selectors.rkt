@@ -1,5 +1,6 @@
 #lang rosette
 (provide (rename-out
+    ; shared methods
     [signal-weights-reset! signal-weights-reset!]
     [signal-weights-set! signal-weights-set!]
     [signal-weights-ref signal-weights-ref]
@@ -10,7 +11,8 @@
     [pp-naive-select pp-naive-select]
 ))
 
-; (shared) signal weights
+; shared stateful variables and methods
+; signal weights
 (define signal-weights null)
 (define (signal-weights-reset!) (set! signal-weights (make-hash)))
 (define (signal-weights-set! k v) (hash-set! signal-weights k v))
@@ -18,6 +20,7 @@
 (define (signal-weights-inc! k v) (hash-set! signal-weights k (+ (hash-ref signal-weights k) v)))
 (define (signal-weights-dec! k v) (hash-set! signal-weights k (- (hash-ref signal-weights k) v)))
 
+; =======================
 ; counter select strategy
 ; choose the signal that appears the most in the keys of rcdmap
 ; i.e. the most "critical" one for propagation
@@ -55,6 +58,7 @@
     (car p0)
 )
 
+; =====================
 ; naive select strategy
 ; simply choose the first signal from the pool
 (define (pp-naive-select rcdmap uspool) (set-first uspool))

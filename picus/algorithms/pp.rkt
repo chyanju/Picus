@@ -211,44 +211,42 @@
     xlist xlist0 original-options partial-cmds
     rcdmap ks us os
     )
-    ; (printf "# new pp iteration.\n")
+
     ; first, propagate
     (define-values (new-ks new-us) (pp-propagate rcdmap ks us))
-    ; then, select and solve
-    (define-values (xnew-ks xnew-us) (pp-select-and-solve
-        arg-timeout arg-smt
-        solve state-smt-path normalize optimize interpret-r1cs
-        xlist xlist0 original-options partial-cmds
-        rcdmap new-ks new-us os new-us
-    ))
-    (if arg-weak
-        (if (set-empty? (set-intersect os xnew-us))
+    (cond
+        [(&& arg-weak (set-empty? (set-intersect os new-us)))
             ; no output is unknown, return
-            xnew-us
+            new-us
+        ]
+        [else
             ; still there's unknown output, continue
-            (if (equal? xnew-us new-us)
-                ; can't reduce any unknown any more, return
-                xnew-us
-                ; continue
-                (pp-iteration
-                    arg-timeout arg-smt arg-weak
-                    solve state-smt-path normalize optimize interpret-r1cs
-                    xlist xlist0 original-options partial-cmds
-                    rcdmap xnew-ks xnew-us os
-                )
-            )
-        )
-        (if (equal? xnew-us new-us)
-            ; can't reduce any unknown any more, return
-            xnew-us
-            ; continue
-            (pp-iteration
-                arg-timeout arg-smt arg-weak
+            ; then select and solve
+            (define-values (xnew-ks xnew-us) (pp-select-and-solve
+                arg-timeout arg-smt
                 solve state-smt-path normalize optimize interpret-r1cs
                 xlist xlist0 original-options partial-cmds
-                rcdmap xnew-ks xnew-us os
+                rcdmap new-ks new-us os new-us
+            ))
+            (cond
+                [(&& arg-weak (set-empty? (set-intersect os xnew-us)))
+                    ; no output is unknown, return
+                    xnew-us
+                ]
+                [(equal? xnew-us new-us)
+                    ; can't reduce any unknown any more, return
+                    xnew-us
+                ]
+                [else
+                    (pp-iteration
+                        arg-timeout arg-smt arg-weak
+                        solve state-smt-path normalize optimize interpret-r1cs
+                        xlist xlist0 original-options partial-cmds
+                        rcdmap xnew-ks xnew-us os
+                    )
+                ]
             )
-        )
+        ]
     )
 )
 
