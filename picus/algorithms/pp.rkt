@@ -14,6 +14,34 @@
     [apply-pp apply-pp]
 ))
 
+; ======== module global variables ======== ;
+
+; problem pack, needs to be set and initialized by apply- function
+(define :r0 null)
+(define :nwires null)
+(define :mconstraints null)
+(define :input-set null)
+(define :output-set null)
+(define :target-set null)
+(define :xlist null)
+(define :original-options null)
+(define :original-definitions null)
+(define :original-cnsts null)
+(define :xlist0 null)
+(define :alternative-definitions null)
+(define :alternative-cnsts null)
+(define :arg-timeout null)
+(define :arg-smt null)
+(define :solve null)
+(define :state-smt-path null)
+(define :parse-r1cs null)
+(define :normalize null)
+(define :optimize null)
+(define :interpret-r1cs null)
+
+; problem intermediate results
+(define :partial-cmds null)
+
 ; use pp-counter-select
 (define pp-select selector:pp-counter-select)
 
@@ -102,19 +130,19 @@
     )
 )
 
-(define (pp-solve
-    arg-timeout arg-smt
-    solve state-smt-path normalize optimize interpret-r1cs
-    xlist xlist0 original-options partial-cmds
-    ks us os sid
-    )
-    (printf "  # checking: (~a ~a), " (list-ref xlist sid) (list-ref xlist0 sid))
+; main solving procedure
+; returns:
+;   - (values 'verified info): the given query is verified
+;   - (values 'sat info): the given query has a counter-example (not verified)
+;   - (values 'skip info): the given query times out (small step)
+(define (pp-solve ks us sid)
+    (printf "  # checking: (~a ~a), " (list-ref :xlist sid) (list-ref :xlist0 sid))
     ; assemble commands
     (define known-cmds (r1cs:rcmds (for/list ([j ks])
-        (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref xlist j)) (r1cs:rvar (list-ref xlist0 j))))
+        (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref :xlist j)) (r1cs:rvar (list-ref :xlist0 j))))
     )))
     (define final-cmds (r1cs:append-rcmds
-        partial-cmds
+        :partial-cmds
         (r1cs:rcmds (list
             (r1cs:rcmt "=============================")
             (r1cs:rcmt "======== known block ========")
@@ -127,76 +155,70 @@
             (r1cs:rcmt "=============================")
         ))
         (r1cs:rcmds (list
-            (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref xlist sid)) (r1cs:rvar (list-ref xlist0 sid))))
+            (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref :xlist sid)) (r1cs:rvar (list-ref :xlist0 sid))))
             (r1cs:rsolve )
         ))
     ))
     ; perform optimization
-    (define optimized-cmds (optimize (normalize final-cmds)))
-    (define final-str (string-join (interpret-r1cs
-        (r1cs:append-rcmds original-options optimized-cmds))
+    (define optimized-cmds (:optimize (:normalize final-cmds)))
+    (define final-str (string-join (:interpret-r1cs
+        (r1cs:append-rcmds :original-options optimized-cmds))
         "\n"
     ))
-    (define res (solve final-str arg-timeout #:output-smt? #f))
+    (define res (:solve final-str :arg-timeout #:output-smt? #f))
     (define solved? (cond
         [(equal? 'unsat (car res))
             (printf "verified.\n")
-            ; verified
-            #t
+            ; verified, safe
+            'verified
         ]
         [(equal? 'sat (car res))
             (printf "sat.\n")
-            ; not verified
-            #f
+            ; found a counter-example, unsafe
+            ; in pp, this counter-example is valid
+            'sat
         ]
         [else
             (printf "skip.\n")
-            ; possibly timeout, not verified
-            #f
+            ; possibly timeout in small step, result is unknown
+            'skip
         ]
     ))
-    (when arg-smt
-        (printf "    # smt path: ~a\n" (state-smt-path)))
+    (when :arg-smt
+        (printf "    # smt path: ~a\n" (:state-smt-path)))
     ; return
-    solved?
+    (values solved? (cdr res))
 )
 
+; select and solve
+; returns:
+;   - (values 'normal ks us info)
+;   - (values 'break ks us info)
+;   (note) since it's called recursively, at some level it could have new different ks with 'break
+;          in that case you still break since a counter-example is already found
 ; uspool is usually initialized as us
-(define (pp-select-and-solve
-    arg-timeout arg-smt
-    solve state-smt-path normalize optimize interpret-r1cs
-    xlist xlist0 original-options partial-cmds
-    rcdmap ks us os uspool
-    )
-
+(define (pp-select-and-solve rcdmap ks us uspool)
     (if (set-empty? uspool)
-        ; nothing more to choose, can't solve any in this iteration, main process fail
-        ; return same ks & us
-        (values ks us)
+        ; can't solve any more signal in this iteration
+        (values 'normal ks us null)
         ; else, set not empty, move forward
         (begin
             (define sid (pp-select rcdmap uspool))
-            (define solved? (pp-solve
-                arg-timeout arg-smt
-                solve state-smt-path normalize optimize interpret-r1cs
-                xlist xlist0 original-options partial-cmds
-                ks us os sid
-            ))
+            (define-values (solved? info) (pp-solve ks us sid))
             (cond
                 ; solved, update ks & us, then return
-                [solved? (values (set-add ks sid) (set-remove us sid))]
-                ; not solved, update uspool and recursively call again
-                [else
+                [(equal? 'verified solved?) (values 'normal (set-add ks sid) (set-remove us sid) null)]
+                ; found a counter-example here, forced stop, nothing more to solve
+                ; return the same ks & us to indicate the caller to stop
+                [(equal? 'sat solved?) (values 'break ks us info)]
+                ; unknown, update uspool and recursively call again
+                [(equal? 'skip solved?)
                     ; decrease the weight of the selected id since it's not solved
                     (selector:signal-weights-dec! sid 1)
                     ; still has something to choose from, invoke recursively again
-                    (pp-select-and-solve
-                        arg-timeout arg-smt
-                        solve state-smt-path normalize optimize interpret-r1cs
-                        xlist xlist0 original-options partial-cmds
-                        rcdmap ks us os (set-remove uspool sid)
-                    )
+                    (pp-select-and-solve rcdmap ks us (set-remove uspool sid))
                 ]
+                [else (tokamak:error "unsupported solved? value, got: ~a." solved?)]
             )
         )
     )
@@ -205,64 +227,90 @@
 ; perform one iteration of pp algorithm
 ;   - ks: known set
 ;   - us: unknown set
-(define (pp-iteration
-    arg-timeout arg-smt arg-weak
-    solve state-smt-path normalize optimize interpret-r1cs
-    xlist xlist0 original-options partial-cmds
-    rcdmap ks us os
-    )
+; returns:
+;   - ('safe ks us info)
+;   - ('unsafe ks us info)
+;   - ('unknown ks us info)
+(define (pp-iteration rcdmap ks us)
 
     ; first, propagate
     (define-values (new-ks new-us) (pp-propagate rcdmap ks us))
     (cond
-        [(&& arg-weak (set-empty? (set-intersect os new-us)))
-            ; no output is unknown, return
-            new-us
+        [(set-empty? (set-intersect :target-set new-us))
+            ; no target signal is unknown, no need to solve any more, return
+            (values 'safe new-ks new-us null)
         ]
         [else
-            ; still there's unknown output, continue
+            ; still there's unknown target signal, continue
             ; then select and solve
-            (define-values (xnew-ks xnew-us) (pp-select-and-solve
-                arg-timeout arg-smt
-                solve state-smt-path normalize optimize interpret-r1cs
-                xlist xlist0 original-options partial-cmds
-                rcdmap new-ks new-us os new-us
-            ))
+            (define-values (s0 xnew-ks xnew-us info) (pp-select-and-solve rcdmap new-ks new-us new-us))
             (cond
-                [(&& arg-weak (set-empty? (set-intersect os xnew-us)))
-                    ; no output is unknown, return
-                    xnew-us
-                ]
-                [(equal? xnew-us new-us)
-                    ; can't reduce any unknown any more, return
-                    xnew-us
-                ]
-                [else
-                    (pp-iteration
-                        arg-timeout arg-smt arg-weak
-                        solve state-smt-path normalize optimize interpret-r1cs
-                        xlist xlist0 original-options partial-cmds
-                        rcdmap xnew-ks xnew-us os
+                ; normal means there's no counter-example
+                [(equal? 'normal s0)
+                    (cond
+                        [(set-empty? (set-intersect :target-set xnew-us))
+                            ; no target signal is unknown, return
+                            (values 'safe xnew-ks xnew-us null)
+                        ]
+                        [(equal? xnew-us new-us)
+                            ; can't reduce any unknown any more, return
+                            (values 'unknown xnew-ks xnew-us info)
+                        ]
+                        [else
+                            ; continue the iteration
+                            (pp-iteration rcdmap xnew-ks xnew-us)
+                        ]
                     )
                 ]
+                ; 'break means there's counter-example
+                [(equal? 'break s0) (values 'unsafe xnew-ks xnew-us info)]
+                [else (tokamak:error "unsupported s0 value, got: ~a." s0)]
             )
         ]
     )
 )
 
+; verifies signals in target-set
+; returns (same as pp-iteration):
+;   - (values 'safe ks us info)
+;   - (values 'unsafe ks us info)
+;   - (values 'unknown ks us info)
 (define (apply-pp
-    r0 nwires mconstraints input-set output-set
+    r0 nwires mconstraints input-set output-set target-set
     xlist original-options original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
-    arg-timeout arg-smt arg-weak
+    arg-timeout arg-smt
     solve state-smt-path parse-r1cs normalize optimize interpret-r1cs
     )
+
+    ; first load in all global variables
+    (set! :r0 r0)
+    (set! :nwires nwires)
+    (set! :mconstraints mconstraints)
+    (set! :input-set input-set)
+    (set! :output-set output-set)
+    (set! :target-set target-set)
+    (set! :xlist xlist)
+    (set! :original-options original-options)
+    (set! :original-definitions original-definitions)
+    (set! :original-cnsts original-cnsts)
+    (set! :xlist0 xlist0)
+    (set! :alternative-definitions alternative-definitions)
+    (set! :alternative-cnsts alternative-cnsts)
+    (set! :arg-timeout arg-timeout)
+    (set! :arg-smt arg-smt)
+    (set! :solve solve)
+    (set! :state-smt-path state-smt-path)
+    (set! :parse-r1cs parse-r1cs)
+    (set! :normalize normalize)
+    (set! :optimize optimize)
+    (set! :interpret-r1cs interpret-r1cs)
 
     ; keep track of index of xlist (not xlist0 since that's incomplete)
     (define known-set (list->set (filter
         (lambda (x) (! (null? x)))
-        (for/list ([i (range nwires)])
-            (if (utils:contains? xlist0 (list-ref xlist i))
+        (for/list ([i (range :nwires)])
+            (if (utils:contains? :xlist0 (list-ref :xlist i))
                 i
                 null
             )
@@ -270,8 +318,8 @@
     )))
     (define unknown-set (list->set (filter
         (lambda (x) (! (null? x)))
-        (for/list ([i (range nwires)])
-            (if (utils:contains? xlist0 (list-ref xlist i))
+        (for/list ([i (range :nwires)])
+            (if (utils:contains? :xlist0 (list-ref :xlist i))
                 null
                 i
             )
@@ -280,38 +328,36 @@
     (printf "# initial known-set ~a\n" known-set)
     (printf "# initial unknown-set ~a\n" unknown-set)
 
-    (define partial-cmds (r1cs:append-rcmds
+    (set! :partial-cmds (r1cs:append-rcmds
         (r1cs:rcmds (list
             (r1cs:rcmt "================================")
             (r1cs:rcmt "======== original block ========")
             (r1cs:rcmt "================================")
         ))
-        original-definitions
-        original-cnsts
+        :original-definitions
+        :original-cnsts
         (r1cs:rcmds (list
             (r1cs:rcmt "===================================")
             (r1cs:rcmt "======== alternative block ========")
             (r1cs:rcmt "===================================")
         ))
-        alternative-definitions
-        alternative-cnsts
+        :alternative-definitions
+        :alternative-cnsts
     ))
 
     ; generate rcdmap
     ; rcdmap requires normalized constraints to get best results
-    (define normalized-original-cnsts (normalize original-cnsts))
-    (define normalized-alternative-cnsts (normalize alternative-cnsts))
+    (define normalized-original-cnsts (:normalize :original-cnsts))
+    (define normalized-alternative-cnsts (:normalize :alternative-cnsts))
     (define rcdmap (get-rcdmap normalized-original-cnsts #t))
     ; (for ([key (hash-keys rcdmap)]) (printf "~a => ~a\n" key (hash-ref rcdmap key)))
 
     ; initialization of state: weights are all set to 0
     (selector:signal-weights-reset!)
-    (for ([key (range nwires)]) (selector:signal-weights-set! key 0))
+    (for ([key (range :nwires)]) (selector:signal-weights-set! key 0))
 
-    (pp-iteration
-        arg-timeout arg-smt arg-weak
-        solve state-smt-path normalize optimize interpret-r1cs
-        xlist xlist0 original-options partial-cmds
-        rcdmap known-set unknown-set output-set
-    )
+    (define-values (ret0 rks rus info) (pp-iteration rcdmap known-set unknown-set))
+
+    ; return
+    (values ret0 rks rus info)
 )

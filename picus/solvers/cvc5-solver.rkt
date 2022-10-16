@@ -25,6 +25,7 @@
     (define-values (sp out in err)
             ; (note) use `apply` to expand the last argument
             (apply subprocess #f #f #f (find-executable-path "cvc5") (list temp-path))
+            ; (apply subprocess #f #f #f (find-executable-path "cvc5") (list temp-path "--produce-models"))
     )
     (define engine0 (engine (lambda (_)
         (define out-str (port->string out))

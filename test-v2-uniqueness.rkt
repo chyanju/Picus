@@ -84,9 +84,11 @@
 (define input-set (list->set input-list))
 (define output-list (r1cs:r1cs-outputs r0))
 (define output-set (list->set output-list))
+(define target-set (if arg-weak (list->set output-list) (list->set (range nwires))))
 (printf "# inputs: ~a.\n" input-list)
 (printf "# outputs: ~a.\n" output-list)
 (printf "# xlist: ~a.\n" xlist)
+(printf "# targets: ~a.\n" target-set)
 
 ; parse alternative r1cs
 (define xlist0 (for/list ([i (range nwires)])
@@ -102,22 +104,15 @@
 ; ============================
 ; ======== main solve ========
 ; ============================
-(define res-ul (pp:apply-pp
-    r0 nwires mconstraints input-set output-set
+(define-values (res res-ks res-us res-info) (pp:apply-pp
+    r0 nwires mconstraints input-set output-set target-set
     xlist original-options original-definitions original-cnsts
     xlist0 alternative-definitions alternative-cnsts
-    arg-timeout arg-smt arg-weak
+    arg-timeout arg-smt
     solve state-smt-path parse-r1cs normalize optimize interpret-r1cs
 ))
-(printf "# final unknown list: ~a.\n" res-ul)
-(if (not arg-weak)
-    (if (set-empty? res-ul)
-        (printf "# strong safety: verified.\n")
-        (printf "# strong safey: failed.\n")
-    )
-    (printf "# strong safey: skipped.\n")
-)
-(if (set-empty? (set-intersect res-ul output-set))
-    (printf "# weak safety: verified.\n")
-    (printf "# weak safey: failed.\n")
+(printf "# final unknown set ~a.\n" res-us)
+(if arg-weak
+    (printf "# weak uniqueness ~a.\n" res)
+    (printf "# strong uniqueness ~a.\n" res)
 )
