@@ -10,15 +10,17 @@
 
 ; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/BabyDbl@babyjub.r1cs"))
 ; (define r0 (r1cs:read-r1cs "../benchmarks/pre-circomlib-cff5ab6/BabyDbl@babyjub.r1cs"))
-(define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Segment@pedersen.r1cs"))
+; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Segment@pedersen.r1cs"))
+; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Bits2Num_strict@bitify.r1cs"))
 ; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Edwards2Montgomery@montgomery.r1cs"))
 ; (define r0 (r1cs:read-r1cs "../benchmarks/pre-circomlib-cff5ab6/Edwards2Montgomery@montgomery.r1cs"))
+(define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/BinSub@binsub.r1cs"))
 (define-values (xlist options defs cnsts) (parse-r1cs r0 null))
 (define ocnsts (normalize cnsts))
 
-(define vars (r1cs:get-assert-variables ocnsts))
-(define vars-linear (r1cs:get-assert-variables/linear ocnsts))
-(define vars-nonlinear (r1cs:get-assert-variables/nonlinear ocnsts))
+; (define vars (r1cs:get-assert-variables ocnsts))
+; (define vars-linear (r1cs:get-assert-variables/linear ocnsts))
+; (define vars-nonlinear (r1cs:get-assert-variables/nonlinear ocnsts))
 ; (printf "linear vars: ~a\n" vars-linear)
 ; (printf "nonlinear vars: ~a\n" vars-nonlinear)
 

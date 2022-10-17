@@ -14,5 +14,5 @@ do
 	bn="${fn%.*}"
     bp="${fp%.*}"
 	echo "=================== checking: ${fn} ==================="
-    timeout ${otime} racket ./test-v3-uniqueness.rkt --timeout 5000 --solver cvc5 --initlvl 0 --weak --r1cs ${fp} > ${logpath}/${bn}.log 2>&1
+    timeout ${otime} racket ./test-pp-uniqueness.rkt --timeout 5000 --solver cvc5 --weak --r1cs ${fp} > ${logpath}/${bn}.log 2>&1
 done

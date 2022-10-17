@@ -173,10 +173,14 @@
             'verified
         ]
         [(equal? 'sat (car res))
-            (printf "sat.\n")
-            ; found a counter-example, unsafe
-            ; in pp, this counter-example is valid
-            'sat
+            ; (important) here if the current signal is not a target, it's ok to see a sat
+            (if (set-member? :target-set sid)
+                ; the current signal is a target, now there's a counter-example, unsafe
+                ; in pp, this counter-example is valid
+                (begin (printf "sat.\n") 'sat)
+                ; not a target, fine, just skip
+                (begin (printf "sat but not a target.\n") 'skip)
+            )
         ]
         [else
             (printf "skip.\n")

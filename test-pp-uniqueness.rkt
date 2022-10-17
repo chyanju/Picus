@@ -113,6 +113,6 @@
 ))
 (printf "# final unknown set ~a.\n" res-us)
 (if arg-weak
-    (printf "# weak uniqueness ~a.\n" res)
-    (printf "# strong uniqueness ~a.\n" res)
+    (printf "# weak uniqueness: ~a.\n" res)
+    (printf "# strong uniqueness: ~a.\n" res)
 )
