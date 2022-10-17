@@ -144,15 +144,16 @@
                 ; A*B is empty
                 (r1cs:rint 0)
                 ; A*B is not empty
-                ; (note) one side of mod can be removed actually
-                ;        since A*B is longer, we remove this one
-                (r1cs:radd (for*/list ([va terms-a][vb terms-b])
-                    (r1cs:rmul (list
-                        (r1cs:rint (remainder (* (car va) (car vb)) config:p))
-                        (r1cs:rvar (cdr va))
-                        (r1cs:rvar (cdr vb))
+                (r1cs:rmod
+                    (r1cs:radd (for*/list ([va terms-a][vb terms-b])
+                        (r1cs:rmul (list
+                            (r1cs:rint (remainder (* (car va) (car vb)) config:p))
+                            (r1cs:rvar (cdr va))
+                            (r1cs:rvar (cdr vb))
+                        ))
                     ))
-                ))
+                    (r1cs:rint config:p)
+                )
             )
             ; C part
             (if (empty? terms-c)
