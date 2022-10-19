@@ -48,15 +48,15 @@
 (struct rneg (v) #:mutable #:transparent #:reflection-name 'r1cs:rneg) ; v: int
 (struct rmod (v mod) #:mutable #:transparent #:reflection-name 'r1cs:rmod) ; v: int, mod: int
 
-(define (ref-rcmds obj ind) (list-ref (rcmds-vs obj) ind))
+(define (rcmds-ref obj ind) (list-ref (rcmds-vs obj) ind))
 
 ; concatenate multiple rcmd
-(define (append-rcmds . obj)
+(define (rcmds-append . obj)
     (if (null? obj)
         (rcmds (list ))
         (rcmds (append
             (rcmds-vs (car obj))
-            (rcmds-vs (apply append-rcmds (cdr obj)))
+            (rcmds-vs (apply rcmds-append (cdr obj)))
         ))
     )
 )

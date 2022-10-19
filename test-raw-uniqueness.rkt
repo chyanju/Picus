@@ -54,8 +54,8 @@
 (define state-smt-path (solver:state-smt-path arg-solver))
 (define solve (solver:solve arg-solver))
 (define parse-r1cs (solver:parse-r1cs arg-solver))
-(define normalize (solver:normalize arg-solver))
-(define optimize (solver:optimize arg-solver))
+(define normalize-r1cs (solver:normalize-r1cs arg-solver))
+(define optimize-r1cs (solver:optimize-r1cs arg-solver))
 (define interpret-r1cs (solver:interpret-r1cs arg-solver))
 
 ; ======================
@@ -101,35 +101,35 @@
 (define query-cmds (r1cs:rcmds (list tmp0)))
 
 (printf "# assembling final smt...\n")
-(define final-cmds (r1cs:append-rcmds
+(define final-cmds (r1cs:rcmds-append
     (r1cs:rcmds (list
-        (r1cs:rcmt (r1cs:rstr "================================"))
-        (r1cs:rcmt (r1cs:rstr "======== original block ========"))
-        (r1cs:rcmt (r1cs:rstr "================================"))
+        (r1cs:rcmt "================================")
+        (r1cs:rcmt "======== original block ========")
+        (r1cs:rcmt "================================")
     ))
     original-definitions
     original-cnsts
     (r1cs:rcmds (list
-        (r1cs:rcmt (r1cs:rstr "==================================="))
-        (r1cs:rcmt (r1cs:rstr "======== alternative block ========"))
-        (r1cs:rcmt (r1cs:rstr "==================================="))
+        (r1cs:rcmt "===================================")
+        (r1cs:rcmt "======== alternative block ========")
+        (r1cs:rcmt "===================================")
     ))
     alternative-definitions
     alternative-cnsts
     (r1cs:rcmds (list
-        (r1cs:rcmt (r1cs:rstr "============================="))
-        (r1cs:rcmt (r1cs:rstr "======== query block ========"))
-        (r1cs:rcmt (r1cs:rstr "============================="))
+        (r1cs:rcmt "=============================")
+        (r1cs:rcmt "======== query block ========")
+        (r1cs:rcmt "=============================")
     ))
     query-cmds
     (r1cs:rcmds (list (r1cs:rsolve )))
 ))
 
 ; perform optimization
-(define optimized-cmds (optimize (normalize final-cmds)))
+(define optimized-cmds (optimize-r1cs (normalize-r1cs final-cmds)))
 ; add options at last
 (define final-str (string-join (interpret-r1cs
-    (r1cs:append-rcmds original-options optimized-cmds))
+    (r1cs:rcmds-append original-options optimized-cmds))
     "\n"
 ))
 

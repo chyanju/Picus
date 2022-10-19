@@ -63,8 +63,9 @@
 (define state-smt-path (solver:state-smt-path arg-solver))
 (define solve (solver:solve arg-solver))
 (define parse-r1cs (solver:parse-r1cs arg-solver))
-(define normalize (solver:normalize arg-solver))
-(define optimize (solver:optimize arg-solver))
+(define expand-r1cs (solver:expand-r1cs arg-solver))
+(define normalize-r1cs (solver:normalize-r1cs arg-solver))
+(define optimize-r1cs (solver:optimize-r1cs arg-solver))
 (define interpret-r1cs (solver:interpret-r1cs arg-solver))
 
 ; ==================================
@@ -77,9 +78,7 @@
 (printf "# number of constraints: ~a\n" mconstraints)
 (printf "# field size (how many bytes): ~a\n" (r1cs:get-field-size r0))
 
-; parse original r1cs
-(printf "# parsing original r1cs...\n")
-(define-values (xlist original-options original-definitions original-cnsts) (parse-r1cs r0 null)) ; interpret the constraint system
+; categorize signals
 (define input-list (r1cs:r1cs-inputs r0))
 (define input-set (list->set input-list))
 (define output-list (r1cs:r1cs-outputs r0))
@@ -87,29 +86,39 @@
 (define target-set (if arg-weak (list->set output-list) (list->set (range nwires))))
 (printf "# inputs: ~a.\n" input-list)
 (printf "# outputs: ~a.\n" output-list)
-(printf "# xlist: ~a.\n" xlist)
 (printf "# targets: ~a.\n" target-set)
 
+; parse original r1cs
+(printf "# parsing original r1cs...\n")
+(define-values (xlist opts defs cnsts) (parse-r1cs r0 null)) ; interpret the constraint system
+(printf "# xlist: ~a.\n" xlist)
 ; parse alternative r1cs
-(define xlist0 (for/list ([i (range nwires)])
+(define alt-xlist (for/list ([i (range nwires)])
     (if (not (utils:contains? input-list i))
         (format "y~a" i)
         (list-ref xlist i)
     )
 ))
-(printf "# xlist0: ~a.\n" xlist0)
+(printf "# alt-xlist ~a.\n" alt-xlist)
 (printf "# parsing alternative r1cs...\n")
-(define-values (_ __ alternative-definitions alternative-cnsts) (parse-r1cs r0 xlist0))
+(define-values (_ __ alt-defs alt-cnsts) (parse-r1cs r0 alt-xlist))
+
+; expand signals
+; (fime) this should go to algorithm
+(define expcnsts (expand-r1cs cnsts))
+(define alt-expcnsts (expand-r1cs alt-cnsts))
+
+
 
 ; ============================
 ; ======== main solve ========
 ; ============================
 (define-values (res res-ks res-us res-info) (pp:apply-pp
     r0 nwires mconstraints input-set output-set target-set
-    xlist original-options original-definitions original-cnsts
-    xlist0 alternative-definitions alternative-cnsts
+    xlist opts defs expcnsts
+    alt-xlist alt-defs alt-expcnsts
     arg-timeout arg-smt
-    solve state-smt-path parse-r1cs normalize optimize interpret-r1cs
+    solve state-smt-path parse-r1cs normalize-r1cs optimize-r1cs interpret-r1cs
 ))
 (printf "# final unknown set ~a.\n" res-us)
 (if arg-weak

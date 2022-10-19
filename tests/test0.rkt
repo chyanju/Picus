@@ -24,9 +24,9 @@
 ; (printf "linear vars: ~a\n" vars-linear)
 ; (printf "nonlinear vars: ~a\n" vars-nonlinear)
 
-; (r1cs:get-assert-variables (r1cs:ref-rcmds ocnsts 37))
-; (r1cs:get-assert-variables/linear (r1cs:ref-rcmds ocnsts 37))
-; (r1cs:get-assert-variables/nonlinear (r1cs:ref-rcmds ocnsts 37))
+; (r1cs:get-assert-variables (r1cs:rcmds-ref ocnsts 37))
+; (r1cs:get-assert-variables/linear (r1cs:rcmds-ref ocnsts 37))
+; (r1cs:get-assert-variables/nonlinear (r1cs:rcmds-ref ocnsts 37))
 
 (define n (length (r1cs:rcmds-vs ocnsts)))
 ; (for ([i (range n)]) (printf "~a\n" (r1cs:rcmds->string ocnsts i)))

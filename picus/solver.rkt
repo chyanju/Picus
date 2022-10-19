@@ -24,8 +24,9 @@
     [state-smt-path state-smt-path]
     [solve solve]
     [parse-r1cs parse-r1cs]
-    [normalize normalize]
-    [optimize optimize]
+    [expand-r1cs expand-r1cs]
+    [normalize-r1cs normalize-r1cs]
+    [optimize-r1cs optimize-r1cs]
     [interpret-r1cs interpret-r1cs]
 ))
 
@@ -50,14 +51,20 @@
         [else (tokamak:exit "you can't reach here")]
     )
 )
-(define (normalize arg-solver)
+(define (expand-r1cs arg-solver)
+    (cond
+        [(equal? "z3" arg-solver) z3-parser:expand-r1cs]
+        [(equal? "cvc5" arg-solver) cvc5-parser:expand-r1cs]
+    )
+)
+(define (normalize-r1cs arg-solver)
     (cond
         [(equal? "z3" arg-solver) (lambda (x) (z3-simple:optimize-r1cs x))]
         [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-simple:optimize-r1cs x))]
         [else (tokamak:exit "you can't reach here")]
     )
 )
-(define (optimize arg-solver)
+(define (optimize-r1cs arg-solver)
     (cond
         [(equal? "z3" arg-solver) (lambda (x) (z3-subp:optimize-r1cs x))]
         [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-subp:optimize-r1cs x))]

@@ -24,19 +24,19 @@
 (define :output-set null)
 (define :target-set null)
 (define :xlist null)
-(define :original-options null)
-(define :original-definitions null)
-(define :original-cnsts null)
-(define :xlist0 null)
-(define :alternative-definitions null)
-(define :alternative-cnsts null)
+(define :opts null)
+(define :defs null)
+(define :cnsts null)
+(define :alt-xlist null)
+(define :alt-defs null)
+(define :alt-cnsts null)
 (define :arg-timeout null)
 (define :arg-smt null)
 (define :solve null)
 (define :state-smt-path null)
 (define :parse-r1cs null)
-(define :normalize null)
-(define :optimize null)
+(define :normalize-r1cs null)
+(define :optimize-r1cs null)
 (define :interpret-r1cs null)
 
 ; problem intermediate results
@@ -136,12 +136,12 @@
 ;   - (values 'sat info): the given query has a counter-example (not verified)
 ;   - (values 'skip info): the given query times out (small step)
 (define (pp-solve ks us sid)
-    (printf "  # checking: (~a ~a), " (list-ref :xlist sid) (list-ref :xlist0 sid))
+    (printf "  # checking: (~a ~a), " (list-ref :xlist sid) (list-ref :alt-xlist sid))
     ; assemble commands
     (define known-cmds (r1cs:rcmds (for/list ([j ks])
-        (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref :xlist j)) (r1cs:rvar (list-ref :xlist0 j))))
+        (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref :xlist j)) (r1cs:rvar (list-ref :alt-xlist j))))
     )))
-    (define final-cmds (r1cs:append-rcmds
+    (define final-cmds (r1cs:rcmds-append
         :partial-cmds
         (r1cs:rcmds (list
             (r1cs:rcmt "=============================")
@@ -155,14 +155,14 @@
             (r1cs:rcmt "=============================")
         ))
         (r1cs:rcmds (list
-            (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref :xlist sid)) (r1cs:rvar (list-ref :xlist0 sid))))
+            (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref :xlist sid)) (r1cs:rvar (list-ref :alt-xlist sid))))
             (r1cs:rsolve )
         ))
     ))
     ; perform optimization
-    (define optimized-cmds (:optimize (:normalize final-cmds)))
+    (define optimized-cmds (:optimize-r1cs (:normalize-r1cs final-cmds)))
     (define final-str (string-join (:interpret-r1cs
-        (r1cs:append-rcmds :original-options optimized-cmds))
+        (r1cs:rcmds-append :opts optimized-cmds))
         "\n"
     ))
     (define res (:solve final-str :arg-timeout #:output-smt? #f))
@@ -281,10 +281,10 @@
 ;   - (values 'unknown ks us info)
 (define (apply-pp
     r0 nwires mconstraints input-set output-set target-set
-    xlist original-options original-definitions original-cnsts
-    xlist0 alternative-definitions alternative-cnsts
+    xlist opts defs cnsts
+    alt-xlist alt-defs alt-cnsts
     arg-timeout arg-smt
-    solve state-smt-path parse-r1cs normalize optimize interpret-r1cs
+    solve state-smt-path parse-r1cs normalize-r1cs optimize-r1cs interpret-r1cs
     )
 
     ; first load in all global variables
@@ -295,26 +295,26 @@
     (set! :output-set output-set)
     (set! :target-set target-set)
     (set! :xlist xlist)
-    (set! :original-options original-options)
-    (set! :original-definitions original-definitions)
-    (set! :original-cnsts original-cnsts)
-    (set! :xlist0 xlist0)
-    (set! :alternative-definitions alternative-definitions)
-    (set! :alternative-cnsts alternative-cnsts)
+    (set! :opts opts)
+    (set! :defs defs)
+    (set! :cnsts cnsts)
+    (set! :alt-xlist alt-xlist)
+    (set! :alt-defs alt-defs)
+    (set! :alt-cnsts alt-cnsts)
     (set! :arg-timeout arg-timeout)
     (set! :arg-smt arg-smt)
     (set! :solve solve)
     (set! :state-smt-path state-smt-path)
     (set! :parse-r1cs parse-r1cs)
-    (set! :normalize normalize)
-    (set! :optimize optimize)
+    (set! :normalize-r1cs normalize-r1cs)
+    (set! :optimize-r1cs optimize-r1cs)
     (set! :interpret-r1cs interpret-r1cs)
 
-    ; keep track of index of xlist (not xlist0 since that's incomplete)
+    ; keep track of index of xlist (not alt-xlist since that's incomplete)
     (define known-set (list->set (filter
         (lambda (x) (! (null? x)))
         (for/list ([i (range :nwires)])
-            (if (utils:contains? :xlist0 (list-ref :xlist i))
+            (if (utils:contains? :alt-xlist (list-ref :xlist i))
                 i
                 null
             )
@@ -323,7 +323,7 @@
     (define unknown-set (list->set (filter
         (lambda (x) (! (null? x)))
         (for/list ([i (range :nwires)])
-            (if (utils:contains? :xlist0 (list-ref :xlist i))
+            (if (utils:contains? :alt-xlist (list-ref :xlist i))
                 null
                 i
             )
@@ -332,28 +332,30 @@
     (printf "# initial known-set ~a\n" known-set)
     (printf "# initial unknown-set ~a\n" unknown-set)
 
-    (set! :partial-cmds (r1cs:append-rcmds
+    (set! :partial-cmds (r1cs:rcmds-append
         (r1cs:rcmds (list
             (r1cs:rcmt "================================")
             (r1cs:rcmt "======== original block ========")
             (r1cs:rcmt "================================")
         ))
-        :original-definitions
-        :original-cnsts
+        :defs
+        :cnsts
         (r1cs:rcmds (list
             (r1cs:rcmt "===================================")
             (r1cs:rcmt "======== alternative block ========")
             (r1cs:rcmt "===================================")
         ))
-        :alternative-definitions
-        :alternative-cnsts
+        :alt-defs
+        :alt-cnsts
     ))
+
+    ; apply potential lemmas
 
     ; generate rcdmap
     ; rcdmap requires normalized constraints to get best results
-    (define normalized-original-cnsts (:normalize :original-cnsts))
-    (define normalized-alternative-cnsts (:normalize :alternative-cnsts))
-    (define rcdmap (get-rcdmap normalized-original-cnsts #t))
+    (define normalized-cnsts (:normalize-r1cs :cnsts))
+    (define normalized-alt-cnsts (:normalize-r1cs :alt-cnsts))
+    (define rcdmap (get-rcdmap normalized-cnsts #t))
     ; (for ([key (hash-keys rcdmap)]) (printf "~a => ~a\n" key (hash-ref rcdmap key)))
 
     ; initialization of state: weights are all set to 0
