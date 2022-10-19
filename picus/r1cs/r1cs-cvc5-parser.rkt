@@ -117,6 +117,7 @@
     ; update smt with comments and fixed constraints
     (set! raw-cnsts (append
         raw-cnsts
+        (list (r1cs:rcmt "======== main constraints ========"))
         sconstraints
         (list (r1cs:rassert (r1cs:req
             (r1cs:rint 1) (r1cs:rvar (format "~a" (list-ref xlist 0)))

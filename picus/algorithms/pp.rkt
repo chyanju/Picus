@@ -23,21 +23,36 @@
 (define :input-set null)
 (define :output-set null)
 (define :target-set null)
+
 (define :xlist null)
 (define :opts null)
 (define :defs null)
-(define :cnsts null)
+(define :cnsts null) ; standard form
+(define :p0cnsts null) ; standard form optimized by phase 0 optimization
+(define :expcnsts null) ; expanded form
+(define :nrmcnsts null) ; normalized form
+(define :p1cnsts null) ; normalized form optimized by phase 1 optimization
+
 (define :alt-xlist null)
 (define :alt-defs null)
 (define :alt-cnsts null)
+(define :alt-p0cnsts null)
+(define :alt-expcnsts null)
+(define :alt-nrmcnsts null)
+(define :alt-p1cnsts null)
+
 (define :arg-timeout null)
 (define :arg-smt null)
+
 (define :solve null)
 (define :state-smt-path null)
-(define :parse-r1cs null)
-(define :normalize-r1cs null)
-(define :optimize-r1cs null)
 (define :interpret-r1cs null)
+
+(define :parse-r1cs null)
+(define :optimize-r1cs-p0 null)
+(define :expand-r1cs null)
+(define :normalize-r1cs null)
+(define :optimize-r1cs-p1 null)
 
 ; problem intermediate results
 (define :partial-cmds null)
@@ -160,9 +175,8 @@
         ))
     ))
     ; perform optimization
-    (define optimized-cmds (:optimize-r1cs (:normalize-r1cs final-cmds)))
     (define final-str (string-join (:interpret-r1cs
-        (r1cs:rcmds-append :opts optimized-cmds))
+        (r1cs:rcmds-append :opts final-cmds))
         "\n"
     ))
     (define res (:solve final-str :arg-timeout #:output-smt? #f))
@@ -284,7 +298,8 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     arg-timeout arg-smt
-    solve state-smt-path parse-r1cs normalize-r1cs optimize-r1cs interpret-r1cs
+    solve state-smt-path interpret-r1cs
+    parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
     )
 
     ; first load in all global variables
@@ -294,21 +309,29 @@
     (set! :input-set input-set)
     (set! :output-set output-set)
     (set! :target-set target-set)
+
     (set! :xlist xlist)
     (set! :opts opts)
     (set! :defs defs)
     (set! :cnsts cnsts)
+
     (set! :alt-xlist alt-xlist)
     (set! :alt-defs alt-defs)
     (set! :alt-cnsts alt-cnsts)
+
     (set! :arg-timeout arg-timeout)
     (set! :arg-smt arg-smt)
+
     (set! :solve solve)
     (set! :state-smt-path state-smt-path)
-    (set! :parse-r1cs parse-r1cs)
-    (set! :normalize-r1cs normalize-r1cs)
-    (set! :optimize-r1cs optimize-r1cs)
     (set! :interpret-r1cs interpret-r1cs)
+
+    (set! :parse-r1cs parse-r1cs)
+    (set! :optimize-r1cs-p0 optimize-r1cs-p0)
+    (set! :expand-r1cs expand-r1cs)
+    (set! :normalize-r1cs normalize-r1cs)
+    (set! :optimize-r1cs-p1 optimize-r1cs-p1)
+
 
     ; keep track of index of xlist (not alt-xlist since that's incomplete)
     (define known-set (list->set (filter
@@ -332,6 +355,34 @@
     (printf "# initial known-set ~a\n" known-set)
     (printf "# initial unknown-set ~a\n" unknown-set)
 
+    ; ==== branch out: skip optimization phase 0 and apply expand & normalize ====
+    (define tmp-nrmcnsts (:normalize-r1cs (:expand-r1cs :cnsts)))
+    ; generate rcdmap requires no optimization to exclude ror and rand
+    ; rcdmap requires normalized constraints to get best results
+    (define rcdmap (get-rcdmap tmp-nrmcnsts #t))
+    ; (for ([key (hash-keys rcdmap)]) (printf "~a => ~a\n" key (hash-ref rcdmap key)))
+
+    ; ==== first apply optimization phase 0 ====
+    (set! :p0cnsts (:optimize-r1cs-p0 :cnsts))
+    (set! :alt-p0cnsts (:optimize-r1cs-p0 :alt-cnsts))
+
+    ; ==== then expand the constraints ====
+    (set! :expcnsts (:expand-r1cs :p0cnsts))
+    (set! :alt-expcnsts (:expand-r1cs :alt-p0cnsts))
+
+    ; ==== then normalize the constraints ====
+    (set! :nrmcnsts (:normalize-r1cs :expcnsts))
+    (set! :alt-nrmcnsts (:normalize-r1cs :alt-expcnsts))
+
+    ; initialization of state: weights are all set to 0
+    (selector:signal-weights-reset!)
+    (for ([key (range :nwires)]) (selector:signal-weights-set! key 0))
+
+    ; ==== then apply optimization phase 1 ====
+    (set! :p1cnsts (:optimize-r1cs-p1 :nrmcnsts #t)) ; include p defs
+    (set! :alt-p1cnsts (:optimize-r1cs-p1 :alt-nrmcnsts #f)) ; no p defs since this is alt-
+
+    ; prepare partial cmds for better reuse through out the algorithm
     (set! :partial-cmds (r1cs:rcmds-append
         (r1cs:rcmds (list
             (r1cs:rcmt "================================")
@@ -339,29 +390,17 @@
             (r1cs:rcmt "================================")
         ))
         :defs
-        :cnsts
+        :p1cnsts
         (r1cs:rcmds (list
             (r1cs:rcmt "===================================")
             (r1cs:rcmt "======== alternative block ========")
             (r1cs:rcmt "===================================")
         ))
         :alt-defs
-        :alt-cnsts
+        :alt-p1cnsts
     ))
 
-    ; apply potential lemmas
-
-    ; generate rcdmap
-    ; rcdmap requires normalized constraints to get best results
-    (define normalized-cnsts (:normalize-r1cs :cnsts))
-    (define normalized-alt-cnsts (:normalize-r1cs :alt-cnsts))
-    (define rcdmap (get-rcdmap normalized-cnsts #t))
-    ; (for ([key (hash-keys rcdmap)]) (printf "~a => ~a\n" key (hash-ref rcdmap key)))
-
-    ; initialization of state: weights are all set to 0
-    (selector:signal-weights-reset!)
-    (for ([key (range :nwires)]) (selector:signal-weights-set! key 0))
-
+    ; invoke the algorithm iteration
     (define-values (ret0 rks rus info) (pp-iteration rcdmap known-set unknown-set))
 
     ; return

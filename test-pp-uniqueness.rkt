@@ -65,7 +65,8 @@
 (define parse-r1cs (solver:parse-r1cs arg-solver))
 (define expand-r1cs (solver:expand-r1cs arg-solver))
 (define normalize-r1cs (solver:normalize-r1cs arg-solver))
-(define optimize-r1cs (solver:optimize-r1cs arg-solver))
+(define optimize-r1cs-p0 (solver:optimize-r1cs-p0 arg-solver))
+(define optimize-r1cs-p1 (solver:optimize-r1cs-p1 arg-solver))
 (define interpret-r1cs (solver:interpret-r1cs arg-solver))
 
 ; ==================================
@@ -113,12 +114,32 @@
 ; ============================
 ; ======== main solve ========
 ; ============================
+; a full picus constraint pass is:
+;   raw
+;    | parse-r1cs
+;    v
+;  cnsts
+;    | optimize-r1cs-p0
+;    v
+; p0cnsts
+;    | expand-r1cs
+;    v
+; expcnsts
+;    | normalize-r1cs
+;    v
+; nrmcnsts
+;    | optimize-r1cs-p1
+;    v
+; p1cnsts
+;    | (downstream queries)
+;   ...
 (define-values (res res-ks res-us res-info) (pp:apply-pp
     r0 nwires mconstraints input-set output-set target-set
-    xlist opts defs expcnsts
-    alt-xlist alt-defs alt-expcnsts
+    xlist opts defs cnsts
+    alt-xlist alt-defs alt-cnsts
     arg-timeout arg-smt
-    solve state-smt-path parse-r1cs normalize-r1cs optimize-r1cs interpret-r1cs
+    solve state-smt-path interpret-r1cs
+    parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
 ))
 (printf "# final unknown set ~a.\n" res-us)
 (if arg-weak

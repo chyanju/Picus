@@ -226,19 +226,9 @@
             [(rlt lhs rhs) (append (do lhs) (do rhs))]
             [(rgeq lhs rhs) (append (do lhs) (do rhs))]
             [(rgt lhs rhs) (append (do lhs) (do rhs))]
-            [(rand vs)
-                (let ([res (list )])
-                    (for ([v vs]) (set! res (append res (do v))))
-                    res
-                )
-            ]
+            [(rand vs) (tokamak:exit "get-assert-variables/linear receives rand, which is not supported.")]
             [(rimp lhs rhs) (append (do lhs) (do rhs))]
-            [(ror vs)
-                (let ([res (list )])
-                    (for ([v vs]) (set! res (append res (do v))))
-                    res
-                )
-            ]
+            [(ror vs) (tokamak:exit "get-assert-variables/linear receives ror, which is not supported.")]
             [(rint v) (list )]
             [(rvar v)
                 (if arg-indexonly
@@ -308,19 +298,9 @@
             [(rlt lhs rhs) (append (do lhs include?) (do rhs include?))]
             [(rgeq lhs rhs) (append (do lhs include?) (do rhs include?))]
             [(rgt lhs rhs) (append (do lhs include?) (do rhs include?))]
-            [(rand vs)
-                (let ([res (list )])
-                    (for ([v vs]) (set! res (append res (do v include?))))
-                    res
-                )
-            ]
+            [(rand vs) (tokamak:exit "get-assert-variables/nonlinear receives rand, which is not supported.")]
             [(rimp lhs rhs) (append (do lhs) (do rhs))]
-            [(ror vs)
-                (let ([res (list )])
-                    (for ([v vs]) (set! res (append res (do v include?))))
-                    res
-                )
-            ]
+            [(ror vs) (tokamak:exit "get-assert-variables/nonlinear receives ror, which is not supported.")]
             [(rint v) (list )]
             [(rvar v)
                 ; only include when include? is #t

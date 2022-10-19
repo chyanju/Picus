@@ -1,7 +1,5 @@
 #lang rosette
-; (note) this should be applied prior to any other optimizations
-;        since it only supports original (and a few extra) operations in r1cs
-;        i.e., rsub are not supported
+; (note) this is applied in the normalization phase
 ; this contains a list of simple and basic optimization steps
 ;   - add p related definition and replace p
 ;   - remove *1 in mul
@@ -138,6 +136,6 @@
         ]
         [(r1cs:rmod v mod) (r1cs:rmod (optimize-r1cs v) (optimize-r1cs mod))]
 
-        [else (tokamak:exit "not supported: ~a" arg-r1cs)]
+        [_ (tokamak:exit "not supported: ~a" arg-r1cs)]
     )
 )

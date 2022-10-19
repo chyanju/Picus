@@ -10,6 +10,7 @@
     ; optimizers
     (prefix-in z3-simple: "./optimizers/r1cs-z3-simple-optimizer.rkt")
     (prefix-in z3-subp: "./optimizers/r1cs-z3-subp-optimizer.rkt")
+    (prefix-in z3-ab0: "./optimizers/r1cs-z3-ab0-optimizer.rkt")
 )
 ; cvc5 require
 (require
@@ -26,7 +27,8 @@
     [parse-r1cs parse-r1cs]
     [expand-r1cs expand-r1cs]
     [normalize-r1cs normalize-r1cs]
-    [optimize-r1cs optimize-r1cs]
+    [optimize-r1cs-p0 optimize-r1cs-p0]
+    [optimize-r1cs-p1 optimize-r1cs-p1]
     [interpret-r1cs interpret-r1cs]
 ))
 
@@ -64,10 +66,20 @@
         [else (tokamak:exit "you can't reach here")]
     )
 )
-(define (optimize-r1cs arg-solver)
+; phase 0 optimization, applies to standard form
+(define (optimize-r1cs-p0 arg-solver)
     (cond
-        [(equal? "z3" arg-solver) (lambda (x) (z3-subp:optimize-r1cs x))]
-        [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-subp:optimize-r1cs x))]
+        [(equal? "z3" arg-solver) (lambda (x) (z3-ab0:optimize-r1cs x))]
+        [(equal? "cvc5" arg-solver) (lambda (x) x)]
+        [else (tokamak:exit "you can't reach here")]
+    )
+)
+; phase 1 optimization, applies to normalized form
+;   - pdecl?: whether or not to inlude declaration of p, usually alt- series should not include
+(define (optimize-r1cs-p1 arg-solver)
+    (cond
+        [(equal? "z3" arg-solver) (lambda (x pdef?) (z3-subp:optimize-r1cs x pdef?))]
+        [(equal? "cvc5" arg-solver) (lambda (x pdef?) (cvc5-subp:optimize-r1cs x pdef?))]
         [else (tokamak:exit "you can't reach here")]
     )
 )
