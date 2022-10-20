@@ -15,5 +15,6 @@ do
 	bn="${fn%.*}"
     bp="${fp%.*}"
 	echo "=================== checking: ${fn} ==================="
-    timeout ${otime} julia --project=${ecnepath} ${ecnepath}/src/Ecne.jl --r1cs ${fp} --name ooo --sym ${bp}.sym > ${logpath}/${bn}.log 2>&1
+    # timeout ${otime} julia --project=${ecnepath} ${ecnepath}/src/Ecne.jl --r1cs ${fp} --name ooo --sym ${bp}.sym --compatible --silent > ${logpath}/${bn}.log 2>&1
+	timeout ${otime} julia --project=${ecnepath} ${ecnepath}/src/Ecne.jl --r1cs ${fp} --name ooo --sym ${bp}.sym --compatible --silent --showunique > ${logpath}/${bn}.log 2>&1
 done

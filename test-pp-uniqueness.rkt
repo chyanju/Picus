@@ -60,7 +60,6 @@
 (printf "# r1cs file: ~a\n" arg-r1cs)
 (printf "# timeout: ~a\n" arg-timeout)
 (printf "# solver: ~a\n" arg-solver)
-(printf "# solver: ~a\n" arg-solver)
 (printf "# smt: ~a\n" arg-smt)
 (printf "# weak: ~a\n" arg-weak)
 (printf "# precondition: ~a\n" arg-precondition)
