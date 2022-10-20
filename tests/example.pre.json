@@ -1,0 +1,35 @@
+[
+    ["precondition",
+        ["rassert",
+            ["rneq",
+                ["rvar", "x10"],
+                ["rint", 1]
+            ]
+        ]
+    ],
+    ["precondition",
+        ["rassert",
+            ["rneq",
+                ["rvar", "x10"],
+                ["rint", -1]
+            ]
+        ]
+    ],
+    ["precondition",
+        ["rassert",
+            ["rneq",
+                ["rvar", "y10"],
+                ["rint", 1]
+            ]
+        ]
+    ],
+    ["precondition",
+        ["rassert",
+            ["rneq",
+                ["rvar", "y10"],
+                ["rint", -1]
+            ]
+        ]
+    ],
+    ["unique", 10, 1, 2]
+]

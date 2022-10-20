@@ -7,6 +7,7 @@
     (prefix-in solver: "./picus/solver.rkt")
     (prefix-in r1cs: "./picus/r1cs/r1cs-grammar.rkt")
     (prefix-in pp: "./picus/algorithms/pp.rkt")
+    (prefix-in pre: "./picus/precondition.rkt")
 )
 
 ; =====================================
@@ -16,6 +17,7 @@
 (define arg-r1cs null)
 (define arg-solver "z3")
 (define arg-timeout 5000)
+(define arg-precondition null)
 (define arg-smt #f)
 (define arg-weak #f)
 (command-line
@@ -39,6 +41,11 @@
             (set! arg-timeout (string->number p-timeout))
         )
     ]
+    [("--precondition") p-precondition "include precondition into the reasoning (default: false)"
+        (begin
+            (set! arg-precondition p-precondition)
+        )
+    ]
     [("--smt") "show path to generated smt files (default: false)"
         (begin
             (set! arg-smt #t)
@@ -56,6 +63,7 @@
 (printf "# solver: ~a\n" arg-solver)
 (printf "# smt: ~a\n" arg-smt)
 (printf "# weak: ~a\n" arg-weak)
+(printf "# precondition: ~a\n" arg-precondition)
 
 ; =================================================
 ; ======== resolve solver specific methods ========
@@ -104,12 +112,13 @@
 (printf "# parsing alternative r1cs...\n")
 (define-values (_ __ alt-defs alt-cnsts) (parse-r1cs r0 alt-xlist))
 
-; expand signals
-; (fime) this should go to algorithm
-(define expcnsts (expand-r1cs cnsts))
-(define alt-expcnsts (expand-r1cs alt-cnsts))
-
-
+(printf "# configuring precondition...\n")
+(define-values (unique-set precondition) (if (null? arg-precondition)
+    (values (list->set (list)) null)
+    ; read!
+    (pre:read-precondition arg-precondition)
+))
+(printf "# unique: ~a.\n" unique-set)
 
 ; ============================
 ; ======== main solve ========
@@ -134,9 +143,11 @@
 ;    | (downstream queries)
 ;   ...
 (define-values (res res-ks res-us res-info) (pp:apply-pp
-    r0 nwires mconstraints input-set output-set target-set
+    r0 nwires mconstraints
+    input-set output-set target-set
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
+    unique-set precondition ; prior knowledge row
     arg-timeout arg-smt
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1

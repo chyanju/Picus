@@ -44,6 +44,9 @@
 (define :arg-timeout null)
 (define :arg-smt null)
 
+(define :unique-set null)
+(define :precondition null)
+
 (define :solve null)
 (define :state-smt-path null)
 (define :interpret-r1cs null)
@@ -294,9 +297,11 @@
 ;   - (values 'unsafe ks us info)
 ;   - (values 'unknown ks us info)
 (define (apply-pp
-    r0 nwires mconstraints input-set output-set target-set
+    r0 nwires mconstraints
+    input-set output-set target-set
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
+    unique-set precondition
     arg-timeout arg-smt
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
@@ -321,6 +326,9 @@
 
     (set! :arg-timeout arg-timeout)
     (set! :arg-smt arg-smt)
+
+    (set! :unique-set unique-set)
+    (set! :precondition precondition)
 
     (set! :solve solve)
     (set! :state-smt-path state-smt-path)
@@ -354,6 +362,12 @@
     )))
     (printf "# initial known-set ~a\n" known-set)
     (printf "# initial unknown-set ~a\n" unknown-set)
+    
+    ; (precondition related) incorporate unique-set if unique-set is not an empty set
+    (set! known-set (set-union known-set unique-set))
+    (set! unknown-set (set-subtract unknown-set unique-set))
+    (printf "# refined known-set: ~a\n" known-set)
+    (printf "# refined unknown-set: ~a\n" unknown-set)
 
     ; ==== branch out: skip optimization phase 0 and apply expand & normalize ====
     (define tmp-nrmcnsts (:normalize-r1cs (:expand-r1cs :cnsts)))
@@ -398,6 +412,22 @@
         ))
         :alt-defs
         :alt-p1cnsts
+        (r1cs:rcmds (list
+            (r1cs:rcmt "====================================")
+            (r1cs:rcmt "======== precondition block ========")
+            (r1cs:rcmt "====================================")
+        ))
+        (if (null? :precondition)
+            ; no precondition
+            (r1cs:rcmds (list (r1cs:rcmt "(no precondition or skipped by user)")))
+            ; assemble precondition
+            (r1cs:rcmds (flatten (for/list ([v :precondition])
+                (cons
+                    (r1cs:rcmt (format "precondition tag: ~a" (car v)))
+                    (cdr v)
+                )
+            )))
+        )
     ))
 
     ; invoke the algorithm iteration
