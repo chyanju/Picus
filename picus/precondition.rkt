@@ -14,11 +14,14 @@
         ; language component
         [(list "rassert" v) (r1cs:rassert (parse-precondition v))]
         [(list "rneq" lhs rhs) (r1cs:rneq (parse-precondition lhs) (parse-precondition rhs))]
+        [(list "req" lhs rhs) (r1cs:req (parse-precondition lhs) (parse-precondition rhs))]
+        [(list "rmul" vs) (r1cs:rmul (for/list ([v vs]) (parse-precondition v)))]
+        [(list "rmod" lhs rhs) (r1cs:rmod (parse-precondition lhs) (parse-precondition rhs))]
         [(list "rvar" v) (r1cs:rvar v)] ; make sure v is a string
         [(list "rint" v) (r1cs:rint v)] ; make sure v is a number/integer
 
         ; (note) each precondition is only one rassert command, don't include rcmds
-        [_ (tokamak:error "unsupported precondition form, got: ~a.") arg-json]
+        [_ (tokamak:error "unsupported precondition form, got: ~a." arg-json)]
     )
 )
 

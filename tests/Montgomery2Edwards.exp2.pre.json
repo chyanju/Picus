@@ -1,0 +1,10 @@
+[
+    ["precondition",
+        ["rassert",
+            ["req",
+                ["rvar", "x4"],
+                ["rint", 0]
+            ]
+        ]
+    ]
+]
