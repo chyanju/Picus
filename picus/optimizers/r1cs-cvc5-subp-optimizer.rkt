@@ -40,7 +40,7 @@
                         (r1cs:rassert (r1cs:req (r1cs:rvar "zero") (r1cs:rint 0)))
                         ; add 1 definition
                         (r1cs:rdef (r1cs:rvar "one") (r1cs:rtype "F"))
-                        (r1cs:rassert (r1cs:req (r1cs:rvar "one") (r1cs:rint 0)))
+                        (r1cs:rassert (r1cs:req (r1cs:rvar "one") (r1cs:rint 1)))
                     )
                     ; should not include p definitions, usually in alt- series
                     (list

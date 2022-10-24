@@ -20,6 +20,7 @@
     ; optimizers
     (prefix-in cvc5-simple: "./optimizers/r1cs-cvc5-simple-optimizer.rkt")
     (prefix-in cvc5-subp: "./optimizers/r1cs-cvc5-subp-optimizer.rkt")
+    (prefix-in cvc5-ab0: "./optimizers/r1cs-cvc5-ab0-optimizer.rkt")
 )
 (provide (rename-out
     [state-smt-path state-smt-path]
@@ -70,7 +71,7 @@
 (define (optimize-r1cs-p0 arg-solver)
     (cond
         [(equal? "z3" arg-solver) (lambda (x) (z3-ab0:optimize-r1cs x))]
-        [(equal? "cvc5" arg-solver) (lambda (x) x)]
+        [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-ab0:optimize-r1cs x))]
         [else (tokamak:exit "you can't reach here")]
     )
 )
