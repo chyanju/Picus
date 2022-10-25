@@ -41,6 +41,7 @@
 (define :alt-nrmcnsts null)
 (define :alt-p1cnsts null)
 
+(define :arg-prop null)
 (define :arg-timeout null)
 (define :arg-smt null)
 
@@ -255,7 +256,12 @@
 (define (pp-iteration rcdmap ks us)
 
     ; first, propagate
-    (define-values (new-ks new-us) (pp-propagate rcdmap ks us))
+    (define-values (new-ks new-us) (if :arg-prop
+        ; do propagation
+        (pp-propagate rcdmap ks us)
+        ; don't do propagation
+        (values ks us)
+    ))
     (cond
         [(set-empty? (set-intersect :target-set new-us))
             ; no target signal is unknown, no need to solve any more, return
@@ -302,7 +308,7 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition
-    arg-timeout arg-smt
+    arg-prop arg-timeout arg-smt
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
     )
@@ -324,6 +330,7 @@
     (set! :alt-defs alt-defs)
     (set! :alt-cnsts alt-cnsts)
 
+    (set! :arg-prop arg-prop)
     (set! :arg-timeout arg-timeout)
     (set! :arg-smt arg-smt)
 

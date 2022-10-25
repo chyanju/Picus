@@ -18,6 +18,7 @@
 (define arg-solver "z3")
 (define arg-timeout 5000)
 (define arg-precondition null)
+(define arg-prop #t)
 (define arg-smt #f)
 (define arg-weak #f)
 (command-line
@@ -46,6 +47,11 @@
             (set! arg-precondition p-precondition)
         )
     ]
+    [("--noprop") "disable propagation (default: false / propagation on)"
+        (begin
+            (set! arg-prop #f)
+        )
+    ]
     [("--smt") "show path to generated smt files (default: false)"
         (begin
             (set! arg-smt #t)
@@ -60,6 +66,7 @@
 (printf "# r1cs file: ~a\n" arg-r1cs)
 (printf "# timeout: ~a\n" arg-timeout)
 (printf "# solver: ~a\n" arg-solver)
+(printf "# propagation: ~a\n" arg-prop)
 (printf "# smt: ~a\n" arg-smt)
 (printf "# weak: ~a\n" arg-weak)
 (printf "# precondition: ~a\n" arg-precondition)
@@ -147,7 +154,7 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition ; prior knowledge row
-    arg-timeout arg-smt
+    arg-prop arg-timeout arg-smt
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
 ))

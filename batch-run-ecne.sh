@@ -15,5 +15,13 @@ do
 	bn="${fn%.*}"
     bp="${fp%.*}"
 	echo "=================== checking: ${fn} ==================="
+	echo "====   start: $(date -u)"
+	st="$(date -u +%s)"
+
     timeout ${otime} julia --project=${ecnepath} ${ecnepath}/src/Ecne.jl --r1cs ${fp} --name ooo --sym ${bp}.sym --compatible --silent > ${logpath}/${bn}.log 2>&1
+
+	et="$(date -u +%s)"
+	echo "====     end: $(date -u)"
+	ct="$(($et-$st))"
+	echo "==== elapsed: ${ct} seconds"
 done

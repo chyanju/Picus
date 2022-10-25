@@ -15,5 +15,13 @@ do
 	bn="${fn%.*}"
     bp="${fp%.*}"
 	echo "=================== checking: ${fn} ==================="
+	echo "====   start: $(date -u)"
+	st="$(date -u +%s)"
+
     timeout ${otime} racket ./test-pp-uniqueness.rkt --timeout 5000 --solver ${solver} --weak --r1cs ${fp} > ${logpath}/${bn}.log 2>&1
+
+	et="$(date -u +%s)"
+	echo "====     end: $(date -u)"
+	ct="$(($et-$st))"
+	echo "==== elapsed: ${ct} seconds"
 done
