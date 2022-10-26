@@ -7,7 +7,6 @@
 
 ; solving component
 ; arguments:
-;   - timeout: (in seconds)
 ;   - smt-strs: a list of smt strings, even for 1 thread this needs to be a list
 ;   - nthreads: number of threads
 ;   (note) actual threads will be the smaller number between nthreads and number smt strings
@@ -35,35 +34,29 @@
 
         (when verbose? (printf "# solving...\n"))
         (define-values (sp out in err)
-            ; (note) use `apply` to expand the last argument
-            (apply subprocess #f #f #f (find-executable-path "z3") (list temp-path))
+                ; (note) use `apply` to expand the last argument
+                (apply subprocess #f #f #f (find-executable-path "z3") (list temp-path))
+                ; (apply subprocess #f #f #f "timeout" (list "10" (find-executable-path "z3") temp-path))
         )
-
-        (close-output-port in)
-        ; store the engine
-        (list sp out err)
-    ))
-
-    ; fetch results
-    (define res-list (for/list ([i (range nt)])
-
-        (define sp (list-ref (list-ref spe-list i) 0))
-        (define out (list-ref (list-ref spe-list i) 1))
-        (define err (list-ref (list-ref spe-list i) 2))
-
-        ; (fixme) this is wrong since each engine will give 5s separately
-        ;         for those that would timeout, you are giving 5s * nt in total
-        ;         which is wrong since you should only give 5s in total
         (define engine0 (engine (lambda (_)
             (define out-str (port->string out))
             (define err-str (port->string err))
             (close-input-port out)
+            (close-output-port in)
             (close-input-port err)
             (subprocess-wait sp)
             (cons out-str err-str)
         )))
-
         (define eres (engine-run timeout engine0))
+        ; store the engine
+        (list sp engine0 eres)
+    ))
+
+    ; fetch results
+    (define res-list (for/list ([i (range nt)])
+        (define sp (list-ref (list-ref spe-list i) 0))
+        (define engine0 (list-ref (list-ref spe-list i) 1))
+        (define eres (list-ref (list-ref spe-list i) 2))
         (define esol (engine-result engine0))
         (cond
             [(! eres)
@@ -87,8 +80,6 @@
                 )
             ]
         )
-
-
     ))
     ; return
     res-list

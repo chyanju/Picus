@@ -15,6 +15,7 @@
 ; =====================================
 ; parse command line arguments
 (define arg-r1cs null)
+(define arg-nthreads 1)
 (define arg-solver "z3")
 (define arg-timeout 5000)
 (define arg-precondition null)
@@ -31,6 +32,9 @@
             )
         )
     ]
+    [("--nthreads") p-nthreads "number of threads/signals to query each time (default: 1)"
+        (set! arg-nthreads (string->number p-nthreads))
+    ]
     [("--solver") p-solver "solver to use: z3 | cvc5 (default: z3)"
         (cond
             [(|| (equal? "z3" p-solver) (equal? "cvc5" p-solver)) (set! arg-solver p-solver)]
@@ -38,32 +42,23 @@
         )
     ]
     [("--timeout") p-timeout "timeout for every small query (default: 5000ms)"
-        (begin
-            (set! arg-timeout (string->number p-timeout))
-        )
+        (set! arg-timeout (string->number p-timeout))
     ]
     [("--precondition") p-precondition "include precondition into the reasoning (default: false)"
-        (begin
-            (set! arg-precondition p-precondition)
-        )
+        (set! arg-precondition p-precondition)
     ]
     [("--noprop") "disable propagation (default: false / propagation on)"
-        (begin
-            (set! arg-prop #f)
-        )
+        (set! arg-prop #f)
     ]
     [("--smt") "show path to generated smt files (default: false)"
-        (begin
-            (set! arg-smt #t)
-        )
+        (set! arg-smt #t)
     ]
     [("--weak") "only check weak safety, not strong safety  (default: false)"
-        (begin
-            (set! arg-weak #t)
-        )
+        (set! arg-weak #t)
     ]
 )
 (printf "# r1cs file: ~a\n" arg-r1cs)
+(printf "# nthreas: ~a\n" arg-nthreads)
 (printf "# timeout: ~a\n" arg-timeout)
 (printf "# solver: ~a\n" arg-solver)
 (printf "# propagation: ~a\n" arg-prop)
@@ -154,7 +149,7 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition ; prior knowledge row
-    arg-prop arg-timeout arg-smt
+    arg-nthreads arg-prop arg-timeout arg-smt
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
 ))

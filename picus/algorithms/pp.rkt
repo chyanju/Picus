@@ -41,6 +41,7 @@
 (define :alt-nrmcnsts null)
 (define :alt-p1cnsts null)
 
+(define :arg-nthreads null)
 (define :arg-prop null)
 (define :arg-timeout null)
 (define :arg-smt null)
@@ -151,65 +152,91 @@
 
 ; main solving procedure
 ; returns:
-;   - (values 'verified info): the given query is verified
-;   - (values 'sat info): the given query has a counter-example (not verified)
-;   - (values 'skip info): the given query times out (small step)
-(define (pp-solve ks us sid)
-    (printf "  # checking: (~a ~a), " (list-ref :xlist sid) (list-ref :alt-xlist sid))
-    ; assemble commands
-    (define known-cmds (r1cs:rcmds (for/list ([j ks])
-        (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref :xlist j)) (r1cs:rvar (list-ref :alt-xlist j))))
-    )))
-    (define final-cmds (r1cs:rcmds-append
-        :partial-cmds
-        (r1cs:rcmds (list
-            (r1cs:rcmt "=============================")
-            (r1cs:rcmt "======== known block ========")
-            (r1cs:rcmt "=============================")
+;   - (cons 'verified info): the given query is verified
+;   - (cons 'sat info): the given query has a counter-example (not verified)
+;   - (cons 'skip info): the given query times out (small step)
+(define (pp-solve ks us sids)
+
+    ; (printf "  # checking: ~a.\n" (string-join
+    ;     (for/list ([sid sids]) (format "(~a ~a)" (list-ref :xlist sid) (list-ref :alt-xlist sid)))
+    ;     ", "
+    ; ))
+    (printf "  # checking: ~a.\n" (string-join (for/list ([sid sids]) (format "~a" sid)) ", "))
+
+    (define batch-final-strs (for/list ([sid sids])
+
+        ; assemble commands
+        (define known-cmds (r1cs:rcmds (for/list ([j ks])
+            (r1cs:rassert (r1cs:req (r1cs:rvar (list-ref :xlist j)) (r1cs:rvar (list-ref :alt-xlist j))))
+        )))
+        (define final-cmds (r1cs:rcmds-append
+            :partial-cmds
+            (r1cs:rcmds (list
+                (r1cs:rcmt "=============================")
+                (r1cs:rcmt "======== known block ========")
+                (r1cs:rcmt "=============================")
+            ))
+            known-cmds
+            (r1cs:rcmds (list
+                (r1cs:rcmt "=============================")
+                (r1cs:rcmt "======== query block ========")
+                (r1cs:rcmt "=============================")
+            ))
+            (r1cs:rcmds (list
+                (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref :xlist sid)) (r1cs:rvar (list-ref :alt-xlist sid))))
+                (r1cs:rsolve )
+            ))
         ))
-        known-cmds
-        (r1cs:rcmds (list
-            (r1cs:rcmt "=============================")
-            (r1cs:rcmt "======== query block ========")
-            (r1cs:rcmt "=============================")
+        ; perform optimization
+        (define final-str (string-join (:interpret-r1cs
+            (r1cs:rcmds-append :opts final-cmds))
+            "\n"
         ))
-        (r1cs:rcmds (list
-            (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref :xlist sid)) (r1cs:rvar (list-ref :alt-xlist sid))))
-            (r1cs:rsolve )
+        ; return
+        final-str
+
+    ))
+
+    (define batch-res (:solve batch-final-strs :arg-timeout #:nthreads :arg-nthreads))
+
+    ; (define batch-results (for/list ([sid sids][res batch-res])
+    (define batch-results (for/list ([i (range (length sids))])
+        (define sid (list-ref sids i))
+        (define res (list-ref batch-res i))
+
+        (define s0 (list-ref :xlist sid))
+        (define s1 (list-ref :alt-xlist sid))
+
+        (define solved? (cond
+            [(equal? 'unsat (car res))
+                (printf "    - (~a, ~a): verified.\n" s0 s1)
+                ; verified, safe
+                'verified
+            ]
+            [(equal? 'sat (car res))
+                ; (important) here if the current signal is not a target, it's ok to see a sat
+                (if (set-member? :target-set sid)
+                    ; the current signal is a target, now there's a counter-example, unsafe
+                    ; in pp, this counter-example is valid
+                    (begin (printf "    - (~a, ~a): sat.\n" s0 s1) 'sat)
+                    ; not a target, fine, just skip
+                    (begin (printf "    - (~a, ~a): sat but not a target.\n" s0 s1) 'skip)
+                )
+            ]
+            [else
+                (printf "    - (~a, ~a): skip.\n" s0 s1)
+                ; possibly timeout in small step, result is unknown
+                'skip
+            ]
         ))
+        (when :arg-smt
+            (printf "    - (~a, ~a): ~a\n" s0 s1 (list-ref (:state-smt-path) i)))
+        ; return
+        (cons solved? (cdr res))
     ))
-    ; perform optimization
-    (define final-str (string-join (:interpret-r1cs
-        (r1cs:rcmds-append :opts final-cmds))
-        "\n"
-    ))
-    (define res (:solve final-str :arg-timeout #:output-smt? #f))
-    (define solved? (cond
-        [(equal? 'unsat (car res))
-            (printf "verified.\n")
-            ; verified, safe
-            'verified
-        ]
-        [(equal? 'sat (car res))
-            ; (important) here if the current signal is not a target, it's ok to see a sat
-            (if (set-member? :target-set sid)
-                ; the current signal is a target, now there's a counter-example, unsafe
-                ; in pp, this counter-example is valid
-                (begin (printf "sat.\n") 'sat)
-                ; not a target, fine, just skip
-                (begin (printf "sat but not a target.\n") 'skip)
-            )
-        ]
-        [else
-            (printf "skip.\n")
-            ; possibly timeout in small step, result is unknown
-            'skip
-        ]
-    ))
-    (when :arg-smt
-        (printf "    # smt path: ~a\n" (:state-smt-path)))
+
     ; return
-    (values solved? (cdr res))
+    batch-results
 )
 
 ; select and solve
@@ -225,22 +252,51 @@
         (values 'normal ks us null)
         ; else, set not empty, move forward
         (begin
-            (define sid (pp-select rcdmap uspool))
-            (define-values (solved? info) (pp-solve ks us sid))
-            (cond
-                ; solved, update ks & us, then return
-                [(equal? 'verified solved?) (values 'normal (set-add ks sid) (set-remove us sid) null)]
-                ; found a counter-example here, forced stop, nothing more to solve
-                ; return the same ks & us to indicate the caller to stop
-                [(equal? 'sat solved?) (values 'break ks us info)]
-                ; unknown, update uspool and recursively call again
-                [(equal? 'skip solved?)
-                    ; decrease the weight of the selected id since it's not solved
-                    (selector:signal-weights-dec! sid 1)
-                    ; still has something to choose from, invoke recursively again
-                    (pp-select-and-solve rcdmap ks us (set-remove uspool sid))
-                ]
-                [else (tokamak:error "unsupported solved? value, got: ~a." solved?)]
+            (define sids (for/list ([i (range :arg-nthreads)])
+                (define sid (pp-select rcdmap uspool))
+                (selector:signal-weights-dec! sid 1000) ; decrease weight
+                sid
+            ))
+            (define batch-sres (pp-solve ks us sids))
+
+            (define batch-solved? (for/list ([sres batch-sres]) (car sres)))
+            (define batch-info (for/list ([sres batch-sres]) (cdr sres)))
+            ; summarize
+            (let ([sat-ind (index-of batch-solved? 'sat)])
+                (if sat-ind
+                    ; found a counter-example here, forced stop, nothing more to solve
+                    ; return the same ks & us to indicate the caller to stop
+                    (values 'break ks us (list-ref batch-info sat-ind))
+                    ; else proceed
+                    (begin
+                        (define new-ks (list->set (set->list ks)))
+                        (define new-us (list->set (set->list us)))
+                        (define new-uspool (list->set (set->list uspool)))
+                        (define nret #f) ; should return normal or not
+                        (for ([solved? batch-solved?][info batch-info][sid sids])
+                            (cond
+                                [(equal? 'verified solved?)
+                                    (set! new-ks (set-add new-ks sid))
+                                    (set! new-us (set-remove new-us sid))
+                                    ; as long as one signal is verified in a batch, it's good enough to return
+                                    (set! nret #t)
+                                ]
+                                ; do nothing since it processed before
+                                [(equal? 'sat solved?) (void)]
+                                [(equal? 'skip solved?)
+                                    (set! new-uspool (set-remove new-uspool sid))
+                                ]
+                                [else (tokamak:error "unsupported solved? value, got: ~a." solved?)]
+                            )
+                        )
+                        (if nret
+                            ; at least one signal is verified
+                            (values 'normal new-ks new-us null)
+                            ; no signal is verified, continue
+                            (pp-select-and-solve rcdmap new-ks new-us new-uspool)
+                        )
+                    )
+                )
             )
         )
     )
@@ -308,7 +364,7 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition
-    arg-prop arg-timeout arg-smt
+    arg-nthreads arg-prop arg-timeout arg-smt
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
     )
@@ -330,6 +386,7 @@
     (set! :alt-defs alt-defs)
     (set! :alt-cnsts alt-cnsts)
 
+    (set! :arg-nthreads arg-nthreads)
     (set! :arg-prop arg-prop)
     (set! :arg-timeout arg-timeout)
     (set! :arg-smt arg-smt)
