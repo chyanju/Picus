@@ -12,6 +12,11 @@
     (prefix-in z3-subp: "./optimizers/r1cs-z3-subp-optimizer.rkt")
     (prefix-in z3-ab0: "./optimizers/r1cs-z3-ab0-optimizer.rkt")
 )
+; cvc4 require (partly shared with z3)
+(require
+    (prefix-in cvc4-solver: "./solvers/cvc4-solver.rkt")
+    (prefix-in cvc4-rint: "./r1cs/r1cs-cvc4-interpreter.rkt")
+)
 ; cvc5 require
 (require
     (prefix-in cvc5-solver: "./solvers/cvc5-solver.rkt")
@@ -36,6 +41,7 @@
 (define (state-smt-path arg-solver)
     (cond
         [(equal? "z3" arg-solver) (lambda () z3-solver:state-smt-path)]
+        [(equal? "cvc4" arg-solver) (lambda () cvc4-solver:state-smt-path)]
         [(equal? "cvc5" arg-solver) (lambda () cvc5-solver:state-smt-path)]
         [else (tokamak:exit "you can't reach here")]
     )
@@ -43,6 +49,7 @@
 (define (solve arg-solver)
     (cond
         [(equal? "z3" arg-solver) z3-solver:solve]
+        [(equal? "cvc4" arg-solver) cvc4-solver:solve]
         [(equal? "cvc5" arg-solver) cvc5-solver:solve]
         [else (tokamak:exit "you can't reach here")]
     )
@@ -50,6 +57,7 @@
 (define (parse-r1cs arg-solver)
     (cond
         [(equal? "z3" arg-solver) z3-parser:parse-r1cs]
+        [(equal? "cvc4" arg-solver) z3-parser:parse-r1cs] ; share with z3
         [(equal? "cvc5" arg-solver) cvc5-parser:parse-r1cs]
         [else (tokamak:exit "you can't reach here")]
     )
@@ -57,12 +65,14 @@
 (define (expand-r1cs arg-solver)
     (cond
         [(equal? "z3" arg-solver) z3-parser:expand-r1cs]
+        [(equal? "cvc4" arg-solver) z3-parser:expand-r1cs] ; shared with z3
         [(equal? "cvc5" arg-solver) cvc5-parser:expand-r1cs]
     )
 )
 (define (normalize-r1cs arg-solver)
     (cond
         [(equal? "z3" arg-solver) (lambda (x) (z3-simple:optimize-r1cs x))]
+        [(equal? "cvc4" arg-solver) (lambda (x) (z3-simple:optimize-r1cs x))] ; shared with z3
         [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-simple:optimize-r1cs x))]
         [else (tokamak:exit "you can't reach here")]
     )
@@ -71,6 +81,7 @@
 (define (optimize-r1cs-p0 arg-solver)
     (cond
         [(equal? "z3" arg-solver) (lambda (x) (z3-ab0:optimize-r1cs x))]
+        [(equal? "cvc4" arg-solver) (lambda (x) (z3-ab0:optimize-r1cs x))] ; shared with z3
         [(equal? "cvc5" arg-solver) (lambda (x) (cvc5-ab0:optimize-r1cs x))]
         [else (tokamak:exit "you can't reach here")]
     )
@@ -80,6 +91,7 @@
 (define (optimize-r1cs-p1 arg-solver)
     (cond
         [(equal? "z3" arg-solver) (lambda (x pdef?) (z3-subp:optimize-r1cs x pdef?))]
+        [(equal? "cvc4" arg-solver) (lambda (x pdef?) (z3-subp:optimize-r1cs x pdef?))] ; shared with z3
         [(equal? "cvc5" arg-solver) (lambda (x pdef?) (cvc5-subp:optimize-r1cs x pdef?))]
         [else (tokamak:exit "you can't reach here")]
     )
@@ -87,6 +99,7 @@
 (define (interpret-r1cs arg-solver)
     (cond
         [(equal? "z3" arg-solver) z3-rint:interpret-r1cs]
+        [(equal? "cvc4" arg-solver) cvc4-rint:interpret-r1cs]
         [(equal? "cvc5" arg-solver) cvc5-rint:interpret-r1cs]
         [else (tokamak:exit "you can't reach here")]
     )

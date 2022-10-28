@@ -31,9 +31,9 @@
             )
         )
     ]
-    [("--solver") p-solver "solver to use: z3 | cvc5 (default: z3)"
+    [("--solver") p-solver "solver to use: z3 | cvc4 | cvc5 (default: z3)"
         (cond
-            [(|| (equal? "z3" p-solver) (equal? "cvc5" p-solver)) (set! arg-solver p-solver)]
+            [(set-member? (set "z3" "cvc5" "cvc4") p-solver) (set! arg-solver p-solver)]
             [else (tokamak:exit "solver needs to be either z3 or cvc5")]
         )
     ]

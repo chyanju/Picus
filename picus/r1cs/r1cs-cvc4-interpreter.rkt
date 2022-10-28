@@ -57,7 +57,8 @@
         [(r1cs:rsub vs) (foldr (make-format-op "-") null (for/list ([v vs]) (interpret-r1cs v)))]
         [(r1cs:rmul vs) (foldr (make-format-op "*") null (for/list ([v vs]) (interpret-r1cs v)))]
         [(r1cs:rneg v) (format "(- ~a)" (interpret-r1cs v))]
-        [(r1cs:rmod v mod) (format "(rem ~a ~a)" (interpret-r1cs v) (interpret-r1cs mod))]
+        ; use mod for cvc4 since there's no rem
+        [(r1cs:rmod v mod) (format "(mod ~a ~a)" (interpret-r1cs v) (interpret-r1cs mod))]
 
         [else (tokamak:exit "not supported: ~a" arg-r1cs)]
     )
