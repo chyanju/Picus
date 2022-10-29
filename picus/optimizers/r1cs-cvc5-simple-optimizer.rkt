@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 ; (note) this is applied in the normalization phase
 ; this contains a list of simple and basic optimization steps
 ;   - add p related definition and replace p
@@ -102,7 +102,7 @@
         [(r1cs:radd vs)
             ; remove 0
             (define new-vs (filter
-                (lambda (x) (! (is-rint-zero x)))
+                (lambda (x) (not (is-rint-zero x)))
                 (for/list ([v vs]) (optimize-r1cs v))
             ))
             (cond
@@ -116,7 +116,7 @@
         ]
         [(r1cs:rmul vs)
             (define new-vs (filter
-                (lambda (x) (! (is-rint-one x)))
+                (lambda (x) (not (is-rint-one x)))
                 (for/list ([v vs]) (optimize-r1cs v))
             ))
             (cond

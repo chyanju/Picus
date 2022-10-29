@@ -1,4 +1,5 @@
-#lang rosette
+#lang racket
+; switcher for solver related components
 (require json racket/engine
     (prefix-in tokamak: "./tokamak.rkt")
 )

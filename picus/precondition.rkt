@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 (require json
     (prefix-in tokamak: "./tokamak.rkt")
     (prefix-in r1cs: "./r1cs/r1cs-grammar.rkt")
@@ -34,14 +34,14 @@
     (define pre-json (string->jsexpr (file->string arg-path)))
 
     (define unique-json (filter (lambda (x) (equal? "unique" (car x))) pre-json))
-    (define cmd-json (filter (lambda (x) (! (equal? "unique" (car x)))) pre-json))
+    (define cmd-json (filter (lambda (x) (not (equal? "unique" (car x)))) pre-json))
 
     ; process the unique set
-    (define unique-set (list->set (filter (lambda (x) (! (equal? "unique" x))) (flatten unique-json))))
+    (define unique-set (list->set (filter (lambda (x) (not (equal? "unique" x))) (flatten unique-json))))
 
     ; process precondition
     (define pres (for/list ([v cmd-json])
-        (when (! (= 2 (length v)))
+        (when (not (= 2 (length v)))
             (tokamak:error "precondition entry should contain exactly 2 elements, got: ~a." v))
         (cons (list-ref v 0) (parse-precondition (list-ref v 1)))
     ))

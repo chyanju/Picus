@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 ; common require
 (require json racket/engine
     (prefix-in tokamak: "./picus/tokamak.rkt")
@@ -21,7 +21,7 @@
     [("--r1cs") p-r1cs "path to target r1cs"
         (begin
             (set! arg-r1cs p-r1cs)
-            (when (! (string-suffix? arg-r1cs ".r1cs"))
+            (when (not (string-suffix? arg-r1cs ".r1cs"))
                 (tokamak:exit "file needs to be *.r1cs")
             )
         )
@@ -91,7 +91,7 @@
 ; assemble solve query
 (printf "# assembling query...\n")
 (define tmp0 (r1cs:rassert (r1cs:ror
-    (filter (lambda (x) (! (null? x))) (for/list ([i (range nwires)])
+    (filter (lambda (x) (not (null? x))) (for/list ([i (range nwires)])
         (if (utils:contains? output-list i)
             (r1cs:rneq (r1cs:rvar (list-ref xlist i)) (r1cs:rvar (list-ref xlist0 i)))
             null

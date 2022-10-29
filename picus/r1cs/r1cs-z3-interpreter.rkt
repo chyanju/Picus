@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 ; this interprets r1cs commands into z3 constraints
 (require
     (prefix-in tokamak: "../tokamak.rkt")
@@ -13,8 +13,8 @@
 (define (make-format-op op)
     (define (format-op x y)
         (cond
-            ; [(&& (null? x) (null? y)) (tokamak:exit "x and y can't both be null")]
-            [(&& (null? x) (null? y)) ""]
+            ; [(and (null? x) (null? y)) (tokamak:exit "x and y can't both be null")]
+            [(and (null? x) (null? y)) ""]
             [(null? x) y]
             [(null? y) x]
             [else (format "(~a ~a ~a)" op x y)]

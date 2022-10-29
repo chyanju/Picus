@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 ; (note) this is applied in optimization phase 0
 ; this implements the following lemma
 ;   A * B = 0 => A = 0 or B = 0

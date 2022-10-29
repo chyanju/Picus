@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 (provide (all-defined-out))
 
 (define (contains? l e)

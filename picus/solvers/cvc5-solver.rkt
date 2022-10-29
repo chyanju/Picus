@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 (require racket/engine)
 (provide (all-defined-out))
 
@@ -15,7 +15,7 @@
     (define smt-file (open-output-file temp-path))
     (display smt-str smt-file)
     (close-output-port smt-file)
-    (when (|| verbose? output-smt?)
+    (when (or verbose? output-smt?)
         (printf "(written to: ~a)\n" temp-path)
     )
 
@@ -39,7 +39,7 @@
     (define eres (engine-run timeout engine0))
     (define esol (engine-result engine0))
     (cond
-        [(! eres)
+        [(not eres)
             ; need to kill the process
             (subprocess-kill sp #t)
             (cons 'timeout "")

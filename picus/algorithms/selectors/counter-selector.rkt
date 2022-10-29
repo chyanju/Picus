@@ -1,14 +1,8 @@
-#lang rosette
+#lang racket
 (provide (rename-out
-    ; shared methods
-    [signal-weights-reset! signal-weights-reset!]
-    [signal-weights-set! signal-weights-set!]
-    [signal-weights-ref signal-weights-ref]
-    [signal-weights-inc! signal-weights-inc!]
-    [signal-weights-dec! signal-weights-dec!]
-
-    [pp-counter-select pp-counter-select]
-    [pp-naive-select pp-naive-select]
+    [apply-selector apply-selector]
+    [selector-init selector-init]
+    [selector-feedback selector-feedback]
 ))
 
 ; shared stateful variables and methods
@@ -26,14 +20,14 @@
 ; i.e. the most "critical" one for propagation
 (define state-rcdkey-counter null) ; cached rcdkey counter, key: index, val: count
 ; key first select: select the key with higher appearance in rcdmap
-(define (pp-counter-select rcdmap uspool)
+(define (apply-selector uspool cntx)
     ; check for existence of counter
     (when (null? state-rcdkey-counter)
         ; counter not created yet, create one
         (define tmp-counter (make-hash))
-        (for ([keys (hash-keys rcdmap)])
+        (for ([keys (hash-keys (hash-ref cntx 'rcdmap))])
             (for ([key keys])
-                (when (! (hash-has-key? tmp-counter key)) (hash-set! tmp-counter key 0))
+                (when (not (hash-has-key? tmp-counter key)) (hash-set! tmp-counter key 0))
                 (hash-set! tmp-counter key (+ 1 (hash-ref tmp-counter key)))
             )
         )
@@ -51,14 +45,24 @@
     )
     ; add remaining uspool ones into the counter
     (for ([key uspool])
-        (when (! (hash-has-key? tmp-counter key)) (hash-set! tmp-counter key 0)))
+        (when (not (hash-has-key? tmp-counter key)) (hash-set! tmp-counter key 0)))
     ; sort and pick
     (define p0 (argmax cdr (hash->list tmp-counter)))
     ; return
     (car p0)
 )
 
-; =====================
-; naive select strategy
-; simply choose the first signal from the pool
-(define (pp-naive-select rcdmap uspool) (set-first uspool))
+(define (selector-init nwires)
+    (signal-weights-reset!)
+    (for ([key (range nwires)]) (signal-weights-set! key 0))
+)
+
+; adjust internal states according to the solver result
+(define (selector-feedback sid act)
+    (cond
+        ; decrease the weight of the selected id since it's not solved
+        [(equal? 'skip act) (signal-weights-dec! sid 1)]
+        ; otherwise do nothing
+        [else (void)]
+    )
+)

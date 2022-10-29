@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 (provide (all-defined-out))
 ; (note) see NOTES.md for transcribed CFG
 

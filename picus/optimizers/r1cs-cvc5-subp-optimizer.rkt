@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 ; (note) this is applied in optimization phase 1
 ; this contains the following optimizations:
 ;   - add p related definition and replace p

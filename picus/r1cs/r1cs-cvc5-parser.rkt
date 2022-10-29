@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 ; this interprets binary r1cs into its grammar representation
 (require
     (prefix-in tokamak: "../tokamak.rkt")
@@ -46,7 +46,7 @@
     (set! raw-decls (append raw-decls
         (list (r1cs:rcmt "======== declaration constraints ========"))
         (for/list ([x xlist])
-            (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
+            (if (and (not (null? arg-xlist)) (string-prefix? x "x"))
                 ; provided list with already defined x, skip
                 (r1cs:rcmt (format "~a: already defined" x))
                 ; otherwise you need to define this variable
@@ -157,7 +157,7 @@
                 ; A*B = C but expand A*B into ++terms
                 (r1cs:rassert (r1cs:req
                     ; A*B part
-                    (if (|| (empty? terms-a) (empty? terms-b))
+                    (if (or (empty? terms-a) (empty? terms-b))
                         ; A*B is empty
                         (r1cs:rint 0)
                         ; A*B is not empty
@@ -219,7 +219,7 @@
     (set! raw-declarations (append raw-declarations
         (list (r1cs:rcmt "======== declaration constraints ========"))
         (for/list ([x xlist])
-            (if (&& (! (null? arg-xlist)) (string-prefix? x "x"))
+            (if (and (not (null? arg-xlist)) (string-prefix? x "x"))
                 ; provided list with already defined x, skip
                 (r1cs:rcmt (format "~a: already defined" x))
                 ; otherwise you need to define this variable
@@ -309,7 +309,7 @@
         ; A*B = C but expand A*B into ++terms
         (define ret-cnst (r1cs:rassert (r1cs:req
             ; A*B part
-            (if (|| (empty? terms-a) (empty? terms-b))
+            (if (or (empty? terms-a) (empty? terms-b))
                 ; A*B is empty
                 (r1cs:rint 0)
                 ; A*B is not empty

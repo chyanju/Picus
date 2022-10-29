@@ -1,20 +1,30 @@
-#lang rosette
-; this implements the propagation & preserving algorithm with base lemma
+#lang racket
+; this implements the decide & propagate verification loop algorithm
 (require
     (prefix-in tokamak: "../tokamak.rkt")
     (prefix-in utils: "../utils.rkt")
     (prefix-in config: "../config.rkt")
     (prefix-in r1cs: "../r1cs/r1cs-grammar.rkt")
-    (prefix-in selector: "./selectors.rkt")
+    (prefix-in selector: "./selector.rkt")
+    ; lemmas
+    (prefix-in l0: "./lemmas/linear-lemma.rkt")
 )
 (provide (rename-out
-    [get-cdmap get-cdmap]
-    [get-rcdmap get-rcdmap]
-    [pp-propagate pp-propagate]
-    [apply-pp apply-pp]
+    [apply-algorithm apply-algorithm]
 ))
 
 ; ======== module global variables ======== ;
+
+; selector series, need arg-selector to resolve
+(define apply-selector null)
+(define selector-feedback null)
+(define selector-init null)
+
+; this is the selector context provided to every apply-selector call
+; grab the current context, then pack and return
+(define (selector-context) (make-hash (list
+    (cons 'rcdmap (l0:compute-rcdmap :sdmcnsts #t))
+)))
 
 ; problem pack, needs to be set and initialized by apply- function
 (define :r0 null)
@@ -28,6 +38,7 @@
 (define :opts null)
 (define :defs null)
 (define :cnsts null) ; standard form
+(define :sdmcnsts null) ; normalized standard form (specifically for rcdmap, original only)
 (define :p0cnsts null) ; standard form optimized by phase 0 optimization
 (define :expcnsts null) ; expanded form
 (define :nrmcnsts null) ; normalized form
@@ -41,6 +52,7 @@
 (define :alt-nrmcnsts null)
 (define :alt-p1cnsts null)
 
+(define :arg-selector null)
 (define :arg-prop null)
 (define :arg-timeout null)
 (define :arg-smt null)
@@ -61,100 +73,12 @@
 ; problem intermediate results
 (define :partial-cmds null)
 
-; use pp-counter-select
-(define pp-select selector:pp-counter-select)
-
-; get constraint dependency map
-; input is the *normalized main constraint part* of r1cs ast
-;   - main constraints is the `cnsts part (r1cs:rcmds) from parse-r1cs
-; returns a map of:
-;   - key: index of a variable
-;   - val: list of sets of variables
-; meaning: if a key wants to be determined as unique,
-;          one of the sets from val should be completely determined
-; construction rules (++terms):
-;   - only non-non-linear (YES, no typo here) variable can be determined (put to key)
-;     because for x*y=k, x can't be guaranteed to be unique,
-;     even if knowing y and k (due to field mul)
-(define (get-cdmap arg-cnsts [arg-indexonly #f])
-    (define res (make-hash))
-    ; for every single constraint
-    (for ([p (r1cs:rcmds-vs arg-cnsts)])
-        (define all-vars (r1cs:get-assert-variables p arg-indexonly))
-        (define nonlinear-vars (r1cs:get-assert-variables/nonlinear p arg-indexonly))
-        ; (note) you can't use linears directly, because one var could be both linear and non-linear
-        ;        in this case, it's still non-linear in the current constraint
-        (define deducible-vars (set-subtract all-vars nonlinear-vars))
-        (for ([key deducible-vars])
-            (when (! (hash-has-key? res key)) (hash-set! res key (list )))
-            (hash-set! res key (cons (set-subtract all-vars (list->set (list key))) (hash-ref res key)))
-        )
-    )
-    res
-)
-
-; get a reversed cdmap
-;   - arg-indexonly: whether to extract the indices instead of keeping the full variable name
-; example output:
-;   #<set: x10> => #<set: x4>
-;   #<set: x6 x14 x12 x11> => #<set: x13>
-;   #<set: x5 x14 x12> => #<set: x11>
-;   #<set: x5 x14 x11> => #<set: x12>
-;   #<set: x2> => #<set: x6>
-;   #<set: x8> => #<set: x4>
-;   #<set: x1> => #<set: x5>
-;   #<set: x9> => #<set: x3>
-;   #<set: x7> => #<set: x3>
-(define (get-rcdmap arg-cnsts [arg-indexonly #f])
-    (define res (get-cdmap arg-cnsts arg-indexonly))
-    (define new-res (make-hash))
-    (for ([key (hash-keys res)])
-        (define vals (hash-ref res key))
-        (for ([val vals])
-            (when (! (hash-has-key? new-res val)) (hash-set! new-res val (list )))
-            (hash-set! new-res val (cons key (hash-ref new-res val)))
-        )
-    )
-    ; make immutable
-    (for ([key (hash-keys new-res)])
-        (hash-set! new-res key (list->set (hash-ref new-res key)))
-    )
-    new-res
-)
-
-; recursive
-(define (pp-propagate rcdmap ks us)
-    (printf "  # propagation: ")
-    (define new-ks (list->set (set->list ks))) ; (fixme) do this to copy into a mutable set, required by set-* operations
-    (define new-us (list->set (set->list us))) ; (fixme) same as above
-    (define rec? #f) ; whether propagate should be called again
-    (for* ([key (hash-keys rcdmap)])
-        (when (set-empty? (set-subtract key ks))
-            ; all ks are in key, propagate
-            (set! new-ks (set-union new-ks (hash-ref rcdmap key)))
-            (set! new-us (set-subtract new-us (hash-ref rcdmap key)))
-        )
-    )
-    (let ([s0 (set-subtract new-ks ks)])
-        (if (set-empty? s0)
-            (printf "none.\n")
-            (printf "~a added.\n" s0)
-        )
-    )
-    (if (= (set-count ks) (set-count new-ks))
-        ; no updates, return now
-        (values new-ks new-us)
-        ; has updates, call again
-        (pp-propagate rcdmap new-ks new-us)
-    )
-)
-
 ; main solving procedure
 ; returns:
 ;   - (values 'verified info): the given query is verified
 ;   - (values 'sat info): the given query has a counter-example (not verified)
 ;   - (values 'skip info): the given query times out (small step)
-(define (pp-solve ks us sid)
+(define (dpvl-solve ks us sid)
     (printf "  # checking: (~a ~a), " (list-ref :xlist sid) (list-ref :alt-xlist sid))
     ; assemble commands
     (define known-cmds (r1cs:rcmds (for/list ([j ks])
@@ -219,30 +143,52 @@
 ;   (note) since it's called recursively, at some level it could have new different ks with 'break
 ;          in that case you still break since a counter-example is already found
 ; uspool is usually initialized as us
-(define (pp-select-and-solve rcdmap ks us uspool)
-    (if (set-empty? uspool)
-        ; can't solve any more signal in this iteration
-        (values 'normal ks us null)
+(define (dpvl-select-and-solve ks us uspool)
+    (cond
+        [(set-empty? uspool)
+            ; can't solve any more signal in this iteration
+            (values 'normal ks us null)
+        ]
         ; else, set not empty, move forward
-        (begin
-            (define sid (pp-select rcdmap uspool))
-            (define-values (solved? info) (pp-solve ks us sid))
+        [else
+            (define sid (apply-selector uspool (selector-context)))
+            (define-values (solved? info) (dpvl-solve ks us sid))
+            ; send feedback to selector
+            (selector-feedback sid solved?)
             (cond
                 ; solved, update ks & us, then return
                 [(equal? 'verified solved?) (values 'normal (set-add ks sid) (set-remove us sid) null)]
                 ; found a counter-example here, forced stop, nothing more to solve
                 ; return the same ks & us to indicate the caller to stop
                 [(equal? 'sat solved?) (values 'break ks us info)]
-                ; unknown, update uspool and recursively call again
-                [(equal? 'skip solved?)
-                    ; decrease the weight of the selected id since it's not solved
-                    (selector:signal-weights-dec! sid 1)
-                    ; still has something to choose from, invoke recursively again
-                    (pp-select-and-solve rcdmap ks us (set-remove uspool sid))
-                ]
+                ; unknown or timeout, update uspool and recursively call again
+                [(equal? 'skip solved?) (dpvl-select-and-solve ks us (set-remove uspool sid))]
                 [else (tokamak:error "unsupported solved? value, got: ~a." solved?)]
             )
-        )
+        ]
+    )
+)
+
+; recursively apply all lemmas until fixed point
+(define (dpvl-propagate ks us)
+    (define tmp-ks (list->set (set->list ks)))
+    (define tmp-us (list->set (set->list us)))
+
+    ; prepare lemma 0
+    ; generate rcdmap requires no optimization to exclude ror and rand
+    ; rcdmap requires normalized constraints to get best results
+    (define rcdmap (l0:compute-rcdmap :sdmcnsts #t))
+    ; (for ([key (hash-keys rcdmap)]) (printf "~a => ~a\n" key (hash-ref rcdmap key)))
+
+    ; apply lemma 0
+    (set!-values (tmp-ks tmp-us) (l0:apply-lemma rcdmap tmp-ks tmp-us))
+
+    ; return
+    (if (= (set-count ks) (set-count tmp-ks))
+        ; no updates, return
+        (values tmp-ks tmp-us)
+        ; has updates, call again
+        (dpvl-propagate tmp-ks tmp-us)
     )
 )
 
@@ -253,12 +199,12 @@
 ;   - ('safe ks us info)
 ;   - ('unsafe ks us info)
 ;   - ('unknown ks us info)
-(define (pp-iteration rcdmap ks us)
+(define (dpvl-iterate ks us)
 
     ; first, propagate
     (define-values (new-ks new-us) (if :arg-prop
         ; do propagation
-        (pp-propagate rcdmap ks us)
+        (dpvl-propagate ks us)
         ; don't do propagation
         (values ks us)
     ))
@@ -270,7 +216,7 @@
         [else
             ; still there's unknown target signal, continue
             ; then select and solve
-            (define-values (s0 xnew-ks xnew-us info) (pp-select-and-solve rcdmap new-ks new-us new-us))
+            (define-values (s0 xnew-ks xnew-us info) (dpvl-select-and-solve new-ks new-us new-us))
             (cond
                 ; normal means there's no counter-example
                 [(equal? 'normal s0)
@@ -285,7 +231,7 @@
                         ]
                         [else
                             ; continue the iteration
-                            (pp-iteration rcdmap xnew-ks xnew-us)
+                            (dpvl-iterate xnew-ks xnew-us)
                         ]
                     )
                 ]
@@ -298,17 +244,17 @@
 )
 
 ; verifies signals in target-set
-; returns (same as pp-iteration):
+; returns (same as dpvl-iterate):
 ;   - (values 'safe ks us info)
 ;   - (values 'unsafe ks us info)
 ;   - (values 'unknown ks us info)
-(define (apply-pp
+(define (apply-algorithm
     r0 nwires mconstraints
     input-set output-set target-set
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition
-    arg-prop arg-timeout arg-smt
+    arg-selector arg-prop arg-timeout arg-smt
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
     )
@@ -330,6 +276,7 @@
     (set! :alt-defs alt-defs)
     (set! :alt-cnsts alt-cnsts)
 
+    (set! :arg-selector arg-selector)
     (set! :arg-prop arg-prop)
     (set! :arg-timeout arg-timeout)
     (set! :arg-smt arg-smt)
@@ -350,7 +297,7 @@
 
     ; keep track of index of xlist (not alt-xlist since that's incomplete)
     (define known-set (list->set (filter
-        (lambda (x) (! (null? x)))
+        (lambda (x) (not (null? x)))
         (for/list ([i (range :nwires)])
             (if (utils:contains? :alt-xlist (list-ref :xlist i))
                 i
@@ -359,7 +306,7 @@
         )
     )))
     (define unknown-set (list->set (filter
-        (lambda (x) (! (null? x)))
+        (lambda (x) (not (null? x)))
         (for/list ([i (range :nwires)])
             (if (utils:contains? :alt-xlist (list-ref :xlist i))
                 null
@@ -377,11 +324,8 @@
     (printf "# refined unknown-set: ~a\n" unknown-set)
 
     ; ==== branch out: skip optimization phase 0 and apply expand & normalize ====
-    (define tmp-nrmcnsts (:normalize-r1cs (:expand-r1cs :cnsts)))
-    ; generate rcdmap requires no optimization to exclude ror and rand
-    ; rcdmap requires normalized constraints to get best results
-    (define rcdmap (get-rcdmap tmp-nrmcnsts #t))
-    ; (for ([key (hash-keys rcdmap)]) (printf "~a => ~a\n" key (hash-ref rcdmap key)))
+    ; computing rcdmap need no ab0 lemma from optimization phase 0
+    (set! :sdmcnsts (:normalize-r1cs (:expand-r1cs :cnsts)))
 
     ; ==== first apply optimization phase 0 ====
     (set! :p0cnsts (:optimize-r1cs-p0 :cnsts))
@@ -395,9 +339,11 @@
     (set! :nrmcnsts (:normalize-r1cs :expcnsts))
     (set! :alt-nrmcnsts (:normalize-r1cs :alt-expcnsts))
 
-    ; initialization of state: weights are all set to 0
-    (selector:signal-weights-reset!)
-    (for ([key (range :nwires)]) (selector:signal-weights-set! key 0))
+    ; initialize selector
+    (set! apply-selector (selector:apply-selector arg-selector))
+    (set! selector-feedback (selector:selector-feedback arg-selector))
+    (set! selector-init (selector:selector-init arg-selector))
+    (selector-init :nwires)
 
     ; ==== then apply optimization phase 1 ====
     (set! :p1cnsts (:optimize-r1cs-p1 :nrmcnsts #t)) ; include p defs
@@ -438,7 +384,7 @@
     ))
 
     ; invoke the algorithm iteration
-    (define-values (ret0 rks rus info) (pp-iteration rcdmap known-set unknown-set))
+    (define-values (ret0 rks rus info) (dpvl-iterate known-set unknown-set))
 
     ; return
     (values ret0 rks rus info)
