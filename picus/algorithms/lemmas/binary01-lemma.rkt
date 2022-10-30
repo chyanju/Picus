@@ -29,6 +29,7 @@
                 [(equal? 0 (set-count (vector-ref range-vec sid)))
                     (tokamak:exit "range-vec has 0 candidate values, got ~a for signal ~a" (vector-ref range-vec sid) sid)
                 ]
+                ; (fixme) is this valid?
                 [(equal? 1 (set-count (vector-ref range-vec sid)))
                     ; good, this is unique
                     (set! new-ks (set-add new-ks sid))

@@ -9,6 +9,7 @@
     ; lemmas
     (prefix-in l0: "./lemmas/linear-lemma.rkt")
     (prefix-in l1: "./lemmas/binary01-lemma.rkt")
+    (prefix-in l2: "./lemmas/basis2-lemma.rkt")
 )
 (provide (rename-out
     [apply-algorithm apply-algorithm]
@@ -177,10 +178,11 @@
 )
 
 ; (define tmp-inspect (list 512 513 514 515 516 517 518 519 384 385 386 387 388 389 390 391 392 393 394 395 396 397 398 399 400 401 402 403 404 405 406 407 408 409 410 411 412 413 414 415 416 417 418 419 420 421 422 423 424 425 426 427 428 429 430 431 432 433 434 435 436 437 438 439 440 441 442 443 444 445 446 447 448 449 450 451 452 453 454 455 456 457 458 459 460 461 462 463 464 465 466 467 468 469 470 471 472 473 474 475 476 477 478 479 480 481 482 483 484 485 486 487 488 489 490 491 492 493 494 495 496 497 498 499 500 501 502 503 504 505 506 507 508 509 510 511))
+(define tmp-inspect (list 1024 1025 1026 1027 1028 1029 1030 1031 896 897 898 899 900 901 902 903 904 905 906 907 908 909 910 911 912 913 914 915 916 917 918 919 920 921 922 923 924 925 926 927 928 929 930 931 932 933 934 935 936 937 938 939 940 941 942 943 944 945 946 947 948 949 950 951 952 953 954 955 956 957 958 959 960 961 962 963 964 965 966 967 968 969 970 971 972 973 974 975 976 977 978 979 980 981 982 983 984 985 986 987 988 989 990 991 992 993 994 995 996 997 998 999 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023))
 
 ; recursively apply all lemmas until fixed point
 (define (dpvl-propagate ks us)
-    ; (printf "range-vec[inspect]: ~a\n" (for/list ([i tmp-inspect]) (vector-ref :range-vec i)))
+    (printf "range-vec[inspect]: ~a\n" (for/list ([i tmp-inspect]) (vector-ref :range-vec i)))
 
     (define tmp-ks (list->set (set->list ks)))
     (define tmp-us (list->set (set->list us)))
@@ -196,6 +198,9 @@
 
     ; apply lemma 1
     (set!-values (tmp-ks tmp-us) (l1:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
+
+    ; apply lemma 2
+    (set!-values (tmp-ks tmp-us) (l2:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
 
     ; return
     (if (= (set-count ks) (set-count tmp-ks))
