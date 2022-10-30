@@ -26,7 +26,12 @@
          )
             ; rewrite
             (r1cs:ror
-                (for/list ([v vs]) (r1cs:req (r1cs:rint 0) v))
+                (for/list ([v vs])
+                    (r1cs:req
+                        (r1cs:rint 0)
+                        (r1cs:rmod v (r1cs:rint config:p))
+                    )
+                )
             )
         ]
 
@@ -36,7 +41,12 @@
          )
             ; rewrite
             (r1cs:ror
-                (for/list ([v vs]) (r1cs:req (r1cs:rint 0) v))
+                (for/list ([v vs])
+                    (r1cs:req
+                        (r1cs:rint 0)
+                        (r1cs:rmod v (r1cs:rint config:p))
+                    )
+                )
             )
         ]
 

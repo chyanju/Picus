@@ -7,6 +7,7 @@
 ;   - rewrite *x as x
 ;   - rewrite +x as x
 ;   - replace x0 with 1
+;   - remove mod on variable and int (brought by ab0 lemma)
 ;   - partial evaluation: compute concrete results, e.g., 0*0 => 0
 (require
     (prefix-in tokamak: "../tokamak.rkt")
@@ -134,7 +135,16 @@
                 [else (r1cs:rmul new-vs)]
             )
         ]
-        [(r1cs:rmod v mod) (r1cs:rmod (optimize-r1cs v) (optimize-r1cs mod))]
+        [(r1cs:rmod v mod)
+            (define ov (optimize-r1cs v))
+            (define om (optimize-r1cs mod))
+            (if (or (r1cs:rvar? ov) (r1cs:rint? ov))
+                ; no need for mod
+                ov
+                ; still need mod
+                (r1cs:rmod ov om)
+            )
+        ]
 
         [_ (tokamak:exit "not supported: ~a" arg-r1cs)]
     )

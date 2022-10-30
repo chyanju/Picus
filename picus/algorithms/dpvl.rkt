@@ -8,6 +8,7 @@
     (prefix-in selector: "./selector.rkt")
     ; lemmas
     (prefix-in l0: "./lemmas/linear-lemma.rkt")
+    (prefix-in l1: "./lemmas/binary01-lemma.rkt")
 )
 (provide (rename-out
     [apply-algorithm apply-algorithm]
@@ -72,6 +73,12 @@
 
 ; problem intermediate results
 (define :partial-cmds null)
+
+; more specific range for all signals, potential values are (from abstract to concrete):
+;   - 'bottom: it's {0, ..., p-1} (everything)
+;   - a set of potential values
+; (note) this tracks the range, not the uniqueness status, they are different
+(define :range-vec null)
 
 ; main solving procedure
 ; returns:
@@ -169,8 +176,12 @@
     )
 )
 
+; (define tmp-inspect (list 512 513 514 515 516 517 518 519 384 385 386 387 388 389 390 391 392 393 394 395 396 397 398 399 400 401 402 403 404 405 406 407 408 409 410 411 412 413 414 415 416 417 418 419 420 421 422 423 424 425 426 427 428 429 430 431 432 433 434 435 436 437 438 439 440 441 442 443 444 445 446 447 448 449 450 451 452 453 454 455 456 457 458 459 460 461 462 463 464 465 466 467 468 469 470 471 472 473 474 475 476 477 478 479 480 481 482 483 484 485 486 487 488 489 490 491 492 493 494 495 496 497 498 499 500 501 502 503 504 505 506 507 508 509 510 511))
+
 ; recursively apply all lemmas until fixed point
 (define (dpvl-propagate ks us)
+    ; (printf "range-vec[inspect]: ~a\n" (for/list ([i tmp-inspect]) (vector-ref :range-vec i)))
+
     (define tmp-ks (list->set (set->list ks)))
     (define tmp-us (list->set (set->list us)))
 
@@ -182,6 +193,9 @@
 
     ; apply lemma 0
     (set!-values (tmp-ks tmp-us) (l0:apply-lemma rcdmap tmp-ks tmp-us))
+
+    ; apply lemma 1
+    (set!-values (tmp-ks tmp-us) (l1:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
 
     ; return
     (if (= (set-count ks) (set-count tmp-ks))
@@ -382,6 +396,11 @@
             )))
         )
     ))
+
+    ; initialize range set to all values
+    (set! :range-vec (build-vector :nwires (lambda (x) 'bottom)))
+    ; x0 is always 1
+    (vector-set! :range-vec 0 (list->set (list 1)))
 
     ; invoke the algorithm iteration
     (define-values (ret0 rks rus info) (dpvl-iterate known-set unknown-set))
