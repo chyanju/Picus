@@ -15,11 +15,11 @@
 ; recursively apply linear lemma
 (define (apply-lemma ks us p1cnsts range-vec)
     (printf "  # propagation (basis2 lemma): ")
-    (define new-ks (list->set (set->list ks)))
-    (define new-us (list->set (set->list us)))
+    (define tmp-ks (list->set (set->list ks)))
+    (define tmp-us (list->set (set->list us)))
 
-    (set!-values (new-ks new-us) (process ks us p1cnsts range-vec))
-    (let ([s0 (set-subtract new-ks ks)])
+    (set!-values (tmp-ks tmp-us) (process tmp-ks tmp-us p1cnsts range-vec))
+    (let ([s0 (set-subtract tmp-ks ks)])
         (if (set-empty? s0)
             (printf "none.\n")
             (printf "~a added.\n" s0)
@@ -27,7 +27,7 @@
     )
 
     ; apply once is enough, return
-    (values new-ks new-us)
+    (values tmp-ks tmp-us)
 )
 
 (define basis2-seqs (for/set ([i (range 270)])
@@ -63,8 +63,8 @@
 )
 
 (define (process ks us arg-r1cs range-vec)
-    (define new-ks (list->set (set->list ks)))
-    (define new-us (list->set (set->list us)))
+    (define tmp-ks (list->set (set->list ks)))
+    (define tmp-us (list->set (set->list us)))
     (for ([obj (r1cs:rcmds-vs arg-r1cs)])
         (match obj
 
@@ -84,8 +84,15 @@
                     _
                 )
              ))
+                ; (fixme) vs could be matched to x?? since it's not typed in the pattern
+                ;         need a procedure to adjust this
                 ; (printf "matched.\n")
-                (set!-values (new-ks new-us) (update ks us x0 vs xs range-vec))
+                ; (when (equal? x0 "x2059")
+                ;     (printf "x2059 matched.\n")
+                    ; (printf "vs: ~a\n" vs)
+                    ; (printf "xs: ~a\n" xs)
+                ; )
+                (set!-values (tmp-ks tmp-us) (update tmp-ks tmp-us x0 vs xs range-vec))
             ]
             ; flip
             [(r1cs:rassert (r1cs:req
@@ -98,7 +105,7 @@
                 )
                 (r1cs:rvar "zero")
              ))
-                (set!-values (new-ks new-us) (update ks us x0 vs xs range-vec))
+                (set!-values (tmp-ks tmp-us) (update tmp-ks tmp-us x0 vs xs range-vec))
             ]
 
             ; ==============================
@@ -111,7 +118,7 @@
                     (r1cs:rmul (list-no-order vs (r1cs:rvar xs))) ...
                 ))
              ))
-                (set!-values (new-ks new-us) (update ks us x0 vs xs range-vec))
+                (set!-values (tmp-ks tmp-us) (update tmp-ks tmp-us x0 vs xs range-vec))
             ]
             ; flip
             [(r1cs:rassert (r1cs:req
@@ -121,19 +128,19 @@
                 ))
                 (r1cs:rvar "zero")
              ))
-                (set!-values (new-ks new-us) (update ks us x0 vs xs range-vec))
+                (set!-values (tmp-ks tmp-us) (update tmp-ks tmp-us x0 vs xs range-vec))
             ]
 
             ; otherwise, do not rewrite
             [_ (void)]
         )
     )
-    (values new-ks new-us)
+    (values tmp-ks tmp-us)
 )
 
 (define (update ks us x0 vs xs range-vec)
-    (define new-ks (list->set (set->list ks)))
-    (define new-us (list->set (set->list us)))
+    (define tmp-ks (list->set (set->list ks)))
+    (define tmp-us (list->set (set->list us)))
     ; extract coefficients
     ; need to remap by calling p-v since they are all in form of pv
     ; when moved to the other side they become v
@@ -162,6 +169,10 @@
         [(= (length coelist) (set-count coeset))
             ; (printf "hi: ~a\n" (set-member? basis2-seqs coeset))
             ; (printf "coeset2 ~a\n" coeset2)
+            ; (when (equal? x0 "x2059")
+            ;     (printf "coeset2: ~a\n" coeset2)
+            ;     (printf "siglist: ~a\n" siglist)
+            ; )
             (if (or (set-member? basis2-seqs coeset) (set-member? basis2-seqs coeset2))
                 ; yes it's a basis sequence
                 ; check for signal ranges
@@ -171,8 +182,13 @@
                     (if (set-member? ks (extract-signal-id x0))
                         ; yes it's unique, then add all basis signals to known set
                         (begin
-                            (set! new-ks (set-union new-ks (list->set siglist)))
-                            (set! new-us (set-remove new-us (list->set siglist)))
+                            (set! tmp-ks (set-union tmp-ks (list->set siglist)))
+                            (set! tmp-us (set-remove tmp-us (list->set siglist)))
+                            ; (when (equal? x0 "x2059")
+                            ;     (printf "succeed.\n")
+                            ;     (printf "old ks: ~a\n" ks)
+                            ;     (printf "tmp ks: ~a\n" tmp-ks)
+                            ; )
                         )
                         ; no
                         (void)
@@ -190,5 +206,5 @@
             (void)
         ]
     )
-    (values new-ks new-us)
+    (values tmp-ks tmp-us)
 )

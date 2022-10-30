@@ -18,8 +18,9 @@
 (define interpret-r1cs (solver:interpret-r1cs arg-solver))
 
 ; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/BabyDbl@babyjub.r1cs"))
-(define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/CompConstant@compconstant.r1cs"))
+; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/CompConstant@compconstant.r1cs"))
 ; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Sign@sign.r1cs"))
+(define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Point2Bits_Strict@pointbits.r1cs"))
 (define-values (xlist options defs cnsts) (parse-r1cs r0 null))
 
 ; ==== first apply optimization phase 0 ====
