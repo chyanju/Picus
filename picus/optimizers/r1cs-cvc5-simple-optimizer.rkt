@@ -85,7 +85,7 @@
             ; if there's only one element, extract content directly
             (if (= 1 (length new-vs))
                 (car new-vs)
-                (r1cs:ror (for/list ([v vs]) v))
+                (r1cs:ror (for/list ([v new-vs]) v))
             )
         ]
 

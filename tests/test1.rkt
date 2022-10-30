@@ -2,30 +2,36 @@
 (require
   (prefix-in r1cs: "../picus/r1cs/r1cs-grammar.rkt")
   (prefix-in solver: "../picus/solver.rkt")
-  (prefix-in pp: "../picus/algorithms/pp.rkt")
+  (prefix-in simple: "../picus/optimizers/r1cs-z3-simple-optimizer.rkt")
 )
 
-(define parse-r1cs (solver:parse-r1cs "z3"))
-(define normalize (solver:normalize "z3"))
+(define range-vec (build-vector 10000 (lambda (x) 'bottom)))
+(define comment-vec (build-vector 1000 (lambda (x) null)))
+(define arg-solver "z3")
 
-(define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/BabyDbl@babyjub.r1cs"))
+(define solve (solver:solve arg-solver))
+(define parse-r1cs (solver:parse-r1cs arg-solver))
+(define expand-r1cs (solver:expand-r1cs arg-solver))
+(define normalize-r1cs (solver:normalize-r1cs arg-solver))
+(define optimize-r1cs-p0 (solver:optimize-r1cs-p0 arg-solver))
+(define optimize-r1cs-p1 (solver:optimize-r1cs-p1 arg-solver))
+(define interpret-r1cs (solver:interpret-r1cs arg-solver))
+
+; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/BabyDbl@babyjub.r1cs"))
+; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/CompConstant@compconstant.r1cs"))
+(define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Sign@sign.r1cs"))
 (define-values (xlist options defs cnsts) (parse-r1cs r0 null))
-(define ocnsts (normalize cnsts))
 
-(define vars (r1cs:get-assert-variables ocnsts))
-(define vars-linear (r1cs:get-assert-variables/linear ocnsts))
-(define vars-nonlinear (r1cs:get-assert-variables/nonlinear ocnsts))
-(printf "linear vars: ~a\n" vars-linear)
-(printf "nonlinear vars: ~a\n" vars-nonlinear)
+; ==== first apply optimization phase 0 ====
+(define p0cnsts (optimize-r1cs-p0 cnsts))
 
-(define n (length (r1cs:rcmds-vs ocnsts)))
-(for ([i (range n)]) (printf "~a\n" (r1cs:rcmds->string ocnsts i)))
+; ==== then expand the constraints ====
+(define expcnsts (expand-r1cs p0cnsts))
 
-(printf "====\n")
+; ==== then normalize the constraints ====
+(define nrmcnsts (normalize-r1cs expcnsts))
 
-(define s2cmap (pp:get-s2cmap ocnsts #t))
-(define c2smap (pp:get-c2smap ocnsts #t))
-(define nb-cnsts (pp:get-nb-cnsts ocnsts s2cmap c2smap 1 2))
+; ==== then apply optimization phase 1 ====
+(define p1cnsts (optimize-r1cs-p1 nrmcnsts #t)) ; include p defs
 
-(define n1 (length (r1cs:rcmds-vs nb-cnsts)))
-(for ([i (range n1)]) (printf "~a\n" (r1cs:rcmds->string nb-cnsts i)))
+(simple:optimize-r1cs (r1cs:rcmds-ref nrmcnsts 500))
