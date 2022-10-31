@@ -158,12 +158,18 @@
             ]
             [(rint v) (list )]
             [(rvar v)
-                (if arg-indexonly
-                    ; extracted variable index
-                    ; (fixme) we here assume prefix is either "x" or "y"
-                    (list (string->number (substring v 1)))
-                    ; original string variable
-                    (list v)
+                ; (fixme) we here assume prefix is either "x" or "y"
+                (if (or (string-prefix? v "x") (string-prefix? v "y"))
+                    ; starts with x or y, good
+                    (if arg-indexonly
+                        ; extracted variable index
+                        (list (string->number (substring v 1)))
+                        ; original string variable
+                        (list v)
+                    )
+                    ; not starting with x or y, could be ps?, could be zero/one
+                    ; don't include
+                    (list )
                 )
             ]
             [(rtype v) (list )]
