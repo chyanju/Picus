@@ -10,6 +10,7 @@
     (prefix-in l0: "./lemmas/linear-lemma.rkt")
     (prefix-in l1: "./lemmas/binary01-lemma.rkt")
     (prefix-in l2: "./lemmas/basis2-lemma.rkt")
+    (prefix-in ln0: "./lemmas/baby-lemma.rkt")
 )
 (provide (rename-out
     [apply-algorithm apply-algorithm]
@@ -203,6 +204,9 @@
 
     ; apply lemma 2
     (set!-values (tmp-ks tmp-us) (l2:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
+
+    ; apply lemma ln0
+    (set!-values (tmp-ks tmp-us) (ln0:apply-lemma tmp-ks tmp-us :p1cnsts))
 
     ; return
     (if (= (set-count ks) (set-count tmp-ks))
