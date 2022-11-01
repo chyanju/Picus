@@ -158,3 +158,5 @@
     (printf "# weak uniqueness: ~a.\n" res)
     (printf "# strong uniqueness: ~a.\n" res)
 )
+(when (equal? 'unsafe res)
+    (printf "# counter-example:\n  ~a.\n" res-info))
