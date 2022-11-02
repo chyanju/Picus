@@ -32,7 +32,7 @@
             (printf "~a added.\n" s0)
         )
     )
-
+    (printf "# [debug] tmp-us: ~a\n" tmp-us)
     ; apply once is enough, return
     (values tmp-ks tmp-us)
 )
@@ -67,7 +67,7 @@
                                             (extract-signal-id (vector-ref mvec 1))
                                             (extract-signal-id (vector-ref mvec 2))
                                         ))))
-                                        (set! tmp-us (set-remove tmp-us (list->set (list
+                                        (set! tmp-us (set-subtract tmp-us (list->set (list
                                             (extract-signal-id (vector-ref mvec 1))
                                             (extract-signal-id (vector-ref mvec 2))
                                         ))))

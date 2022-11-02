@@ -234,6 +234,7 @@
         ; don't do propagation
         (values ks us)
     ))
+
     (cond
         [(set-empty? (set-intersect :target-set new-us))
             ; no target signal is unknown, no need to solve any more, return
