@@ -32,8 +32,19 @@
 ; ==== then apply optimization phase 1 ====
 (define p1cnsts (optimize-r1cs-p1 nrmcnsts #t)) ; include p defs
 
-(define cg0 (cg:compute-constraint-graph r0 p1cnsts path-sym))
+; (define cg0 (cg:compute-constraint-graph r0 p1cnsts path-sym))
+(define cg0 (cg:compute-constraint-graph r0 cnsts path-sym))
+; (define g0 (cg:cgraph-g cg0))
+; (remove-vertex! g0 0)
+
+; (printf "~a\n" (graphviz g0))
 ; (define e2c0 (cg:cgraph-e2c cg0))
 
 ; (define sg0 (cg:get-scoped-subgraph cg0 (set "main" "doubler") (set)))
-(define sg1 (cg:get-scoped-subgraph cg0 (set "main" "doubler") (set 0 1 2 3 4 5 6 7 8 9)))
+; (define sg1 (cg:get-scoped-subgraph cg0 (set "main" "doubler") (set 0 1 2 3 4 5 6 7 8 9)))
+
+;(define sg0 (cg:get-scoped-subgraph cg0 (set "main" "doubler") (set 0 1 2 3 4 5 6 7 8 9) #:touching? #t))
+
+(define sg0 (cg:get-scoped-subgraph cg0 (set "main" "adder") (set 8)))
+
+(printf "~a\n" (graphviz (cg:cgraph-g sg0)))

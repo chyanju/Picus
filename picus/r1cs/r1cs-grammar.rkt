@@ -118,7 +118,7 @@
 
 ; return a set of all variables occuring in a (partial) r1cs ast
 ;   - arg-indexonly: whether to extract the indices instead of keeping the full variable name
-; (note) you should normalize the constraints before calling this method
+; (note) you should (had better) normalize the constraints before calling this method
 ;        to get the most precise results; e.g., 1*x would not otherwise be considered
 ;        in form of x0*x
 (define (get-assert-variables obj [arg-indexonly #f])

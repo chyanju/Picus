@@ -10,7 +10,7 @@
     (prefix-in l0: "./lemmas/linear-lemma.rkt")
     (prefix-in l1: "./lemmas/binary01-lemma.rkt")
     (prefix-in l2: "./lemmas/basis2-lemma.rkt")
-    (prefix-in ln0: "./lemmas/baby-lemma.rkt")
+    ; (prefix-in ln0: "./lemmas/baby-lemma.rkt")
 )
 (provide (rename-out
     [apply-algorithm apply-algorithm]
@@ -73,6 +73,10 @@
 (define :normalize-r1cs null)
 (define :optimize-r1cs-p1 null)
 
+; optional arguments
+(define :extcnsts null)
+(define :skip-query? null)
+
 ; problem intermediate results
 (define :partial-cmds null)
 
@@ -106,10 +110,18 @@
             (r1cs:rcmt "======== query block ========")
             (r1cs:rcmt "=============================")
         ))
-        (r1cs:rcmds (list
-            (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref :xlist sid)) (r1cs:rvar (list-ref :alt-xlist sid))))
-            (r1cs:rsolve )
-        ))
+        (if :skip-query?
+            ; skip query
+            (r1cs:rcmds (list
+                (r1cs:rcmt "signal query is skipped")
+                (r1cs:rsolve )
+            ))
+            ; do not skip query
+            (r1cs:rcmds (list
+                (r1cs:rassert (r1cs:rneq (r1cs:rvar (list-ref :xlist sid)) (r1cs:rvar (list-ref :alt-xlist sid))))
+                (r1cs:rsolve )
+            ))
+        )
     ))
     ; perform optimization
     (define final-str (string-join (:interpret-r1cs
@@ -124,13 +136,18 @@
             'verified
         ]
         [(equal? 'sat (car res))
-            ; (important) here if the current signal is not a target, it's ok to see a sat
-            (if (set-member? :target-set sid)
-                ; the current signal is a target, now there's a counter-example, unsafe
-                ; in pp, this counter-example is valid
-                (begin (printf "sat.\n") 'sat)
-                ; not a target, fine, just skip
-                (begin (printf "sat but not a target.\n") 'skip)
+            (if :skip-query?
+                ; skipping query, whatever sat is good
+                (begin (printf "sat (no query).\n") 'sat)
+                ; not skipping query, need to tell variable
+                ; (important) here if the current signal is not a target, it's ok to see a sat
+                (if (set-member? :target-set sid)
+                    ; the current signal is a target, now there's a counter-example, unsafe
+                    ; in pp, this counter-example is valid
+                    (begin (printf "sat.\n") 'sat)
+                    ; not a target, fine, just skip
+                    (begin (printf "sat but not a target.\n") 'skip)
+                )
             )
         ]
         [else
@@ -205,8 +222,8 @@
     ; apply lemma 2
     (set!-values (tmp-ks tmp-us) (l2:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
 
-    ; apply lemma ln0
-    (set!-values (tmp-ks tmp-us) (ln0:apply-lemma tmp-ks tmp-us :p1cnsts))
+    ; ; apply lemma ln0
+    ; (set!-values (tmp-ks tmp-us) (ln0:apply-lemma tmp-ks tmp-us :p1cnsts))
 
     ; return
     (if (= (set-count ks) (set-count tmp-ks))
@@ -279,9 +296,14 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition
-    arg-selector arg-prop arg-timeout arg-smt
+    arg-selector arg-prop arg-timeout arg-smt path-sym
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
+    ; extra constraints, usually from cex module about partial model
+    #:extcnsts [extcnsts (r1cs:rcmds (list ))]
+    ; if true, then the query block will not be issued
+    ; this is required for the cex module to finalize a non-relevant part, which only requires a trivial model
+    #:skip-query? [skip-query? #f]
     )
 
     ; first load in all global variables
@@ -319,6 +341,9 @@
     (set! :normalize-r1cs normalize-r1cs)
     (set! :optimize-r1cs-p1 optimize-r1cs-p1)
 
+    ; optional arguments
+    (set! :extcnsts extcnsts)
+    (set! :skip-query? skip-query?)
 
     ; keep track of index of xlist (not alt-xlist since that's incomplete)
     (define known-set (list->set (filter
@@ -406,6 +431,12 @@
                 )
             )))
         )
+        (r1cs:rcmds (list
+            (r1cs:rcmt "========================================")
+            (r1cs:rcmt "======== extra constraint block ========")
+            (r1cs:rcmt "========================================")
+        ))
+        extcnsts
     ))
 
     ; initialize range set to all values

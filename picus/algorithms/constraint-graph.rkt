@@ -64,7 +64,9 @@
 )
 
 ; requires p1cnsts, no constraint id change after that
-(define (compute-constraint-graph r0 arg-r1cs path-sym)
+; arguments:
+;   - detach-x0?: whether or not to remove edges connected to x0 (x0 is always a constant 1)
+(define (compute-constraint-graph r0 arg-r1cs path-sym #:detach-x0? [detach-x0? #t])
     (define input-list (r1cs:r1cs-inputs r0))
     (define output-list (r1cs:r1cs-outputs r0))
 
@@ -91,12 +93,17 @@
         (for ([b (combinations (set->list asvs) 2)])
             (define node0 (list-ref b 0))
             (define node1 (list-ref b 1))
-            (add-edge! g node0 node1) ; good enough, will automatically convert to bi-direct.
-            ; set label to constraint id, need to set for both directions
-            (define ek (set node0 node1)) ; key
-            (when (not (hash-has-key? e2c-map ek))
-                (hash-set! e2c-map ek (set )))
-            (hash-set! e2c-map ek (set-add (hash-ref e2c-map ek) i))
+            (when (or
+                (and detach-x0? (not (= 0 node0)) (not (= 0 node1)))
+                (not detach-x0?)
+            )
+                (add-edge! g node0 node1) ; good enough, will automatically convert to bi-direct.
+                ; set label to constraint id, need to set for both directions
+                (define ek (set node0 node1)) ; key
+                (when (not (hash-has-key? e2c-map ek))
+                    (hash-set! e2c-map ek (set )))
+                (hash-set! e2c-map ek (set-add (hash-ref e2c-map ek) i))
+            )
         )
     )
 
@@ -104,14 +111,10 @@
     (cgraph g e2c-map order-vec scope-vec os-vec)
 )
 
-; arguments:
-;   - arg-connections: a set of extra signals that *could* be included
-;                      this set is usually global inputs/outputs, connecting nodes, etc
-;                      (note) only those connected to the target scope will be there, others removed
-;                      this just makes some suggestions
-; returns:
-;   - a new copy of subgraph (still wrapped in cgraph)
-;   - (fixme) only changes the graph, but other components remain the same
+; this extracts a subgraph with given scope
+; (fixme) the subgraph still has the full node info components, but with graph component cut
+; argumnts:
+;   - arg-connections: a set that includes more nodes (usually connecting nodes)
 (define (get-scoped-subgraph arg-graph arg-scope arg-connections)
     (define g (graph-copy (cgraph-g arg-graph))) ; make a copy
     (define scope-vec (cgraph-s2s arg-graph))
@@ -121,16 +124,13 @@
         (range (vector-length scope-vec))
     )))
     (define all-sids (set-union scope-sids arg-connections))
+
     ; then delete the nodes that are out of given scope
     (for ([node (get-vertices g)])
         (when (not (set-member? all-sids node))
             (remove-vertex! g node))
     )
-    ; then, remove those nodes without any neighbors
-    (for ([node (get-vertices g)])
-        (when (empty? (get-neighbors g node))
-            (remove-vertex! g node))
-    )
+
     ; return
     (cgraph
         g
@@ -139,4 +139,33 @@
         (cgraph-s2s arg-graph)
         (cgraph-o2s arg-graph)
     )
+)
+
+; returns:
+;   - set of pairs of signals (cons [signal inside scope] [signal outside scope])
+(define (get-connecting-pairs arg-graph arg-scope)
+    (define g0 (cgraph-g arg-graph))
+    (define scope-vec (cgraph-s2s arg-graph))
+    (define es (get-edges g0))
+    (define res (set ))
+    (for ([e es])
+        (define node0 (list-ref e 0))
+        (define node1 (list-ref e 1))
+        ; node0 is in scope
+        (when (and
+            (equal? arg-scope (vector-ref scope-vec node0))
+            (not (equal? arg-scope (vector-ref scope-vec node1)))
+        )
+            (set! res (set-add res (cons node0 node1)))
+        )
+        ; node1 is in scope
+        (when (and
+            (equal? arg-scope (vector-ref scope-vec node1))
+            (not (equal? arg-scope (vector-ref scope-vec node0)))
+        )
+            (set! res (set-add res (cons node1 node0)))
+        )
+    )
+    ; return
+    res
 )

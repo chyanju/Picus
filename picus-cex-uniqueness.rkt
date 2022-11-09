@@ -6,7 +6,8 @@
     (prefix-in config: "./picus/config.rkt")
     (prefix-in solver: "./picus/solver.rkt")
     (prefix-in r1cs: "./picus/r1cs/r1cs-grammar.rkt")
-    (prefix-in dpvl: "./picus/algorithms/dpvl.rkt")
+    ; (prefix-in dpvl: "./picus/algorithms/dpvl.rkt")
+    (prefix-in cex: "./picus/algorithms/cex.rkt")
     (prefix-in pre: "./picus/precondition.rkt")
 )
 
@@ -144,7 +145,7 @@
 ;    | (downstream queries)
 ;   ...
 (define path-sym (string-replace arg-r1cs ".r1cs" ".sym"))
-(define-values (res res-ks res-us res-info) (dpvl:apply-algorithm
+(define-values (res res-ks res-us res-info) (cex:apply-algorithm
     r0 nwires mconstraints
     input-set output-set target-set
     xlist opts defs cnsts
