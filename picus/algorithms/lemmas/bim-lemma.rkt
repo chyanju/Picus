@@ -113,6 +113,21 @@
             )
         ]
 
+        ; ==================================
+        ; ==== finite field version ====
+        ; ==================================
+        [(r1cs:rassert (r1cs:req
+            (r1cs:rvar "zero")
+            (r1cs:radd (list vs ...))
+        ))
+            ; top level match, go to match smaller ones
+            (define res (for/list ([v vs]) (extract-pairs v)))
+            (if (set-member? (list->set res) #f)
+                #f
+                res
+            )
+        ]
+
         ; otherwise, do not rewrite
         [_ #f]
     )
