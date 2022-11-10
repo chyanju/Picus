@@ -75,7 +75,7 @@
     ; (printf "# [debug] row: ~a, col: ~a\n" (vector-length eqmaps) (hash-count smap))
     ; (printf "# [debug] smaps is ~a\n" smaps)
     (cond
-        [(equal? nrow ncol)
+        [(and (equal? nrow ncol) (> nrow 0))
             ; construct A matrix
             (define Amtx (build-matrix nrow ncol (lambda (r c)
                 (let ([em0 (vector-ref eqmaps r)][sig0 (list-ref slist c)])
