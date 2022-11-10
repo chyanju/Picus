@@ -80,6 +80,10 @@
 ; return a list of: x, y0, y1, c
 (define (match-full arg-obj)
     (match arg-obj
+
+        ; ==================================
+        ; ==== non finite field version ====
+        ; ==================================
         [(r1cs:rcmds (list
 
             ; eq0
@@ -99,6 +103,40 @@
             (r1cs:rassert (r1cs:req
                 (r1cs:rvar "zero")
                 (r1cs:rmod (r1cs:radd (list (r1cs:rvar y0b) (r1cs:rvar y1b) (r1cs:rmul (list (r1cs:rvar "ps1") (r1cs:rvar c))))) (r1cs:rvar "p"))
+            ))
+
+        ))
+            ; pattern matched, check for value
+            (if (and (equal? xa xb) (equal? y0a y0b) (equal? y1a y1b))
+                ; valu matched
+                (list xa y0a y1a c)
+                ; not matched
+                null
+            )
+        ]
+
+        ; ==============================
+        ; ==== finite field version ====
+        ; ==============================
+        [(r1cs:rcmds (list
+
+            ; eq0
+            (r1cs:rassert (r1cs:ror (list
+                (r1cs:req (r1cs:rvar "zero") (r1cs:rvar xa)) ; (x-0)
+                (r1cs:req (r1cs:rvar "zero") (r1cs:rvar y0a)) ; y0
+            )))
+
+            ; eq1
+            (r1cs:rassert (r1cs:ror (list
+                (r1cs:req (r1cs:rvar "zero") (r1cs:radd (list (r1cs:rvar "ps1") (r1cs:rvar xb)))) ; (x-1)
+                (r1cs:req (r1cs:rvar "zero") (r1cs:rvar y1a)) ; y1
+            )))
+
+            ; eq2
+            ; y0 + y1 - c = 0, which is y0 + y1 = c
+            (r1cs:rassert (r1cs:req
+                (r1cs:rvar "zero")
+                (r1cs:radd (list (r1cs:rvar y0b) (r1cs:rvar y1b) (r1cs:rmul (list (r1cs:rvar "ps1") (r1cs:rvar c)))))
             ))
 
         ))
