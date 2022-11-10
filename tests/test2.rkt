@@ -17,7 +17,8 @@
 (define optimize-r1cs-p1 (solver:optimize-r1cs-p1 arg-solver))
 (define interpret-r1cs (solver:interpret-r1cs arg-solver))
 
-(define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Multiplexer@multiplexer.r1cs"))
+(define r0 (r1cs:read-r1cs "../benchmarks/circom-ecdsa-d87eb70/bigmult_22.r1cs"))
+; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/Multiplexer@multiplexer.r1cs"))
 ; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/BabyAdd@babyjub.r1cs"))
 ; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/BabyDbl@babyjub.r1cs"))
 ; (define r0 (r1cs:read-r1cs "../benchmarks/circomlib-cff5ab6/CompConstant@compconstant.r1cs"))

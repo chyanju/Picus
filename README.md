@@ -17,9 +17,13 @@ docker run -it --rm picus:v0 bash
 
 - Racket (8.0+): https://racket-lang.org/
   - Rosette (4.0+): https://github.com/emina/rosette
-    - `raco pkg install rosette`
+    - `raco pkg install --auto rosette`
   - csv-reading: https://www.neilvandyke.org/racket/csv-reading/
-    - `raco pkg install csv-reading`
+    - `raco pkg install --auto csv-reading`
+  - graph-lib: [https://pkgs.racket-lang.org/package/graph-lib](https://pkgs.racket-lang.org/package/graph-lib)
+    - `raco pkg install --auto graph`
+  - math-lib: [https://pkgs.racket-lang.org/package/math-lib](https://pkgs.racket-lang.org/package/math-lib)
+    - `raco pkg install --auto math-lib`
 - Rust: https://www.rust-lang.org/
   - for circom parser
 - Node.js: https://nodejs.org/en/

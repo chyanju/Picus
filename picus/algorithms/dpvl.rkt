@@ -11,6 +11,7 @@
     (prefix-in l1: "./lemmas/binary01-lemma.rkt")
     (prefix-in l2: "./lemmas/basis2-lemma.rkt")
     (prefix-in l3: "./lemmas/aboz-lemma.rkt")
+    (prefix-in l4: "./lemmas/bim-lemma.rkt")
     ; (prefix-in ln0: "./lemmas/baby-lemma.rkt")
 )
 (provide (rename-out
@@ -225,6 +226,9 @@
 
     ; apply lemma 3: all-but-one-zero
     (set!-values (tmp-ks tmp-us) (l3:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
+
+    ; apply lemma 4: big-int-mul
+    (set!-values (tmp-ks tmp-us) (l4:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
 
     ; ; apply lemma ln0
     ; (set!-values (tmp-ks tmp-us) (ln0:apply-lemma tmp-ks tmp-us :p1cnsts))
