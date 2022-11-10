@@ -10,6 +10,7 @@
     (prefix-in l0: "./lemmas/linear-lemma.rkt")
     (prefix-in l1: "./lemmas/binary01-lemma.rkt")
     (prefix-in l2: "./lemmas/basis2-lemma.rkt")
+    (prefix-in l3: "./lemmas/aboz-lemma.rkt")
     ; (prefix-in ln0: "./lemmas/baby-lemma.rkt")
 )
 (provide (rename-out
@@ -213,14 +214,17 @@
     (define rcdmap (l0:compute-rcdmap :sdmcnsts #t))
     ; (for ([key (hash-keys rcdmap)]) (printf "~a => ~a\n" key (hash-ref rcdmap key)))
 
-    ; apply lemma 0
+    ; apply lemma 0: linear lemma
     (set!-values (tmp-ks tmp-us) (l0:apply-lemma rcdmap tmp-ks tmp-us))
 
-    ; apply lemma 1
+    ; apply lemma 1: binary01 lemma
     (set!-values (tmp-ks tmp-us) (l1:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
 
-    ; apply lemma 2
+    ; apply lemma 2: basis2 lemma
     (set!-values (tmp-ks tmp-us) (l2:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
+
+    ; apply lemma 3: all-but-one-zero
+    (set!-values (tmp-ks tmp-us) (l3:apply-lemma tmp-ks tmp-us :p1cnsts :range-vec))
 
     ; ; apply lemma ln0
     ; (set!-values (tmp-ks tmp-us) (ln0:apply-lemma tmp-ks tmp-us :p1cnsts))
