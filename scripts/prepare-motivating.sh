@@ -5,6 +5,7 @@ declare -a arr=(
 # "ValidateDecodingBuggy.circom"
 "VDBuggy.circom"
 "VDFixed.circom"
+"adder.circom"
 )
 
 # for fp in ./benchmarks/circomlib/*.circom
