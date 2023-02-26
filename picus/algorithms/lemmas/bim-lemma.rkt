@@ -16,17 +16,17 @@
 
 ; recursively apply linear lemma
 (define (apply-lemma ks us p1cnsts range-vec)
-    (printf "  # propagation (aboz lemma): ")
+    ; (printf "  # propagation (aboz lemma): ")
     (define tmp-ks (list->set (set->list ks)))
     (define tmp-us (list->set (set->list us)))
 
     (set!-values (tmp-ks tmp-us) (process tmp-ks tmp-us p1cnsts range-vec))
-    (let ([s0 (set-subtract tmp-ks ks)])
-        (if (set-empty? s0)
-            (printf "none.\n")
-            (printf "~a added.\n" s0)
-        )
-    )
+    ; (let ([s0 (set-subtract tmp-ks ks)])
+    ;     (if (set-empty? s0)
+    ;         (printf "none.\n")
+    ;         (printf "~a added.\n" s0)
+    ;     )
+    ; )
 
     ; apply once is enough, return
     (values tmp-ks tmp-us)

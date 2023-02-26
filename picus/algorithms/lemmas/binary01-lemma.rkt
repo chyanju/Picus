@@ -15,7 +15,7 @@
 
 ; recursively apply linear lemma
 (define (apply-lemma ks us p1cnsts range-vec)
-    (printf "  # propagation (binary01 lemma): ")
+    ; (printf "  # propagation (binary01 lemma): ")
     (define new-ks (list->set (set->list ks)))
     (define new-us (list->set (set->list us)))
 
@@ -39,12 +39,12 @@
             )
         )
     )
-    (let ([s0 (set-subtract new-ks ks)])
-        (if (set-empty? s0)
-            (printf "none.\n")
-            (printf "~a added.\n" s0)
-        )
-    )
+    ; (let ([s0 (set-subtract new-ks ks)])
+    ;     (if (set-empty? s0)
+    ;         (printf "none.\n")
+    ;         (printf "~a added.\n" s0)
+    ;     )
+    ; )
     ; apply once is enough, return
     (values new-ks new-us)
 )

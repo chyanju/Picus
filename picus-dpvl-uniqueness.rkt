@@ -57,14 +57,14 @@
         (set! arg-weak #t)
     ]
 )
-(printf "# r1cs file: ~a\n" arg-r1cs)
-(printf "# timeout: ~a\n" arg-timeout)
-(printf "# solver: ~a\n" arg-solver)
-(printf "# selector: ~a\n" arg-selector)
-(printf "# precondition: ~a\n" arg-precondition)
-(printf "# propagation: ~a\n" arg-prop)
-(printf "# smt: ~a\n" arg-smt)
-(printf "# weak: ~a\n" arg-weak)
+; (printf "# r1cs file: ~a\n" arg-r1cs)
+; (printf "# timeout: ~a\n" arg-timeout)
+; (printf "# solver: ~a\n" arg-solver)
+; (printf "# selector: ~a\n" arg-selector)
+; (printf "# precondition: ~a\n" arg-precondition)
+; (printf "# propagation: ~a\n" arg-prop)
+; (printf "# smt: ~a\n" arg-smt)
+; (printf "# weak: ~a\n" arg-weak)
 
 ; =================================================
 ; ======== resolve solver specific methods ========
@@ -84,9 +84,9 @@
 (define r0 (r1cs:read-r1cs arg-r1cs))
 (define nwires (r1cs:get-nwires r0))
 (define mconstraints (r1cs:get-mconstraints r0))
-(printf "# number of wires: ~a\n" nwires)
+; (printf "# number of wires: ~a\n" nwires)
 (printf "# number of constraints: ~a\n" mconstraints)
-(printf "# field size (how many bytes): ~a\n" (r1cs:get-field-size r0))
+; (printf "# field size (how many bytes): ~a\n" (r1cs:get-field-size r0))
 
 ; categorize signals
 (define input-list (r1cs:r1cs-inputs r0))
@@ -94,14 +94,14 @@
 (define output-list (r1cs:r1cs-outputs r0))
 (define output-set (list->set output-list))
 (define target-set (if arg-weak (list->set output-list) (list->set (range nwires))))
-(printf "# inputs: ~a.\n" input-list)
-(printf "# outputs: ~a.\n" output-list)
-(printf "# targets: ~a.\n" target-set)
+; (printf "# inputs: ~a.\n" input-list)
+; (printf "# outputs: ~a.\n" output-list)
+; (printf "# targets: ~a.\n" target-set)
 
 ; parse original r1cs
-(printf "# parsing original r1cs...\n")
+; (printf "# parsing original r1cs...\n")
 (define-values (xlist opts defs cnsts) (parse-r1cs r0 null)) ; interpret the constraint system
-(printf "# xlist: ~a.\n" xlist)
+; (printf "# xlist: ~a.\n" xlist)
 ; parse alternative r1cs
 (define alt-xlist (for/list ([i (range nwires)])
     (if (not (utils:contains? input-list i))
@@ -109,7 +109,7 @@
         (list-ref xlist i)
     )
 ))
-(printf "# alt-xlist ~a.\n" alt-xlist)
+; (printf "# alt-xlist ~a.\n" alt-xlist)
 (printf "# parsing alternative r1cs...\n")
 (define-values (_ __ alt-defs alt-cnsts) (parse-r1cs r0 alt-xlist))
 
@@ -119,7 +119,7 @@
     ; read!
     (pre:read-precondition arg-precondition)
 ))
-(printf "# unique: ~a.\n" unique-set)
+; (printf "# unique: ~a.\n" unique-set)
 
 ; ============================
 ; ======== main solve ========
@@ -154,10 +154,10 @@
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
 ))
-(printf "# final unknown set ~a.\n" res-us)
+; (printf "# final unknown set ~a.\n" res-us)
 (if arg-weak
-    (printf "# weak uniqueness: ~a.\n" res)
-    (printf "# strong uniqueness: ~a.\n" res)
+    (printf "~a.\n" res)
+    (printf "~a.\n" res)
 )
 (when (equal? 'unsafe res)
     (printf "# counter-example:\n  ~a.\n" res-info))

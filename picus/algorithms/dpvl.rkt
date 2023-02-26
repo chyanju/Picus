@@ -372,14 +372,14 @@
             )
         )
     )))
-    (printf "# initial known-set ~a\n" known-set)
-    (printf "# initial unknown-set ~a\n" unknown-set)
+    ; (printf "# initial known-set ~a\n" known-set)
+    ; (printf "# initial unknown-set ~a\n" unknown-set)
     
     ; (precondition related) incorporate unique-set if unique-set is not an empty set
     (set! known-set (set-union known-set unique-set))
     (set! unknown-set (set-subtract unknown-set unique-set))
-    (printf "# refined known-set: ~a\n" known-set)
-    (printf "# refined unknown-set: ~a\n" unknown-set)
+    ; (printf "# refined known-set: ~a\n" known-set)
+    ; (printf "# refined unknown-set: ~a\n" unknown-set)
 
     ; ==== branch out: skip optimization phase 0 and apply expand & normalize ====
     ; computing rcdmap need no ab0 lemma from optimization phase 0

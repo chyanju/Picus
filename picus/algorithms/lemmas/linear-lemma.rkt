@@ -86,7 +86,7 @@
 
 ; recursively apply linear lemma
 (define (apply-lemma rcdmap ks us)
-    (printf "  # propagation (linear lemma): ")
+    ; (printf "  # propagation (linear lemma): ")
     (define new-ks (list->set (set->list ks))) ; (fixme) do this to copy into a mutable set, required by set-* operations
     (define new-us (list->set (set->list us))) ; (fixme) same as above
     (define rec? #f) ; whether propagate should be called again
@@ -97,12 +97,12 @@
             (set! new-us (set-subtract new-us (hash-ref rcdmap key)))
         )
     )
-    (let ([s0 (set-subtract new-ks ks)])
-        (if (set-empty? s0)
-            (printf "none.\n")
-            (printf "~a added.\n" s0)
-        )
-    )
+    ; (let ([s0 (set-subtract new-ks ks)])
+    ;     (if (set-empty? s0)
+    ;         (printf "none.\n")
+    ;         (printf "~a added.\n" s0)
+    ;     )
+    ; )
     (if (= (set-count ks) (set-count new-ks))
         ; no updates, return now
         (values new-ks new-us)
