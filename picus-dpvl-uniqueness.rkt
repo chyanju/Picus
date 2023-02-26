@@ -22,6 +22,7 @@
 (define arg-prop #t)
 (define arg-smt #f)
 (define arg-weak #f)
+(define arg-map #f)
 (command-line
     #:once-each
     [("--r1cs") p-r1cs "path to target r1cs"
@@ -56,6 +57,9 @@
     [("--weak") "only check weak safety, not strong safety  (default: false)"
         (set! arg-weak #t)
     ]
+    [("--map") "map the r1cs signals of model to its circom variable (default: true)"
+        (set! arg-map #t)
+    ]
 )
 (printf "# r1cs file: ~a\n" arg-r1cs)
 (printf "# timeout: ~a\n" arg-timeout)
@@ -65,6 +69,7 @@
 (printf "# propagation: ~a\n" arg-prop)
 (printf "# smt: ~a\n" arg-smt)
 (printf "# weak: ~a\n" arg-weak)
+(printf "# map: ~a\n" arg-map)
 
 ; =================================================
 ; ======== resolve solver specific methods ========
@@ -150,7 +155,7 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition ; prior knowledge row
-    arg-selector arg-prop arg-timeout arg-smt path-sym
+    arg-selector arg-prop arg-timeout arg-smt arg-map path-sym
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
 ))
