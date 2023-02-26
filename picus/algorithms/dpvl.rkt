@@ -304,14 +304,15 @@
     (define r2c-map (make-hash (for/list ([p rd])
         (cons (list-ref p 0) (list-ref p 3))
     )))
+    (define pinfo (if (list? info) (make-hash) info)) ; patch for info type, fix later
     (define new-info (make-hash))
-    (for ([k (hash-keys info)])
+    (for ([k (hash-keys pinfo)])
         (cond
             [(equal? k "x0") (void)] ; skip since this is a constant
             [(string-prefix? k "x")
                 (define rid (substring k 1))
                 (define cid (hash-ref r2c-map rid))
-                (define val (hash-ref info k))
+                (define val (hash-ref pinfo k))
 
                 (define sid (format "m1.~a" cid))
                 (hash-set! new-info sid val)
@@ -319,7 +320,7 @@
             [(string-prefix? k "y")
                 (define rid (substring k 1))
                 (define cid (hash-ref r2c-map rid))
-                (define val (hash-ref info k))
+                (define val (hash-ref pinfo k))
 
                 (define sid (format "m2.~a" cid))
                 (hash-set! new-info sid val)
