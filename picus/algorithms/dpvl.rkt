@@ -1,6 +1,8 @@
 #lang racket
 ; this implements the decide & propagate verification loop algorithm
 (require
+    csv-reading
+
     (prefix-in tokamak: "../tokamak.rkt")
     (prefix-in utils: "../utils.rkt")
     (prefix-in config: "../config.rkt")
@@ -61,6 +63,7 @@
 (define :arg-prop null)
 (define :arg-timeout null)
 (define :arg-smt null)
+(define :arg-map null)
 
 (define :unique-set null)
 (define :precondition null)
@@ -293,6 +296,41 @@
     )
 )
 
+; this creates a new hash with r1cs variables replaced by corresponding circom variables
+; (note) this will remove helping variables like "one", "ps?", etc.
+(define (map-to-vars info path-sym)
+    (define rd (csv->list (open-input-file path-sym)))
+    ; create r1cs-id to circom-var mapping
+    (define r2c-map (make-hash (for/list ([p rd])
+        (cons (list-ref p 0) (list-ref p 3))
+    )))
+    (define pinfo (if (list? info) (make-hash) info)) ; patch for info type, fix later
+    (define new-info (make-hash))
+    (for ([k (hash-keys pinfo)])
+        (cond
+            [(equal? k "x0") (void)] ; skip since this is a constant
+            [(string-prefix? k "x")
+                (define rid (substring k 1))
+                (define cid (hash-ref r2c-map rid))
+                (define val (hash-ref pinfo k))
+
+                (define sid (format "m1.~a" cid))
+                (hash-set! new-info sid val)
+            ]
+            [(string-prefix? k "y")
+                (define rid (substring k 1))
+                (define cid (hash-ref r2c-map rid))
+                (define val (hash-ref pinfo k))
+
+                (define sid (format "m2.~a" cid))
+                (hash-set! new-info sid val)
+            ]
+            [else (void)] ; skip otherwise
+        )
+    )
+    new-info
+)
+
 ; verifies signals in target-set
 ; returns (same as dpvl-iterate):
 ;   - (values 'safe ks us info)
@@ -304,7 +342,7 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition
-    arg-selector arg-prop arg-timeout arg-smt path-sym
+    arg-selector arg-prop arg-timeout arg-smt arg-map path-sym
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
     ; extra constraints, usually from cex module about partial model
@@ -335,6 +373,7 @@
     (set! :arg-prop arg-prop)
     (set! :arg-timeout arg-timeout)
     (set! :arg-smt arg-smt)
+    (set! :arg-map arg-map)
 
     (set! :unique-set unique-set)
     (set! :precondition precondition)
@@ -374,7 +413,7 @@
     )))
     ; (printf "# initial known-set ~a\n" known-set)
     ; (printf "# initial unknown-set ~a\n" unknown-set)
-    
+
     ; (precondition related) incorporate unique-set if unique-set is not an empty set
     (set! known-set (set-union known-set unique-set))
     (set! unknown-set (set-subtract unknown-set unique-set))
@@ -454,6 +493,9 @@
 
     ; invoke the algorithm iteration
     (define-values (ret0 rks rus info) (dpvl-iterate known-set unknown-set))
+
+    ; do a remapping if enabled
+    (set! info (if arg-map (map-to-vars info path-sym) info))
 
     ; return
     (values ret0 rks rus info)
