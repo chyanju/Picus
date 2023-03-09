@@ -31,7 +31,6 @@ RUN add-apt-repository -y ppa:plt/racket && \
     raco pkg install --auto rosette && \
     raco pkg install --auto csv-reading && \
     raco pkg install --auto graph && \
-    raco pkg install --auto math-lib && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
