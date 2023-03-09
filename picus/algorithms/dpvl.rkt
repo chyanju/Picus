@@ -61,6 +61,7 @@
 
 (define :arg-selector null)
 (define :arg-prop null)
+(define :arg-slv null)
 (define :arg-timeout null)
 (define :arg-smt null)
 (define :arg-map null)
@@ -269,7 +270,12 @@
         [else
             ; still there's unknown target signal, continue
             ; then select and solve
-            (define-values (s0 xnew-ks xnew-us info) (dpvl-select-and-solve new-ks new-us new-us))
+            (define-values (s0 xnew-ks xnew-us info) (if :arg-slv
+                ; do solver phase
+                (dpvl-select-and-solve new-ks new-us new-us)
+                ; don't do solver phase
+                (values 'normal new-ks new-us null)
+            ))
             (cond
                 ; normal means there's no counter-example
                 [(equal? 'normal s0)
@@ -342,7 +348,7 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition
-    arg-selector arg-prop arg-timeout arg-smt arg-map path-sym
+    arg-selector arg-prop arg-slv arg-timeout arg-smt arg-map path-sym
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
     ; extra constraints, usually from cex module about partial model
@@ -371,6 +377,7 @@
 
     (set! :arg-selector arg-selector)
     (set! :arg-prop arg-prop)
+    (set! :arg-slv arg-slv)
     (set! :arg-timeout arg-timeout)
     (set! :arg-smt arg-smt)
     (set! :arg-map arg-map)

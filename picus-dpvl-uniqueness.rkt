@@ -20,6 +20,7 @@
 (define arg-selector "counter")
 (define arg-precondition null)
 (define arg-prop #t)
+(define arg-slv #t)
 (define arg-smt #f)
 (define arg-weak #f)
 (define arg-map #f)
@@ -51,6 +52,9 @@
     [("--noprop") "disable propagation (default: false / propagation on)"
         (set! arg-prop #f)
     ]
+    [("--nosolve") "disable solver phase (default: false / solver on)"
+        (set! arg-slv #f)
+    ]
     [("--smt") "show path to generated smt files (default: false)"
         (set! arg-smt #t)
     ]
@@ -66,7 +70,8 @@
 (printf "# solver: ~a\n" arg-solver)
 (printf "# selector: ~a\n" arg-selector)
 (printf "# precondition: ~a\n" arg-precondition)
-(printf "# propagation: ~a\n" arg-prop)
+(printf "# propagation on: ~a\n" arg-prop)
+(printf "# solver on: ~a\n" arg-slv)
 (printf "# smt: ~a\n" arg-smt)
 (printf "# weak: ~a\n" arg-weak)
 (printf "# map: ~a\n" arg-map)
@@ -155,7 +160,7 @@
     xlist opts defs cnsts
     alt-xlist alt-defs alt-cnsts
     unique-set precondition ; prior knowledge row
-    arg-selector arg-prop arg-timeout arg-smt arg-map path-sym
+    arg-selector arg-prop arg-slv arg-timeout arg-smt arg-map path-sym
     solve state-smt-path interpret-r1cs
     parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
 ))

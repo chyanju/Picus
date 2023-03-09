@@ -112,7 +112,7 @@
             xlist opts defs icnsts
             alt-xlist alt-defs ialt-cnsts
             unique-set precondition ; prior knowledge row
-            arg-selector arg-prop arg-timeout arg-smt path-sym
+            arg-selector arg-prop #t arg-timeout arg-smt #f path-sym
             solve state-smt-path interpret-r1cs
             parse-r1cs optimize-r1cs-p0 expand-r1cs normalize-r1cs optimize-r1cs-p1
             #:extcnsts (model2cnsts partial-model)
