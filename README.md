@@ -10,8 +10,10 @@ This section provides basic instructions on how to test out the tool for the kic
 
 ```bash
 docker build -t picus:v0 .
-docker run -it --rm picus:v0 bash
+docker run -it --memory=10g picus:v0 bash
 ```
+
+> Note: you should adjust the total memory limit (10g) to a suitable value according to your machine configuration. Adding the memory restriction would prevent some benchmarks from jamming docker due to large consumption of the memory. Usually 8g memory is recommended since some benchmarks could be large.
 
 ### Building from Source
 
@@ -204,7 +206,7 @@ It will output `unsafe` with a concrete `counter-example`.
 
 After all the experiments are done, open `scripts/parse-results.ipynb` in a Jupyter Notebook/Lab (or use `scripts/parse-results.py` instead in terminal: `cd scripts/ && python ./parse-results.py`), and run the cells according to the notebook instructions to parse and print all the results claimed in the paper. You'll need to manually modify the `SERIES` variable in the script to switch results between "utils" and "core" benchmark set. See comments in the script for more details
 
-> Note: If you are reproducing the results in Docker, you may experience (significant) performance drop of the results due to Docker's virtualization mechanism. This would affect the averaged time reported in Table 2, and potentially the total number of solved benchmarks.
+> Note: If you are reproducing the results in Docker, you may experience performance drop of the results due to Docker's virtualization mechanism; in particular it takes longer to solver every benchmark. This would affect the averaged time reported in Table 2, and potentially the total number of solved benchmarks, but won't affect the paper's claims and conclusion.
 
 > Note: The circuit statistics of Table 2 presented is different from the results parsed in this artifact due to rounding errors and change of APIs. We are fixing that in the camera-ready version while this wouldn't affect the artifact's performance nor the conclusions since they are stats of the benchmarks themselves. In particular, the following cell values need to be updated:
 >
@@ -223,6 +225,12 @@ After all the experiments are done, open `scripts/parse-results.ipynb` in a Jupy
 > circomlib-core, small, witness: 12 -> 11
 >
 > circomlib-core, small, total: 25 -> 49
+>
+> circomlib-core, small, linear: 50 -> 5
+>
+> circomlib-core, small, non-linear: 6 -> 12
+>
+> circomlib-core, small, total: 12 -> 17
 >
 > circomlib-core, medium, out: 28 -> 81
 >
