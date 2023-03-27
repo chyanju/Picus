@@ -5,6 +5,7 @@
 
 
 import re
+import sys
 
 
 # In[ ]:
@@ -12,7 +13,8 @@ import re
 
 # choose between utils or core
 # SERIES = "utils"
-SERIES = "core"
+# SERIES = "core"
+SERIES = sys.argv[1]
 
 
 # In[ ]:
@@ -323,7 +325,7 @@ def compute_table2(cat):
     subkeys = [p for p in stats.keys() if cat == "overall" or stats[p]["cat"] == cat]
 
     # need to exclude timeouts
-    cat_time = [stats[p]["time"] for p in stats.keys() if (cat == "overall" or stats[p]["cat"] == cat) and stats[p]["time"] != 600]
+    cat_time = [stats[p]["time"] for p in stats.keys() if (cat == "overall" or stats[p]["cat"] == cat) and (stats[p]["res"] == "safe" or stats[p]["res"] == "unsafe") and stats[p]["time"] < 600]
     avg_cat_time = round(sum(cat_time)/len(cat_time))
 
     cat_check = [stats[p]["res"] for p in stats.keys() if (cat == "overall" or stats[p]["cat"] == cat) and stats[p]["res"] == "safe"]

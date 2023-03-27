@@ -204,11 +204,17 @@ It will output `unsafe` with a concrete `counter-example`.
 
 ### Parsing Results
 
-After all the experiments are done, open `scripts/parse-results.ipynb` in a Jupyter Notebook/Lab (or use `scripts/parse-results.py` instead in terminal: `cd scripts/ && python ./parse-results.py`), and run the cells according to the notebook instructions to parse and print all the results claimed in the paper. You'll need to manually modify the `SERIES` variable in the script to switch results between "utils" and "core" benchmark set. See comments in the script for more details
+After all the experiments are done, open `scripts/parse-results.ipynb` in a Jupyter Notebook/Lab, and run the cells according to the notebook instructions to parse and print all the results claimed in the paper. You'll need to manually modify the `SERIES` variable in the script to switch results between "utils" and "core" benchmark set. See comments in the script for more details.
 
-> Note: If you are reproducing the results in Docker, you may experience performance drop of the results due to Docker's virtualization mechanism; in particular it takes longer to solver every benchmark. This would affect the averaged time reported in Table 2, and potentially the total number of solved benchmarks, but won't affect the paper's claims and conclusion.
+An alternative to parse the results in terminal is to use `scripts/parse-results.py` like: `cd scripts/ && python ./parse-results.py <cat>` where `<cat>` is `utils` or `core`.
 
-> Note: The circuit statistics of Table 2 presented is different from the results parsed in this artifact due to rounding errors and change of APIs. We are fixing that in the camera-ready version while this wouldn't affect the artifact's performance nor the conclusions since they are stats of the benchmarks themselves. In particular, the following cell values need to be updated:
+#### More Notes on the Results
+
+> Note: If you are reproducing the results in Docker, you may experience performance drop of the results; in particular it may end up taking longer to solver every benchmark. This would affect the averaged time reported in Table 2, and potentially the total number of solved benchmarks in Figure 11 with 1%-3% percentage difference, which corresponds to difference on 1-2 benchmarks), but this won't affect the paper's claims and conclusion.
+
+> Note: The circuit statistics of Tables 1&2 (submitted version) presented is different from the results parsed in this artifact due to rounding errors and change of APIs. We are fixing that in the camera-ready version while this wouldn't affect the artifact's performance nor the conclusions since they are stats of the benchmarks themselves. In particular, the following cell values need to be updated:
+>
+> === Table 2 ===
 >
 > circomlib-utils, small, linear: 8 -> 7
 >
@@ -247,6 +253,10 @@ After all the experiments are done, open `scripts/parse-results.ipynb` in a Jupy
 > circomlib-core, large, total: 34311 -> 34310
 >
 > circomlib-core, large, total: 34191 -> 34190
+>
+> === Table 1 ===
+>
+> Avg. # constraints, All: 4,355 -> 4,396
 
 ## Reusability Instructions
 
