@@ -2,6 +2,7 @@ pragma circom 2.0.3;
 
 include "bigint.circom";
 include "bigint_func.circom";
+include "field_elements_func.circom";
 
 // a[i], b[i] in 0... 2**n-1
 // represent a = a[0] + a[1] * 2**n + .. + a[k - 1] * 2**(n * k)

@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 (provide (rename-out
     [p p]
 ))

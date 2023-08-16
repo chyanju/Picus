@@ -1,4 +1,4 @@
-#lang rosette
+#lang racket
 (provide (all-defined-out))
 
 (define (contains? l e)
@@ -8,14 +8,6 @@
             #t
             (contains? (cdr l) e)
         )
-    )
-)
-
-; auxiliar function to check if the intersection of two sets is empty
-(define (empty_inter? l1 l2) 
-    (cond ((null? l1) #t)
-        ((contains? l2 (car l1)) #f)
-       (else (empty_inter? (cdr l1) l2))
     )
 )
 

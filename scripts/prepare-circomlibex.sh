@@ -119,5 +119,5 @@ do
 	echo "=================== ${fn}: ${bn} ==================="
 	echo "    compiling..."
 	# to compare with Ecne, you need --O0 to disable optimization
-	circom -o ./benchmarks/circomlibex-cff5ab6/ ./benchmarks/circomlibex-cff5ab6/${fn} --r1cs --sym --O0 --json
+	circom -o ./benchmarks/circomlibex-cff5ab6/ ./benchmarks/circomlibex-cff5ab6/${fn} --r1cs --sym --O0
 done
