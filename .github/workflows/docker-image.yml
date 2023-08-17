@@ -60,7 +60,7 @@ jobs:
         run: bash ./scripts/prepare-circomlib.sh
       - name: preparing rosette
         run: raco pkg install --auto rosette
-      - name: preparing rosette
+      - name: preparing csv-reading
         run: raco pkg install --auto csv-reading
       - name: run picus with z3, using v3
         run: racket ./picus-dpvl-uniqueness.rkt --solver z3 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
@@ -81,7 +81,7 @@ jobs:
         run: bash ./scripts/prepare-circomlib.sh
       - name: preparing rosette
         run: raco pkg install --auto rosette
-      - name: preparing rosette
+      - name: preparing csv-reading
         run: raco pkg install --auto csv-reading
       - name: run picus with cvc5, using v3
         run: racket ./picus-dpvl-uniqueness.rkt --solver cvc5 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
