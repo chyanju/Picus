@@ -61,7 +61,7 @@ jobs:
       - name: preparing rosette
         run: raco pkg install --auto rosette
       - name: run picus with z3, using v3
-        run: racket ./test-v3-uniqueness.rkt --solver z3 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
+        run: racket ./picus-dpvl-uniqueness.rkt --solver z3 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
 
   test-solve-with-cvc5:
     needs: test-compile-circomlib
@@ -80,4 +80,4 @@ jobs:
       - name: preparing rosette
         run: raco pkg install --auto rosette
       - name: run picus with cvc5, using v3
-        run: racket ./test-v3-uniqueness.rkt --solver cvc5 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
+        run: racket ./picus-dpvl-uniqueness.rkt --solver cvc5 --r1cs ./benchmarks/circomlib-cff5ab6/Decoder@multiplexer.r1cs --weak
