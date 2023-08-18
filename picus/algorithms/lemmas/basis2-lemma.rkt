@@ -30,7 +30,7 @@
     (values tmp-ks tmp-us)
 )
 
-(define basis2-seqs (for/set ([i (range 270)])
+(define basis2-seqs (for/set ([i (range 253)])
     (for/set ([j (range (+ 1 i))])
         (expt 2 j)
     )
