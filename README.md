@@ -170,6 +170,37 @@ usage: picus-dpvl-uniqueness.rkt [ <option> ... ]
  one `-`. For example, `-h-` is the same as `-h --`.
 ```
 
+## Results interpretation
+
+Picus will not output false positive. Potential outputs are:
+* `safe`: Picus cannot find underconstrained bugs
+* `unsafe`: Picus can find an underconstrained bug and it usually will also output the attack vector
+* `unknown`: Picus cannot get a result within the given time limit. Manual review or an increase in time limit for the solver is necessary.
+
+### z3 vs cvc5 
+There are two solvers available that use different theories: `z3` and `cvc5`.
+Different shapes of finite field constraints may have different difficulties for solvers with different theories. `z3` currently do not have a finite field theory, so it will not work well in majority of the cases for ZK, while `cvc5` has basic finite field support so it will work better.  
+
+Regarding the results reported, supposing that there is no other bugs in the system and solver, if `z3` reports `safe`, it means `z3` can solve the constraints and get the result. When `cvc5` returns `unknown`, it means it got stuck in solving. In this case, the result would be `safe` since `z3` terminates with concrete results while `cvc5` cannot, supposing everything else is correct.
+In case of conflicting results, `safe` for one and `unsafe` for the other, the only way to know which one is correct is to manually verify the counter example outputted by the solver that reports `unsafe`.
+
+### Potential errors
+* In case of `Killed` error: it might be a resources problem. Try to increase the memory allocated to docker.  
+* In case no response / solving for a long time: this usually means the finite field solver in `cvc5` chokes. There is currently no direct solution to quickly improve the solver's performance.
+
+### Mitigation
+A common way to mitigate the above issues is to split a big circuit into smaller pieces and feed them to the tool one by one.
+If a big target is too difficult to verify all at once fully automatically (which is the case for many real-world circuits), it is possible to do a semi-automatic way by manually tearing the circuits into pieces and perform automatic verification for each piece of them. If each piece can be verified successfully, this means the whole circuit is properly constrained. If all queries to the tool return `safe`, the overall result is also safe. If any query returns `unsafe` or `unknown` then the overall result is `unknown` since local unsafe cases could (but not always) lead to global vulnerability (since other parts of the circuit could have fixed the issues).
+
+In some difficult cases where a template is very complicated -- e.g., a crypto hashing function -- and it is already difficult to verify the hash function itself, but supposing it is correct, it is possible to manually rewrite this difficult template into a relatively simple one with the same output domain to keep the computation easy for verification.   
+For example, suppose there is a circuit that is composed by `f(g(h(x)))`  and `h(x)` is difficult to verify and blocking the remaining steps. But it is known that `h(x)` is definitely safe and the output domain of `h(x)` is known (let's say it is $out_h(x)$), it is possible to replace `h(x)` with a variable $y$ where $y \in out_h(x)$. By doing this, the semantics of the full circuit is preserved but the computation load for verification is reduced. Rewriting `h(x)` needs to be done carefully if there are more constraints applied on it, e.g., `a(b(h(x)))` -- basically the rewriting should not be breaking the semantics of the remaining part of circuit, or at least not under-approximating their relations -- that being said, if the circuit is rewritten to cover a larger variable space and can still verify it, it is ok.
+
+Note that these two options can be used to prove the correctness of the circuit. If there is indeed a bug there, then other approaches are needed to excavate the counter-example (something like an attack vector). When these two options say a circuit is `safe` then it is definitely `safe` (given that the rewrite is correct), but when they say a circuit is `unsafe`, it may not necessarily be `unsafe` since the variable space is over-approximated-- another semi-automatic way is needed to construct the counter-example.
+
+### Is it possible to output several counter examples if they exist ?
+Yes, it is possible to output more counterexamples, but there is no user interface for now. The idea is that once a first counterexample is outputted, to get a different one, the solver can be invoked again with the first counterexample banned — it will then search for a counterexample different than the first one.
+
+
 ## Citations
 
 If you find our work and this tool useful in your research, please consider citing:
