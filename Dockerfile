@@ -1,4 +1,4 @@
-FROM veridise/picus:base
+FROM chyanju/picus:base.pldi23
 
 # copy current version of Picus
 COPY ./ /Picus/
