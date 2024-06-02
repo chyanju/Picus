@@ -1,4 +1,4 @@
-FROM veridise/picus:git-c120fd0437f9488ee73df1a409646d8baede6a2e
+FROM chyanju/picus:base.pldi23
 
 # copy current version of Picus
 COPY ./ /Picus/
