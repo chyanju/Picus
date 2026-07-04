@@ -95,7 +95,7 @@ pub(super) fn companion_proves_below_prime(
 /// Canonical-variable map: union-find over pure two-term linear
 /// identities `c1·x_i + c2·x_j = 0` with `c1 + c2 ≡ 0` (i.e.
 /// `x_i = x_j`). `canon[v]` is the representative of `v`'s class. These
-/// identities are ordinary PolyIR equalities (the same facts the
+/// identities are ordinary PolySystem equalities (the same facts the
 /// `linear` lemma propagates); following them lets the matcher relate
 /// the decomposition bits to the comparator inputs regardless of how
 /// the compiler renumbered wires.

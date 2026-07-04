@@ -11,7 +11,7 @@ use std::sync::Arc;
 use num_bigint::BigUint;
 use picus_core::ff::field::PrimeField;
 use picus_core::poly::{FfPolyRing, IrPoly};
-use picus_smt::poly_ir::PolyIR;
+use picus_smt::poly_system::PolySystem;
 
 use crate::uniqueness::UniquenessQuery;
 use crate::propagation::lemma::{PropagationCtx, PropagationLemma};
@@ -31,7 +31,7 @@ fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<IrPoly>) 
     }
     let ring = Arc::new(FfPolyRing::new(field, names));
     let equalities = build(&ring);
-    let ir = PolyIR {
+    let ir = PolySystem {
         ring,
         equalities,
         disjunctions: Vec::new(),

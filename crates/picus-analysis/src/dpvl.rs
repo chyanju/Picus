@@ -3,7 +3,7 @@
 //! The driver runs in two interlocking layers:
 //!
 //! 1. **Propagation**: registered [`PropagationLemma`] plugins run to a
-//!    fixed point against a single [`PolyIR`], marking wires as known
+//!    fixed point against a single [`PolySystem`], marking wires as known
 //!    in [`PropagationCtx`]. Constraints learned by lemmas are folded
 //!    into the IR at the end of each outer iteration so the next
 //!    iteration sees them.
@@ -13,7 +13,7 @@
 //!    uniqueness (UNSAT ⇒ verified). A SAT result on a target signal
 //!    is reported back as a counter-example.
 //!
-//! Backends consume the same [`PolyIR`] the propagation layer builds;
+//! Backends consume the same [`PolySystem`] the propagation layer builds;
 //! before each solve the driver appends `x_w - y_w = 0` equalities for
 //! every newly-proved-unique wire and sets `target_signal` so the
 //! backend's closing `(not (= x_target y_target))` matches.
@@ -248,7 +248,7 @@ pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, Dpvl
     let mut us: HashSet<usize> = (0..nwires).filter(|i| !ks.contains(i)).collect();
     let mut ranges: HashMap<usize, RangeValue> = initial_ranges();
 
-    // Lower R1CS → PolyIR once per DPVL run. The target signal stored in
+    // Lower R1CS → PolySystem once per DPVL run. The target signal stored in
     // the IR is a placeholder; propagation only consumes the constraint
     // set and metadata, not `target_signal`.
     let mut q = r1cs_to_uniqueness_query(r1cs, &ks, 0)?;

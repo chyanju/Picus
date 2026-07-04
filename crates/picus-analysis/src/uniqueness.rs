@@ -1,14 +1,14 @@
 //! Uniqueness (determinism) query — the analysis-layer overlay on top of a
-//! plain [`PolyIR`] constraint system, plus the R1CS two-copy lowering that
+//! plain [`PolySystem`] constraint system, plus the R1CS two-copy lowering that
 //! produces it.
 //!
-//! [`PolyIR`] is a use-agnostic GF(p) polynomial constraint system: a ring, a
+//! [`PolySystem`] is a use-agnostic GF(p) polynomial constraint system: a ring, a
 //! list of `(poly = 0)` equalities, disjunctions, disequalities, assignments,
 //! bitsum chains, and a field-poly flag. It knows nothing about "wires",
 //! "copies", or "uniqueness". Everything specific to Picus's under-constrained
 //! analysis lives here instead.
 //!
-//! A [`UniquenessQuery`] wraps a `PolyIR` whose ring is laid out as two copies
+//! A [`UniquenessQuery`] wraps a `PolySystem` whose ring is laid out as two copies
 //! of the circuit wires — for an R1CS with `n_wires` wires the ring carries
 //! `2 * n_wires` variables, index `i` (`i < n_wires`) being the original copy
 //! `x_i` and index `n_wires + i` the alt copy `y_i` — together with the wire
@@ -16,7 +16,7 @@
 //! and the propagation lemmas read. Asking whether wire `s` is uniquely
 //! determined is asking whether the constraints force `x_s = y_s`; the query
 //! records this as a single disequality `(x_s, y_s)` on the underlying
-//! `PolyIR`, which every solver backend decides generically.
+//! `PolySystem`, which every solver backend decides generically.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ use picus_r1cs::field_reduce;
 use picus_r1cs::grammar::{ConstraintBlock, R1csFile};
 use picus_core::ff::field::PrimeField;
 use picus_core::poly::{FfPolyRing, IrPoly as Poly};
-use picus_smt::poly_ir::PolyIR;
+use picus_smt::poly_system::PolySystem;
 
 /// Reasons the R1CS-to-`UniquenessQuery` lowering can fail. Surfacing these as
 /// errors (rather than logging a warning and silently skipping the offending
@@ -45,11 +45,11 @@ pub enum LowerError {
     },
 }
 
-/// A uniqueness query: a two-copy [`PolyIR`] plus the wire-level bookkeeping
+/// A uniqueness query: a two-copy [`PolySystem`] plus the wire-level bookkeeping
 /// that makes it a *uniqueness* question rather than a bare constraint system.
 pub struct UniquenessQuery {
     /// The underlying use-agnostic constraint system (2 * `n_wires` variables).
-    pub ir: PolyIR,
+    pub ir: PolySystem,
     /// Number of circuit wires; the ring holds `2 * n_wires` variables.
     pub n_wires: usize,
     /// Wires that are circuit inputs (shared across both copies).
@@ -98,7 +98,7 @@ impl UniquenessQuery {
     }
 
     /// Set the current uniqueness target: updates `target_signal` and rebuilds
-    /// the underlying `PolyIR`'s single disequality to point at the new
+    /// the underlying `PolySystem`'s single disequality to point at the new
     /// target's `(x, y)` pair. The constraint set is otherwise unaffected.
     ///
     /// An input wire shares one value across both copies (its `y_w` is never
@@ -117,7 +117,7 @@ impl UniquenessQuery {
     }
 
     /// Record that `wire` has been proved uniquely determined. Appends
-    /// `x_w - y_w = 0` to the underlying `PolyIR` so the next backend call
+    /// `x_w - y_w = 0` to the underlying `PolySystem` so the next backend call
     /// sees it as a regular constraint. Input wires reuse `x_i` across both
     /// copies at lowering, so only non-input wires need a fresh equality.
     pub fn add_known_wire(&mut self, wire: usize) {
@@ -204,7 +204,7 @@ pub fn r1cs_to_uniqueness_query(
     let small_prime_threshold = BigUint::from(1000u32);
     let add_field_polys = prime <= &small_prime_threshold;
 
-    let ir = PolyIR {
+    let ir = PolySystem {
         ring,
         equalities,
         disjunctions: Vec::new(),

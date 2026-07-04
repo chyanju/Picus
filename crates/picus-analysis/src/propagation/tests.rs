@@ -16,7 +16,7 @@ use num_bigint::BigUint;
 use num_traits::One;
 use picus_core::ff::field::PrimeField;
 use picus_core::poly::FfPolyRing;
-use picus_smt::poly_ir::PolyIR;
+use picus_smt::poly_system::PolySystem;
 
 use crate::uniqueness::UniquenessQuery;
 use super::{mod_inverse, wire_connectivity_score};
@@ -83,7 +83,7 @@ fn prop_mod_inverse_self_inverse_for_p_minus_one() {
 
 // ───── wire_connectivity_score ───────────────────────────────────
 
-/// Build a tiny PolyIR with a hand-crafted equality list.
+/// Build a tiny PolySystem with a hand-crafted equality list.
 ///
 /// Uses `n_wires` wires (so the ring carries `2 * n_wires` variables).
 /// `equalities` is built by the caller before this is called.
@@ -99,7 +99,7 @@ fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc
     }
     let ring = Arc::new(FfPolyRing::new(field, names));
     let equalities = equalities_builder(&ring);
-    let ir = PolyIR {
+    let ir = PolySystem {
         ring,
         equalities,
         disjunctions: Vec::new(),

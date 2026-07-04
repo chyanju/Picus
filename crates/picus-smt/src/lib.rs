@@ -1,5 +1,5 @@
 pub mod backends;
-pub mod poly_ir;
+pub mod poly_system;
 
 #[cfg(test)]
 #[path = "lib_tests.rs"]

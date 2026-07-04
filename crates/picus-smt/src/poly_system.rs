@@ -1,12 +1,12 @@
 //! Solver-agnostic polynomial IR: a use-agnostic GF(p) constraint system
-//! that the SMT backends lower and solve. `PolyIR` knows nothing about
+//! that the SMT backends lower and solve. `PolySystem` knows nothing about
 //! "wires", "copies", or "uniqueness" — it is purely a ring plus a set of
 //! polynomial constraints. The uniqueness/determinism overlay that Picus's
 //! under-constrained analysis builds on top of it lives in
-//! `picus_analysis::uniqueness::UniquenessQuery`, which owns a `PolyIR` and
+//! `picus_analysis::uniqueness::UniquenessQuery`, which owns a `PolySystem` and
 //! adds the wire bookkeeping and the R1CS two-copy lowering.
 //!
-//! A [`PolyIR`] bundles a polynomial ring over GF(p) with:
+//! A [`PolySystem`] bundles a polynomial ring over GF(p) with:
 //! - a flat `Vec<Poly>` of `(poly = 0)` equalities,
 //! - a list of `(p_1 = 0 ∨ p_2 = 0 ∨ ...)` disjunctions,
 //! - disequality witness sites `(a_idx, b_idx)` (each a Rabinowitsch
@@ -26,7 +26,7 @@ use num_bigint::BigUint;
 use picus_core::poly::{FfPolyRing, IrPoly as Poly};
 
 /// A use-agnostic polynomial constraint system over GF(p).
-pub struct PolyIR {
+pub struct PolySystem {
     pub ring: Arc<FfPolyRing>,
     pub equalities: Vec<Poly>,
     pub disjunctions: Vec<Vec<Poly>>,
@@ -46,17 +46,17 @@ pub struct PolyIR {
     pub add_field_polys: bool,
 }
 
-impl PolyIR {
+impl PolySystem {
     /// An empty constraint system over `ring`: no equalities, disjunctions,
     /// disequalities, assignments, or bitsums, with `add_field_polys` off.
     ///
-    /// This is the entry point for callers that build a `PolyIR` directly
+    /// This is the entry point for callers that build a `PolySystem` directly
     /// (rather than lowering an R1CS uniqueness query). Assemble it with the
     /// `push_equality` / `add_disequality` / `add_assignment` / `add_bitsum` /
     /// `push_disjunction` / `set_add_field_polys` mutators, then hand it to a
     /// solver backend (or `picus::solve`).
     pub fn new(ring: Arc<FfPolyRing>) -> Self {
-        PolyIR {
+        PolySystem {
             ring,
             equalities: Vec::new(),
             disjunctions: Vec::new(),
@@ -167,5 +167,5 @@ impl PolyIR {
 }
 
 #[cfg(test)]
-#[path = "poly_ir_tests.rs"]
+#[path = "poly_system_tests.rs"]
 mod tests;

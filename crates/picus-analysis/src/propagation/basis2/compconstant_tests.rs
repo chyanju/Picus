@@ -42,7 +42,7 @@ fn empty_block() -> ConstraintBlock {
 }
 
 /// Minimal R1CS with a single trivial constraint, used to obtain a
-/// valid PolyIR with the requested wire count and prime so we can test
+/// valid PolySystem with the requested wire count and prime so we can test
 /// the companion recogniser's input-validation gates.
 fn tiny_r1cs(p: u64, n_wires: u32) -> R1csFile {
     let header = HeaderSection {
@@ -56,7 +56,7 @@ fn tiny_r1cs(p: u64, n_wires: u32) -> R1csFile {
         m_constraints: 1,
     };
     // 1 * 1 = 1 (a vacuous constraint that lowers to the zero
-    // polynomial — gives us a clean, equality-light PolyIR).
+    // polynomial — gives us a clean, equality-light PolySystem).
     let constraints = vec![Constraint {
         a: block(&[(0, 1)]),
         b: block(&[(0, 1)]),
@@ -438,11 +438,11 @@ fn prop_build_part_map_bucket_per_product_pair() {
 // The R1CS surface only emits polys of shape `(sumA)(sumB) - sumC`, too
 // restrictive to cover every branch of `match_part` / `find_sum_var` /
 // `find_inner_bit`. These tests build polys directly via the ring API
-// on a small PolyIR (still produced by `tiny_r1cs` for a well-formed
+// on a small PolySystem (still produced by `tiny_r1cs` for a well-formed
 // prime/ring).
 // ---------------------------------------------------------------------------
 
-/// Build a fresh PolyIR with `n_wires` wires under prime `p`, then drop
+/// Build a fresh PolySystem with `n_wires` wires under prime `p`, then drop
 /// the equalities so callers can inject exactly the polys they want to
 /// test. Wire-0 pin is also dropped — tests opt back in by injecting it
 /// explicitly when needed.

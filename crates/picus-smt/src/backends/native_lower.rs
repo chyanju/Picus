@@ -1,11 +1,11 @@
-//! Native (in-tree GB engine) lowering for [`PolyIR`].
+//! Native (in-tree GB engine) lowering for [`PolySystem`].
 //!
-//! These `impl PolyIR` methods produce picus-solver engine types
+//! These `impl PolySystem` methods produce picus-solver engine types
 //! (`ConstraintSystem`, `BooleanQuery`, `EncodedSystem`) plus the linear
 //! pre-elimination, so they live with the native backend rather than on
-//! the solver-agnostic [`PolyIR`] itself — which then depends only on
+//! the solver-agnostic [`PolySystem`] itself — which then depends only on
 //! picus-core. The cvc5 / z3 backends emit SMT-LIB directly from the
-//! neutral `PolyIR` surface and do not use these.
+//! neutral `PolySystem` surface and do not use these.
 
 use std::sync::Arc;
 
@@ -19,9 +19,9 @@ use picus_solver::frontend::encoder::{
     encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm,
 };
 
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 
-impl PolyIR {
+impl PolySystem {
     /// Linear (Gaussian) pre-elimination — the in-tree analogue of cvc5's
     /// `theory/ff/gauss.cpp`. Computes a Gröbner basis of the linear
     /// equality subsystem (for a linear ideal this is Gaussian
@@ -37,7 +37,7 @@ impl PolyIR {
     /// SAT model still verifies against the original system. A linear
     /// subsystem that is itself unsatisfiable collapses the equalities to
     /// a single `1 = 0`, which the solver rejects immediately.
-    pub fn pre_eliminate_linear(&self, cancel: &CancelToken) -> Option<PolyIR> {
+    pub fn pre_eliminate_linear(&self, cancel: &CancelToken) -> Option<PolySystem> {
         let elim =
             picus_solver::gb::linsolve::eliminate_linear(&self.ring, &self.equalities, cancel)
                 .ok()?;
@@ -49,7 +49,7 @@ impl PolyIR {
         } else {
             elim.reduced
         };
-        Some(PolyIR {
+        Some(PolySystem {
             ring: Arc::clone(&self.ring),
             equalities,
             disjunctions: self.disjunctions.clone(),
@@ -60,7 +60,7 @@ impl PolyIR {
         })
     }
 
-    /// Lower this `PolyIR` to a [`ConstraintSystem`] via the
+    /// Lower this `PolySystem` to a [`ConstraintSystem`] via the
     /// `ConstraintSystemBuilder`. Variable names are interned in
     /// `ring.var_names()` order so builder indices match ring
     /// indices; each `Poly` in `self.equalities` yields a
@@ -105,7 +105,7 @@ impl PolyIR {
             .collect()
     }
 
-    /// Lower this `PolyIR` to a CDCL(T) [`BooleanQuery`] for the native
+    /// Lower this `PolySystem` to a CDCL(T) [`BooleanQuery`] for the native
     /// solver's disjunction-aware path. The conjunctive constraints
     /// (`equalities`, `assignments`, the target `disequalities`) become
     /// a top-level `And` of `Eq`/`Neq` literals; each clause in
@@ -167,7 +167,7 @@ impl PolyIR {
         BooleanQuery::from_builder_and_formula(builder, formula)
     }
 
-    /// Encode this `PolyIR` into an [`EncodedSystem`] ready for the
+    /// Encode this `PolySystem` into an [`EncodedSystem`] ready for the
     /// GB engine. Internally builds a `ConstraintSystem` via
     /// [`Self::to_constraint_system`] and routes through
     /// [`picus_solver::frontend::encoder::encode`] (which runs

@@ -11,7 +11,7 @@
 //! for index↔name; equalities carry sparse `Vec<PolyTerm>` with
 //! `(VarIdx, u16)` exponent pairs). [`ConstraintSystemBuilder`] is
 //! the producer-side intern API; every public GB-query producer
-//! (`native_ff` via `PolyIR::encode`, `smt2::parse` /
+//! (`native_ff` via `PolySystem::encode`, `smt2::parse` /
 //! `parse_boolean`, `boolean::to_disjunct_systems`,
 //! `cdclt::ff_theory`) constructs its output through a builder so
 //! variable names are interned in encounter order with no
@@ -116,7 +116,7 @@ pub use bitsum_extract::*;
 ///   1. `compact_used_vars`: drop variables from `var_names` that
 ///      no equality / disequality / assignment / bitsum references
 ///      — keeps the polynomial ring tight. Without this,
-///      `PolyIR`'s `2 * n_wires` ring exposes every `y_i` even
+///      `PolySystem`'s `2 * n_wires` ring exposes every `y_i` even
 ///      when most are never referenced, inflating the GB engine's
 ///      monomial table and causing pathological slowdowns on big
 ///      circuits.

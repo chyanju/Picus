@@ -93,13 +93,13 @@ fn prop_create_backend_by_name_wrong_theory_returns_none() {
 #[cfg(any(feature = "cvc5", feature = "z3"))]
 mod nia_smtlib {
     use crate::backends::poly_to_smtlib_nia;
-    use crate::poly_ir::PolyIR;
+    use crate::poly_system::PolySystem;
     use num_bigint::BigUint;
     use picus_r1cs::grammar::{
         ConstraintSection, HeaderSection, R1csFile, W2lSection,
     };
 
-    fn make_ir(p: BigUint, n_wires: usize) -> PolyIR {
+    fn make_ir(p: BigUint, n_wires: usize) -> PolySystem {
         let r1cs = R1csFile {
             magic: *b"r1cs",
             version: 1,
@@ -166,13 +166,13 @@ mod nia_smtlib {
 #[cfg(feature = "cvc5")]
 mod ff_smtlib {
     use crate::backends::poly_to_smtlib_ff;
-    use crate::poly_ir::PolyIR;
+    use crate::poly_system::PolySystem;
     use num_bigint::BigUint;
     use picus_r1cs::grammar::{
         ConstraintSection, HeaderSection, R1csFile, W2lSection,
     };
 
-    fn make_ir(p: BigUint, n_wires: usize) -> PolyIR {
+    fn make_ir(p: BigUint, n_wires: usize) -> PolySystem {
         let r1cs = R1csFile {
             magic: *b"r1cs",
             version: 1,

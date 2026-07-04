@@ -8,7 +8,7 @@ use z3::{Params, SatResult, Solver};
 use crate::backends::{poly_to_smtlib_nia, SolverBackend, SolverBackendDescriptor, SolverError, SolverResult, UnknownReason};
 use crate::Theory;
 use picus_core::timeout::CancelToken;
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 
 pub struct Z3NiaBackend;
 
@@ -27,7 +27,7 @@ impl Z3NiaBackend {
 impl SolverBackend for Z3NiaBackend {
     fn solve(
         &mut self,
-        ir: &PolyIR,
+        ir: &PolySystem,
         timeout_ms: u64,
         cancel: &CancelToken,
     ) -> Result<SolverResult, SolverError> {
@@ -106,7 +106,7 @@ impl SolverBackend for Z3NiaBackend {
         }
     }
 
-    fn dump_smt(&self, ir: &PolyIR) -> String {
+    fn dump_smt(&self, ir: &PolySystem) -> String {
         let p = ir.ring.field().prime();
         let mut lines = Vec::new();
         lines.push("(set-logic QF_NIA)".to_string());
@@ -139,7 +139,7 @@ fn bigint(val: &BigUint) -> Int {
         .expect("BigUint should produce valid z3 Int")
 }
 
-fn build_poly_z3(vars: &HashMap<String, Int>, ir: &PolyIR, poly: &picus_core::poly::IrPoly) -> Int {
+fn build_poly_z3(vars: &HashMap<String, Int>, ir: &PolySystem, poly: &picus_core::poly::IrPoly) -> Int {
     let mut sum = Int::from_u64(0);
     for (coeff, var_names) in ir.poly_terms(poly) {
         let c = bigint(&coeff);

@@ -119,7 +119,7 @@ fn audit_implausible_io_count_returns_error_not_oom() {
 #[test]
 fn audit_implausible_n_wires_returns_error_not_oom() {
     // n_wires = u32::MAX but the wire-to-label map has one entry. The
-    // parser must reject before r1cs_to_poly_ir allocates 2 * n_wires
+    // parser must reject before r1cs_to_poly_system allocates 2 * n_wires
     // variable names (~8.5 GiB). The I/O guard passes here (io_sum = 1),
     // so this exercises the n_wires <= w2l.labels.len() guard.
     let header = header_payload(u32::MAX, 0, 0, 0);

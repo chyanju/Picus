@@ -170,7 +170,7 @@ pub fn solve_split_gb_cancel<'r>(
     cancel: &CancelToken,
 ) -> SolveOutcome {
     // Linear (Gaussian) pre-elimination is applied once at the top level
-    // (`PolyIR::pre_eliminate_linear` in the backend), so the generators
+    // (`PolySystem::pre_eliminate_linear` in the backend), so the generators
     // reaching this conjunctive core — on both the direct and the CDCL(T)
     // per-check paths — are already reduced. This function does not
     // re-eliminate.

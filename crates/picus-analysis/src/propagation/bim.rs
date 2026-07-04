@@ -48,7 +48,7 @@ impl PropagationLemma for BimLemma {
         // same wire) — so the two copies become identical matrix rows. A square
         // system with duplicate rows is singular (det = 0 below), so the lemma
         // declines. It can still fire on a non-mirrored linear-homogeneous
-        // system built directly via the `PolyIR` API; it is not dead code.
+        // system built directly via the `PolySystem` API; it is not dead code.
         if equations.len() != all_sigs.len()
             || !all_sigs.iter().all(|s| ctx.unknown.contains(s))
         {

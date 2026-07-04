@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::backends::{poly_to_smtlib_ff, SolverBackend, SolverBackendDescriptor, SolverError, SolverResult, UnknownReason};
 use crate::Theory;
 use picus_core::timeout::CancelToken;
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 
 pub struct Cvc5FfBackend;
 
@@ -29,7 +29,7 @@ impl Cvc5FfBackend {
 impl SolverBackend for Cvc5FfBackend {
     fn solve(
         &mut self,
-        ir: &PolyIR,
+        ir: &PolySystem,
         timeout_ms: u64,
         cancel: &CancelToken,
     ) -> Result<SolverResult, SolverError> {
@@ -139,7 +139,7 @@ impl SolverBackend for Cvc5FfBackend {
         }
     }
 
-    fn dump_smt(&self, ir: &PolyIR) -> String {
+    fn dump_smt(&self, ir: &PolySystem) -> String {
         let p = ir.ring.field().prime();
         let mut lines = Vec::new();
         lines.push("(set-logic QF_FF)".to_string());
@@ -180,7 +180,7 @@ impl SolverBackend for Cvc5FfBackend {
 fn build_poly_term<'a>(
     tm: &'a cvc5_ff::TermManager,
     vars: &HashMap<String, cvc5_ff::Term<'a>>,
-    ir: &PolyIR,
+    ir: &PolySystem,
     poly: &picus_core::poly::IrPoly,
     ff: cvc5_ff::Sort<'a>,
 ) -> cvc5_ff::Term<'a> {

@@ -29,7 +29,7 @@ pub struct SelectorState {
     /// Constraint-connectivity counter for each wire. Higher count ⇒
     /// the wire participates in more constraints and is likelier to
     /// have a fast deduction path. Built once by the DPVL driver from
-    /// the PolyIR and passed to [`SelectorState::select`].
+    /// the PolySystem and passed to [`SelectorState::select`].
     pub connectivity: HashMap<usize, usize>,
 }
 

@@ -30,7 +30,7 @@ pub enum GbStrategy {
 }
 
 /// Polynomial storage representation, selected at ring construction and
-/// carried by `ff::PolyRing.repr`. Applies to the IR (`PolyIR` equalities/
+/// carried by `ff::PolyRing.repr`. Applies to the IR (`PolySystem` equalities/
 /// disjunctions, lemma `learned` buffers) and the native Gröbner solve.
 ///
 /// `Dense` stores each monomial as a full-length exponent vector

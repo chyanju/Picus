@@ -9,7 +9,7 @@ use picus_core::poly::FfPolyRing;
 use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
-use picus_smt::poly_ir::PolyIR;
+use picus_smt::poly_system::PolySystem;
 
 use crate::uniqueness::{r1cs_to_uniqueness_query, LowerError, UniquenessQuery};
 
@@ -26,7 +26,7 @@ fn query(n_wires: usize, inputs: &[usize]) -> UniquenessQuery {
     }
     let ring = Arc::new(FfPolyRing::new(field, names));
     let input_indices: HashSet<usize> = inputs.iter().copied().collect();
-    let ir = PolyIR {
+    let ir = PolySystem {
         ring,
         equalities: Vec::new(),
         disjunctions: Vec::new(),
@@ -198,7 +198,7 @@ fn r1cs_emits_wire0_pinned_to_one() {
 #[test]
 fn r1cs_disequality_at_target() {
     // The target disequality is materialised by `set_target`; after it,
-    // the underlying PolyIR carries a single `(target_x, target_y)` pair.
+    // the underlying PolySystem carries a single `(target_x, target_y)` pair.
     let r1cs = make_r1cs(p7(), 4, vec![0], Vec::new());
     let mut ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 2).unwrap();
     ir.set_target(2);

@@ -76,16 +76,16 @@ pub use picus_core::config::EngineOverlay;
 // ── Advanced: build and solve a polynomial constraint system directly ──
 
 /// A use-agnostic GF(p) polynomial constraint system. Build one with
-/// [`PolyIR::new`] + the `push_equality` / `add_disequality` / … mutators and
+/// [`PolySystem::new`] + the `push_equality` / `add_disequality` / … mutators and
 /// hand it to [`solve`] for a raw SAT/UNSAT decision — no R1CS, no uniqueness
 /// semantics. (R1CS uniqueness checking goes through [`check_circuit`].)
-pub use picus_smt::poly_ir::PolyIR;
+pub use picus_smt::poly_system::PolySystem;
 
 /// Multivariate polynomial ring over GF(p); construct one (via [`FfPolyRing::new`]
-/// with a [`PrimeField`] and variable names) to build a [`PolyIR`].
+/// with a [`PrimeField`] and variable names) to build a [`PolySystem`].
 pub use picus_core::poly::FfPolyRing;
 
-/// A polynomial over an [`FfPolyRing`] — the element type of `PolyIR::equalities`.
+/// A polynomial over an [`FfPolyRing`] — the element type of `PolySystem::equalities`.
 pub use picus_core::poly::IrPoly;
 
 /// The prime field GF(p) used to build an [`FfPolyRing`].
@@ -359,7 +359,7 @@ pub fn check_r1cs(
 ///
 /// Unlike [`check_circuit`] / [`check_r1cs`] — which run the DPVL *uniqueness*
 /// analysis over an R1CS — this is the low-level entry point for callers who
-/// have built a [`PolyIR`] themselves (a ring plus
+/// have built a [`PolySystem`] themselves (a ring plus
 /// equalities / disjunctions / disequalities / assignments / bitsums) and want
 /// a plain decision. There is **no** uniqueness / two-copy semantics: the
 /// query means exactly what its constraints say.
@@ -372,7 +372,7 @@ pub fn check_r1cs(
 ///
 /// The native FF backend is a **sound** decision procedure. Its completeness
 /// depends on the field polynomials `x^p - x = 0`: call
-/// [`PolyIR::set_add_field_polys(true)`](PolyIR::set_add_field_polys) for exact
+/// [`PolySystem::set_add_field_polys(true)`](PolySystem::set_add_field_polys) for exact
 /// reasoning over small primes (the encoder materialises them only for
 /// `prime <= 1000`). Over cryptographic primes it is sound-but-incomplete —
 /// `Unsat` is trustworthy, a returned `Sat` model is re-validated before it is
@@ -382,13 +382,13 @@ pub fn check_r1cs(
 ///
 /// ```no_run
 /// use std::sync::Arc;
-/// use picus::{solve, PolyIR, FfPolyRing, PrimeField, PicusConfig, SolverResult, BigUint};
+/// use picus::{solve, PolySystem, FfPolyRing, PrimeField, PicusConfig, SolverResult, BigUint};
 ///
 /// // GF(7) ring with one variable `x`.
 /// let field = PrimeField::new(BigUint::from(7u32));
 /// let ring = Arc::new(FfPolyRing::new(field, vec!["x".to_string()]));
 ///
-/// let mut ir = PolyIR::new(Arc::clone(&ring));
+/// let mut ir = PolySystem::new(Arc::clone(&ring));
 /// let x = ir.linear_term(&BigUint::from(1u32), 0);   // 1 * x
 /// let three = ir.constant(&BigUint::from(3u32));      // 3
 /// ir.push_equality(ring.sub(x, three));               // x - 3 = 0
@@ -398,7 +398,7 @@ pub fn check_r1cs(
 ///     other => panic!("expected Sat, got {:?}", other),
 /// }
 /// ```
-pub fn solve(ir: &PolyIR, config: PicusConfig) -> Result<SolverResult, PicusError> {
+pub fn solve(ir: &PolySystem, config: PicusConfig) -> Result<SolverResult, PicusError> {
     picus_smt::validate_combination(config.analysis.solver, config.analysis.theory)
         .map_err(PicusError::Config)?;
 
@@ -447,7 +447,7 @@ pub fn dump_gb_stats() {
 // ============================================================
 
 /// Split a raw solver model into two clean witness maps. Routing is by
-/// the PolyIR convention: `x<digits>` keys go to witness 1, `y<digits>`
+/// the PolySystem convention: `x<digits>` keys go to witness 1, `y<digits>`
 /// keys to witness 2. An input wire shares `x_i` across both copies (no
 /// `y_i` is emitted), so its value is echoed into witness 2 as well —
 /// keeping witness 2 a complete assignment rather than only the non-input

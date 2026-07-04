@@ -1,8 +1,8 @@
-//! Tests for `poly_ir.rs` — the slim `PolyIR`'s own accessors:
+//! Tests for `poly_system.rs` — the slim `PolySystem`'s own accessors:
 //! `linear_term`, `constant`, `poly_terms`, and `poly_terms_idx`.
 //!
 //! These exercise only the use-agnostic constraint system, so they build a
-//! bare `PolyIR` locally (a ring plus empty constraint vectors). The R1CS
+//! bare `PolySystem` locally (a ring plus empty constraint vectors). The R1CS
 //! two-copy lowering and the wire/uniqueness overlay are tested in the
 //! picus-analysis crate's `uniqueness` module.
 
@@ -12,21 +12,21 @@ use num_bigint::BigUint;
 use picus_core::ff::field::PrimeField;
 use picus_core::poly::FfPolyRing;
 
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 
 /// GF(7) prime.
 fn p7() -> BigUint {
     BigUint::from(7u32)
 }
 
-/// Build a bare `PolyIR` over GF(p) with `n_vars` variables named
-/// `x0..x{n-1}` and no constraints — enough to exercise the `PolyIR`
+/// Build a bare `PolySystem` over GF(p) with `n_vars` variables named
+/// `x0..x{n-1}` and no constraints — enough to exercise the `PolySystem`
 /// accessor methods.
-fn empty_ir(p: BigUint, n_vars: usize) -> PolyIR {
+fn empty_ir(p: BigUint, n_vars: usize) -> PolySystem {
     let field = PrimeField::new(p);
     let names: Vec<String> = (0..n_vars).map(|i| format!("x{}", i)).collect();
     let ring = Arc::new(FfPolyRing::new(field, names));
-    PolyIR {
+    PolySystem {
         ring,
         equalities: Vec::new(),
         disjunctions: Vec::new(),

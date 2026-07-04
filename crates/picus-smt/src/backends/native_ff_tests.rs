@@ -4,7 +4,7 @@
 
 use super::NativeFfBackend;
 use crate::backends::{all_backend_descriptors, create_backend_by_name, SolverBackend, SolverResult};
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 use crate::Theory;
 
 use num_bigint::BigUint;
@@ -51,7 +51,7 @@ fn blk(wid: u32, factor: u32) -> ConstraintBlock {
     }
 }
 
-fn empty_ir(p: BigUint, n_wires: usize, inputs: Vec<usize>, target: usize) -> PolyIR {
+fn empty_ir(p: BigUint, n_wires: usize, inputs: Vec<usize>, target: usize) -> PolySystem {
     let r1cs = make_r1cs(p, n_wires as u32, inputs, Vec::new());
     crate::test_lowering::lower_two_copy(&r1cs, target)
 }

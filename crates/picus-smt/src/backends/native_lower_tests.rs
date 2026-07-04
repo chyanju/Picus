@@ -1,6 +1,6 @@
-//! Tests for `native_lower.rs` — `PolyIR::to_constraint_system`,
-//! `PolyIR::to_boolean_query`, `PolyIR::encode`, and
-//! `PolyIR::pre_eliminate_linear`. Spec-driven where the doc spells
+//! Tests for `native_lower.rs` — `PolySystem::to_constraint_system`,
+//! `PolySystem::to_boolean_query`, `PolySystem::encode`, and
+//! `PolySystem::pre_eliminate_linear`. Spec-driven where the doc spells
 //! out the lowering shape (variable name list, equality count,
 //! disequality/assignment/bitsum propagation, field-poly flag).
 
@@ -9,11 +9,11 @@ use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
 
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 use crate::test_lowering::lower_two_copy;
 use picus_core::timeout::CancelToken;
 
-// ─── Test fixtures (mirror the poly_ir tests) ────────────────────
+// ─── Test fixtures (mirror the poly_system tests) ────────────────────
 
 fn make_r1cs(
     prime: BigUint,
@@ -55,9 +55,9 @@ fn p7() -> BigUint {
     BigUint::from(7u32)
 }
 
-/// Lower a constraint-free R1CS into the crate-local `PolyIR`, with the
+/// Lower a constraint-free R1CS into the crate-local `PolySystem`, with the
 /// target disequality already materialised at `(target, n_wires + target)`.
-fn empty_ir(p: BigUint, n_wires: usize, inputs: Vec<usize>, target: usize) -> PolyIR {
+fn empty_ir(p: BigUint, n_wires: usize, inputs: Vec<usize>, target: usize) -> PolySystem {
     let r1cs = make_r1cs(p, n_wires as u32, inputs, Vec::new());
     lower_two_copy(&r1cs, target)
 }
@@ -227,7 +227,7 @@ fn prop_pre_eliminate_linear_returns_none_on_empty() {
     // pivot variable) — may or may not "change" depending on whether the
     // linsolve treats `x_0 = 1` as already-reduced. Either way, the
     // function must return without panicking, and if it reduces, the
-    // reduced `PolyIR` keeps the same ring.
+    // reduced `PolySystem` keeps the same ring.
     let ir = empty_ir(p7(), 3, vec![0], 1);
     let cancel = CancelToken::none();
     let r = ir.pre_eliminate_linear(&cancel);
@@ -251,7 +251,7 @@ fn prop_pre_eliminate_linear_preserves_disequalities_when_applied() {
 fn prop_pre_eliminate_linear_preserves_metadata_when_applied() {
     // `add_field_polys` carries over. Wire-overlay metadata (input/known
     // sets, n_wires, target) lives on `UniquenessQuery` in picus-analysis,
-    // not on the slim `PolyIR` this operation returns, so there is nothing
+    // not on the slim `PolySystem` this operation returns, so there is nothing
     // else to preserve at this layer.
     let r1cs = make_r1cs(p7(), 4, vec![0, 1], Vec::new());
     let ir = lower_two_copy(&r1cs, 3);

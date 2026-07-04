@@ -1,9 +1,9 @@
-//! End-to-end tests for the advanced `picus::solve` API: build a `PolyIR`
+//! End-to-end tests for the advanced `picus::solve` API: build a `PolySystem`
 //! constraint system directly and decide it, with no R1CS / uniqueness layer.
 
 use std::sync::Arc;
 
-use picus::{solve, BigUint, FfPolyRing, PicusConfig, PolyIR, PrimeField, SolverKind, SolverResult};
+use picus::{solve, BigUint, FfPolyRing, PicusConfig, PolySystem, PrimeField, SolverKind, SolverResult};
 
 /// GF(`prime`) ring over the given variable names.
 fn ring(prime: u32, names: &[&str]) -> Arc<FfPolyRing> {
@@ -17,7 +17,7 @@ fn ring(prime: u32, names: &[&str]) -> Arc<FfPolyRing> {
 #[test]
 fn solve_sat_returns_model() {
     let r = ring(7, &["x"]);
-    let mut ir = PolyIR::new(Arc::clone(&r));
+    let mut ir = PolySystem::new(Arc::clone(&r));
     let x = ir.linear_term(&BigUint::from(1u32), 0);
     let three = ir.constant(&BigUint::from(3u32));
     ir.push_equality(r.sub(x, three)); // x - 3 = 0
@@ -31,7 +31,7 @@ fn solve_sat_returns_model() {
 #[test]
 fn solve_unsat_on_contradiction() {
     let r = ring(7, &["x"]);
-    let mut ir = PolyIR::new(Arc::clone(&r));
+    let mut ir = PolySystem::new(Arc::clone(&r));
     let x1 = ir.linear_term(&BigUint::from(1u32), 0);
     let three = ir.constant(&BigUint::from(3u32));
     let x2 = ir.linear_term(&BigUint::from(1u32), 0);
@@ -52,7 +52,7 @@ fn solve_field_polys_restrict_to_gfp() {
     // with roots in an extension. `set_add_field_polys(true)` injects x^7 - x,
     // restricting the variety to GF(7), which makes the system UNSAT.
     let r = ring(7, &["x"]);
-    let mut ir = PolyIR::new(Arc::clone(&r));
+    let mut ir = PolySystem::new(Arc::clone(&r));
     let xx = r.mul(r.var(0), r.var(0));
     let three = ir.constant(&BigUint::from(3u32));
     ir.push_equality(r.sub(xx, three));
@@ -69,7 +69,7 @@ fn solve_with_disequality() {
     // x*(x-1) = 0 pins x ∈ {0,1}; the disequality x ≠ x_one (a var pinned to 1)
     // forces x = 0. SAT with x = 0.
     let r = ring(7, &["x", "one"]);
-    let mut ir = PolyIR::new(Arc::clone(&r));
+    let mut ir = PolySystem::new(Arc::clone(&r));
     // x^2 - x = 0
     let xx = r.mul(r.var(0), r.var(0));
     let x = ir.linear_term(&BigUint::from(1u32), 0);
@@ -89,7 +89,7 @@ fn solve_with_disequality() {
 #[test]
 fn solve_rejects_solver_none() {
     let r = ring(7, &["x"]);
-    let ir = PolyIR::new(Arc::clone(&r));
+    let ir = PolySystem::new(Arc::clone(&r));
     let cfg = PicusConfig {
         analysis: picus::AnalysisConfig {
             solver: SolverKind::None,

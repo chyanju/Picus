@@ -1,5 +1,5 @@
 //! Multi-prime smoke test. Builds an R1CS over GF(7), runs it through
-//! the PolyIR lowering and the native FF backend, and verifies both
+//! the PolySystem lowering and the native FF backend, and verifies both
 //! consume the prime carried in the binary header.
 
 use std::collections::HashSet;
@@ -71,7 +71,7 @@ fn build_x1_squared_eq_x2() -> R1csFile {
 }
 
 #[test]
-fn poly_ir_lowering_honours_non_bn128_prime() {
+fn poly_system_lowering_honours_non_bn128_prime() {
     let r1cs = build_x1_squared_eq_x2();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
     let ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
@@ -155,7 +155,7 @@ fn set_target_rejects_input_wire() {
 /// but a non-empty `disjunctions` forces the backend off the plain GB
 /// path. For native this is the CDCL(T) route; for cvc5 it is a real
 /// `(or ...)` assertion.
-fn ir_with_benign_disjunction() -> picus_smt::poly_ir::PolyIR {
+fn ir_with_benign_disjunction() -> picus_smt::poly_system::PolySystem {
     let r1cs = build_x1_squared_eq_x2();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
     let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");

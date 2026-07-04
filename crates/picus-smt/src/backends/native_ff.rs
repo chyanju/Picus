@@ -1,7 +1,7 @@
 //! Native Rust finite-field solver backend — a pure-Rust replacement
 //! for the cvc5 QF_FF theory solver.
 //!
-//! Consumes a [`PolyIR`] snapshot directly: `PolyIR::to_constraint_system`
+//! Consumes a [`PolySystem`] snapshot directly: `PolySystem::to_constraint_system`
 //! lowers it to the canonical index-keyed
 //! `picus_solver::frontend::encoder::ConstraintSystem` (each equality a
 //! `Vec<PolyTerm>` summed to zero), and the target disequality
@@ -9,7 +9,7 @@
 //! Rabinowitsch trick wired into [`IncrementalSolverContext`].
 
 use crate::backends::{SolverBackend, SolverBackendDescriptor, SolverError, SolverResult, UnknownReason};
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 use crate::Theory;
 
 use std::cell::Cell;
@@ -103,7 +103,7 @@ fn digest_native_constraint_side(ics: &ConstraintSystem) -> u128 {
 impl SolverBackend for NativeFfBackend {
     fn solve(
         &mut self,
-        ir: &PolyIR,
+        ir: &PolySystem,
         timeout_ms: u64,
         cancel: &CancelToken,
     ) -> Result<SolverResult, SolverError> {
@@ -119,7 +119,7 @@ impl SolverBackend for NativeFfBackend {
         } else {
             None
         };
-        let ir: &PolyIR = reduced_ir.as_ref().unwrap_or(ir);
+        let ir: &PolySystem = reduced_ir.as_ref().unwrap_or(ir);
         let indexed = ir.to_constraint_system();
         metric::incr!(NATIVE_FF.solve_calls);
         metric::scope! {
@@ -170,7 +170,7 @@ impl SolverBackend for NativeFfBackend {
             } else if cache_enabled {
                 cache.solve(&indexed, &cancel)
             } else {
-                // Stateless path: encode directly via `PolyIR::encode`.
+                // Stateless path: encode directly via `PolySystem::encode`.
                 let encoded = {
                     metric::timer!(NATIVE_FF.encode_time_ns);
                     ir.encode().map_err(|e| SolverError::Internal(e))?
@@ -206,7 +206,7 @@ impl SolverBackend for NativeFfBackend {
         }
     }
 
-    fn dump_smt(&self, ir: &PolyIR) -> String {
+    fn dump_smt(&self, ir: &PolySystem) -> String {
         let ics = ir.to_constraint_system();
         let resolve = |idx: u32| ics.var_names[idx as usize].as_str();
         let mut out = String::new();

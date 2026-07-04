@@ -433,7 +433,7 @@ pub(crate) fn check_full_with_atoms(
     let prime = atoms.prime().clone();
 
     let mut builder = ConstraintSystemBuilder::new(prime.clone());
-    // Match the GB-direct path (`PolyIR::to_constraint_system`): request
+    // Match the GB-direct path (`PolySystem::to_constraint_system`): request
     // field polynomials `x^p - x = 0` for small primes (encoder only
     // materialises them when `prime <= 1000`).
     builder.set_add_field_polys(prime <= BigUint::from(1000u32));

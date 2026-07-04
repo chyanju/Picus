@@ -319,7 +319,7 @@ fn test_dpvl_error_from_lower_error_variant() {
 //
 // These exercise the loop layered in `DpvlContext::iterate` directly, not
 // just the per-piece config plumbing covered above:
-//   * the `r1cs_to_poly_ir` lowering call (and its `LowerError` -> `DpvlError`
+//   * the `r1cs_to_poly_system` lowering call (and its `LowerError` -> `DpvlError`
 //     conversion),
 //   * `create_backend` (and its `Err` -> `DpvlError::Backend` conversion),
 //   * the `target_set.iter().all(|t| ks.contains(t))` early-Safe exit when
@@ -378,7 +378,7 @@ fn trivial_r1cs(p: u64, n_wires: u32, inputs: Vec<usize>, outputs: Vec<usize>) -
 }
 
 /// Build an R1CS whose constraint block references a wire id beyond
-/// `n_wires`. The lowering step (`r1cs_to_poly_ir`) must reject this and
+/// `n_wires`. The lowering step (`r1cs_to_poly_system`) must reject this and
 /// `run_dpvl` must surface it as `DpvlError::Lower`, not panic.
 fn r1cs_with_oob_wire() -> R1csFile {
     let n_wires: u32 = 2;
@@ -412,7 +412,7 @@ fn r1cs_with_oob_wire() -> R1csFile {
     }
 }
 
-/// `run_dpvl` should propagate a `LowerError` from `r1cs_to_poly_ir`
+/// `run_dpvl` should propagate a `LowerError` from `r1cs_to_poly_system`
 /// through the `#[from]` impl on `DpvlError::Lower`. The choice of
 /// solver is irrelevant — lowering happens before backend creation.
 #[test]

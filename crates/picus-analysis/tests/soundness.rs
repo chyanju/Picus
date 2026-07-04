@@ -262,7 +262,7 @@ fn bug_basis2_cvc5_ff_finds_counterexample() {
 /// gate blocks and the native backend would have to settle 254-bit
 /// uniqueness directly (a timeout). The circuit also carries an
 /// `AliasCheck` — a 254-bit `CompConstant` with `out === 0` — which the
-/// basis2 companion recogniser matches purely from PolyIR structure,
+/// basis2 companion recogniser matches purely from PolySystem structure,
 /// proving the bit-vector value `< p`. That relaxes the gate, lets
 /// propagation mark the bits known, and yields `Safe`.
 ///

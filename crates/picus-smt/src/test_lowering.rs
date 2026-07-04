@@ -4,15 +4,15 @@
 //! (`uniqueness::r1cs_to_uniqueness_query`). picus-smt's
 //! *integration* tests (a separate crate) can call it directly, but the lib's
 //! own *unit* tests cannot: building the `--test` crate links a *second* copy
-//! of picus-smt (through the picus-analysis dev-dependency), so a `PolyIR`
+//! of picus-smt (through the picus-analysis dev-dependency), so a `PolySystem`
 //! obtained via picus-analysis is a *different nominal type* than the
-//! crate-under-test's `PolyIR`. This module reproduces the two-copy
-//! construction locally, yielding the crate-LOCAL [`crate::poly_ir::PolyIR`],
+//! crate-under-test's `PolySystem`. This module reproduces the two-copy
+//! construction locally, yielding the crate-LOCAL [`crate::poly_system::PolySystem`],
 //! so the unit tests need no re-homing and no picus-analysis dependency.
 //!
 //! It is a faithful port of `r1cs_to_uniqueness_query` (and its private
 //! `constraint_to_poly` / `block_to_linear`) with two differences: it produces
-//! the slim `PolyIR` (no wire overlay metadata), and it materialises the
+//! the slim `PolySystem` (no wire overlay metadata), and it materialises the
 //! target disequality directly as `disequalities = [(target, n_wires + target)]`
 //! — the fixtures that call this expect the target pair to be present.
 
@@ -26,16 +26,16 @@ use picus_core::poly::{FfPolyRing, IrPoly as Poly};
 use picus_r1cs::field_reduce;
 use picus_r1cs::grammar::{ConstraintBlock, R1csFile};
 
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 
-/// Lower a parsed R1CS file into a crate-local [`PolyIR`] laid out as two
+/// Lower a parsed R1CS file into a crate-local [`PolySystem`] laid out as two
 /// copies of the circuit wires (`x_0..x_{n-1}`, `y_0..y_{n-1}`), with the
 /// target disequality `(target, n_wires + target)` materialised directly.
 ///
 /// Each `A * B = C` constraint becomes `expand(A)*expand(B) - expand(C) = 0`
 /// emitted in both copies; input wires reuse `x_i` in both copies; wire 0 is
 /// pinned to `1` in both copies. `add_field_polys` is on iff `prime <= 1000`.
-pub(crate) fn lower_two_copy(r1cs: &R1csFile, target: usize) -> PolyIR {
+pub(crate) fn lower_two_copy(r1cs: &R1csFile, target: usize) -> PolySystem {
     let n_wires = r1cs.n_wires() as usize;
     let input_indices: HashSet<usize> = r1cs.inputs.iter().copied().collect();
     let prime = &r1cs.header.prime_number;
@@ -73,7 +73,7 @@ pub(crate) fn lower_two_copy(r1cs: &R1csFile, target: usize) -> PolyIR {
     let small_prime_threshold = BigUint::from(1000u32);
     let add_field_polys = prime <= &small_prime_threshold;
 
-    PolyIR {
+    PolySystem {
         ring,
         equalities,
         disjunctions: Vec::new(),

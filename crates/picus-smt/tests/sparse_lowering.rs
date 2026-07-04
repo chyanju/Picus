@@ -1,8 +1,8 @@
-//! Resident-memory footprint of lowering a wide circuit to `PolyIR`.
+//! Resident-memory footprint of lowering a wide circuit to `PolySystem`.
 //!
 //! EdDSAPoseidon has ~21k wires, so its two-copy uniqueness ring has
 //! ~42k variables. With the dense representation each monomial is a
-//! full-length exponent vector (O(n_vars)), so `PolyIR::equalities`
+//! full-length exponent vector (O(n_vars)), so `PolySystem::equalities`
 //! alone needs tens of GB and lowering OOMs before any solving begins.
 //! The sparse representation stores only the nonzero `(var, exp)` pairs
 //! (O(nnz) per term), so the same IR fits in megabytes.

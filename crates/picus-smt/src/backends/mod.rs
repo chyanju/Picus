@@ -9,8 +9,8 @@ pub mod cvc5_ff;
 #[cfg(feature = "cvc5")]
 pub mod cvc5_nia;
 pub mod native_ff;
-/// Native-engine lowering methods on `PolyIR` (kept off the
-/// solver-agnostic IR so `poly_ir` depends only on picus-core).
+/// Native-engine lowering methods on `PolySystem` (kept off the
+/// solver-agnostic IR so `poly_system` depends only on picus-core).
 mod native_lower;
 #[cfg(feature = "z3")]
 pub mod z3_nia;
@@ -19,7 +19,7 @@ use num_bigint::BigUint;
 use std::collections::HashMap;
 use thiserror::Error;
 
-use crate::poly_ir::PolyIR;
+use crate::poly_system::PolySystem;
 use picus_core::timeout::CancelToken;
 
 /// Why a solver could not commit to `Sat` or `Unsat`. Discriminating
@@ -59,7 +59,7 @@ pub enum SolverError {
 
 /// Trait for solver backends.
 ///
-/// Backends consume a [`PolyIR`] constraint system and decide it: they assert
+/// Backends consume a [`PolySystem`] constraint system and decide it: they assert
 /// every `equalities` polynomial `= 0`, each `disjunctions` clause as an
 /// `or`, each `disequalities` pair as `x_a ≠ x_b`, each `assignments` pair as
 /// `x_i = val`, expand `bitsums`, optionally add `x^p - x` field polynomials
@@ -78,12 +78,12 @@ pub trait SolverBackend {
     /// limitation rather than silently ignoring the other.
     fn solve(
         &mut self,
-        ir: &PolyIR,
+        ir: &PolySystem,
         timeout_ms: u64,
         cancel: &CancelToken,
     ) -> Result<SolverResult, SolverError>;
 
-    fn dump_smt(&self, ir: &PolyIR) -> String;
+    fn dump_smt(&self, ir: &PolySystem) -> String;
 }
 
 /// Factory closure constructing a fresh backend instance.
@@ -150,7 +150,7 @@ pub fn create_backend_by_name(
 /// `(* coeff v1 v2 ...)`; the sum is wrapped in `(+ ...)` when it has
 /// more than one term, and an empty polynomial reduces to literal `0`.
 #[cfg(any(feature = "cvc5", feature = "z3"))]
-pub fn poly_to_smtlib_nia(ir: &PolyIR, poly: &picus_core::poly::IrPoly) -> String {
+pub fn poly_to_smtlib_nia(ir: &PolySystem, poly: &picus_core::poly::IrPoly) -> String {
     let parts: Vec<String> = ir
         .poly_terms(poly)
         .map(|(coeff, vars)| {
@@ -174,7 +174,7 @@ pub fn poly_to_smtlib_nia(ir: &PolyIR, poly: &picus_core::poly::IrPoly) -> Strin
 /// `ff.add` / `ff.mul` and `#fNmP` literals over the field defined
 /// by the ring's prime.
 #[cfg(feature = "cvc5")]
-pub fn poly_to_smtlib_ff(ir: &PolyIR, poly: &picus_core::poly::IrPoly) -> String {
+pub fn poly_to_smtlib_ff(ir: &PolySystem, poly: &picus_core::poly::IrPoly) -> String {
     let p = ir.ring.field().prime();
     let parts: Vec<String> = ir
         .poly_terms(poly)
