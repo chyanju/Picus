@@ -166,9 +166,8 @@ pub fn or_of_ands(n: usize) -> String {
 }
 
 /// Bounded-cost subset of [`corpus`] (drops `random_3cnf` cases with
-/// `vars >= 8`, which without theory propagation can take many
-/// seconds in CDCL(T) and add multi-minute wall to a comparison
-/// sweep). Use this from the `cvc5_compare` binary.
+/// `vars >= 8`, which without theory propagation are expensive in
+/// CDCL(T)). Use this from the `cvc5_compare` binary.
 pub fn corpus_bounded() -> Vec<(&'static str, String, String)> {
     corpus()
         .into_iter()

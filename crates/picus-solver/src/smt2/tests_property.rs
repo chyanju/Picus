@@ -283,7 +283,7 @@ fn prop_unary_ff_mul_is_identity() {
     }
 }
 
-// ────────── bit-sum spec (recurring bug hazard) ──────────
+// ────────── bit-sum spec ──────────
 
 /// SPEC: `(ff.bitsum b_0 b_1 ... b_{n-1})` equals
 /// `sum_i 2^i * b_i  (mod prime)`. Exact powers of 2 — not arbitrary
@@ -521,7 +521,7 @@ fn prop_parse_eq_zero_polynomial_for_tautology() {
     }
 }
 
-// ────────── Edge-prime invariants (recurring hazard class) ──────────
+// ────────── Edge-prime invariants ──────────
 
 /// SPEC: GF(2) has only {0, 1}. `(ff.add x x) = 0` for any x in GF(2)
 /// (characteristic 2: a + a = 2a = 0).

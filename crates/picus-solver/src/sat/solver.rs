@@ -822,7 +822,7 @@ impl Solver {
         // Each negated reason fact must be currently False (the reason fact
         // currently True). A stale/incorrect reason would build a malformed
         // justification clause and corrupt later 1-UIP analysis, so bail
-        // rather than trust it — a real guard, not a debug-only assert.
+        // rather than trust it.
         if reason_neg
             .iter()
             .any(|&r| !matches!(self.lit_value(r), LBool::False))
@@ -847,13 +847,12 @@ impl Solver {
     /// level (i.e. all literals in `lits[1..]` are currently False and
     /// `lits[0]` is currently Undef).
     pub fn learn_clause(&mut self, lits: Vec<Lit>) -> ClauseRef {
-        // Always-on (not debug-only): an empty clause would index-panic at
-        // `lits[0]` below in release. `analyze` always yields a non-empty
-        // learnt clause and its `None` (resolution-bail) path routes to
-        // `give_up`, so this is unreachable today; enforce it loudly anyway —
-        // a panic here is caught at the backend `catch_unwind` (→ Unknown),
-        // never a wrong verdict. The `len() == 1` arm guards the `>= 2`
-        // indexing that follows.
+        // An empty clause would index-panic at `lits[0]` below. `analyze`
+        // always yields a non-empty learnt clause (its resolution-bail `None`
+        // path routes to `give_up`), so this assert never fires; a panic here
+        // is caught at the backend `catch_unwind` (→ Unknown), never a wrong
+        // verdict. The `len() == 1` arm guards the `>= 2` indexing that
+        // follows.
         assert!(!lits.is_empty(), "cannot learn empty clause");
         let asserting = lits[0];
         if lits.len() == 1 {

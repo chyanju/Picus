@@ -1,12 +1,11 @@
 use num_bigint::BigUint;
 
-/// Regression for the cvc5 finite-field split-solver soundness bug
-/// (cvc5 PR #12457: present in 1.2.0–1.3.3, fixed in 1.3.4). The
-/// bitsum overflow check in `BitProp::getBitEqualities` did not
-/// require the bitsum's elements to be `{0,1}`, so `2*_0 + _1 = 4`
-/// over BN254 — plainly SAT (e.g. `_0=2, _1=0`) — was wrongly
-/// reported UNSAT. This drives cvc5 directly and asserts SAT, so it
-/// fails if the vendored cvc5 is ever downgraded below the fix.
+/// Guards the vendored cvc5 finite-field split-solver against a
+/// bitsum-overflow soundness bug: cvc5's bitsum overflow check must
+/// require the bitsum's elements to be `{0,1}`. Without that guard,
+/// `2*_0 + _1 = 4` over BN254 — plainly SAT (e.g. `_0=2, _1=0`) — is
+/// wrongly reported UNSAT. Drives cvc5 directly and asserts SAT, so it
+/// fails if the vendored cvc5 regresses on this check.
 #[test]
 fn bug_cvc5_ff_split_bitsum_overflow_is_sat() {
     let p = BigUint::parse_bytes(

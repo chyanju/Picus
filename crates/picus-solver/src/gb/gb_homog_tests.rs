@@ -140,7 +140,7 @@ fn test_homog_rabinowitsch() {
 
 #[test]
 fn test_homog_chunked_add_small() {
-    // Chunked-add shape (the killer benchmark family):
+    // Chunked-add shape:
     //   a + b - 2*c - r = 0   (r = chunk in {0..3}, c = carry in {0..1})
     //   a^2 - a, b^2 - b, c^2 - c   (bit cubes)
     // Equivalence check on this 5-poly system.

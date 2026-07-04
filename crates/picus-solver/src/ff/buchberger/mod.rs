@@ -65,9 +65,9 @@ pub fn use_f4_default() -> bool {
 /// Minimum ring width for the GVW signature path (`signature_criterion`).
 /// Below it, GVW's recompute-from-scratch on each split-GB extend loses to
 /// the incremental per-pair engine, so small rings stay on the per-pair
-/// engine. Above it GVW eliminates the zero-reductions but is
-/// benchmark-neutral — the large circuits are bounded by the intrinsic GB
-/// size, not by the zero-reductions.
+/// engine. Above it GVW eliminates zero-reductions but rarely helps: the
+/// large circuits are bounded by the intrinsic GB size, not by the
+/// zero-reductions.
 const GVW_MIN_VARS: usize = 1000;
 
 /// A computed Groebner basis.
@@ -341,24 +341,17 @@ const USE_COUNT_SORT_THRESHOLD: usize = 32;
 /// echelon, plus ~`basis/2` `mul_term` reducer-row constructions in
 /// symbolic preprocessing) exceeds the amortisation gain below
 /// this threshold.
-///
-/// Calibrated against `bench_f4_vs_per_pair_large` and
-/// `bench_f4_non_cyclic_workloads`. `12` keeps cyclic-6 (avg 35)
-/// and dense-N (10/20/30) on the F4 path, lets cyclic-5 (avg ~12)
-/// straddle, and routes Katsura-4 (avg 8.3) and the diffuse-4vars
-/// case to per-pair. Lower values regress Katsura-4 and diffuse-4
-/// 2–3×; higher values regress cyclic-5.
 const F4_MIN_BATCH: usize = 12;
 
 /// Basis-size cap above which `f4_hilbert_select` falls back to the
 /// sugar-classical selection. The cap exists because the BCR colon
 /// recursion `hilbert_numerator` reduces an s-generator monomial
-/// ideal but its worst-case is exponential. With the incremental
-/// `HilbertNum::add_generators_incremental` lifting the per-call cost
-/// to only the colon-ideal walk on the new candidate, the original
-/// `s ≤ 50` ceiling can be relaxed to a more permissive bound that
-/// still guards against the pathological branch where every candidate
-/// sugar's LCM colon-ideal is the worst case for BCR.
+/// ideal whose worst-case is exponential. The incremental
+/// `HilbertNum::add_generators_incremental` lifts the per-call cost
+/// to only the colon-ideal walk on the new candidate, so the cap can
+/// be permissive while still guarding against the pathological branch
+/// where every candidate sugar's LCM colon-ideal is the worst case
+/// for BCR.
 const HILBERT_SELECT_BASIS_CAP: usize = 250;
 
 impl BuchbergerState {
@@ -869,9 +862,9 @@ impl BuchbergerState {
         if self.trivial && self.cfg.abort_on_trivial { return Ok(()); }
         // GVW (signature_criterion) only on wide rings: its recompute-from-
         // scratch loses on small ones (per split-GB extend), so gate it on
-        // ring width like the elimination-order selection. Off by default —
-        // benchmark-neutral even above the gate (the timeouts are GB-size-
-        // bound, not zero-reduction-bound).
+        // ring width like the elimination-order selection. Off by default:
+        // even above the gate it rarely helps, since the timeouts are
+        // GB-size-bound, not zero-reduction-bound.
         if self.ring.n_vars >= GVW_MIN_VARS && crate::config::with(|c| c.signature_criterion) {
             return self.run_gvw();
         }
@@ -1309,12 +1302,7 @@ impl BuchbergerState {
             // [`F4_MIN_BATCH`] pairs the fixed cost (build the
             // column index, encode rows, run echelon) exceeds the
             // gain over direct per-pair geobucket reduction, so fall
-            // back to the single-pair path. The threshold is
-            // calibrated against `bench_f4_vs_per_pair_large`:
-            // cyclic-4 produces 3 batches of size ≤ 3 with no cache
-            // reuse, so `F4_MIN_BATCH` leaves all of them on the
-            // per-pair path while keeping cyclic-5 / cyclic-6
-            // batches (avg 10–30 pairs) in the F4 path.
+            // back to the single-pair path.
             if batch.len() < F4_MIN_BATCH {
                 metric::scope! { self.profile.f4_fallback_pairs += batch.len() as u64; }
                 for pair in batch {

@@ -204,8 +204,7 @@ fn bug_basis2_does_not_overreport_when_bitwidth_exceeds_prime() {
 /// `x^p - x = 0` constraints are essential for the GB engine to
 /// model GF(p) correctly.
 ///
-/// Also the regression guard for the CDCL(T) 1-UIP fix: with
-/// `aboz_emit_disjunctions` on (default), this routes through the
+/// With `aboz_emit_disjunctions` on (default), this routes through the
 /// in-tree CDCL(T) engine, whose theory hands it conflict lemmas with
 /// several literals at the top decision level. Those must be resolved
 /// to a proper 1-UIP asserting clause (see
@@ -241,8 +240,8 @@ fn bug_basis2_native_ff_finds_counterexample() {
 }
 
 /// Same trap as `basis2_native_ff_finds_counterexample`, but via cvc5
-/// QF_FF — confirms the test setup itself is sound and the native_ff
-/// failure is a backend bug rather than an incorrect synthetic R1CS.
+/// QF_FF — confirms the synthetic R1CS itself is sound, isolating any
+/// native_ff discrepancy to the backend rather than the test setup.
 /// Requires the cvc5 backend, so it is gated on the `cvc5` feature.
 #[cfg(feature = "cvc5")]
 #[test]
@@ -265,15 +264,13 @@ fn bug_basis2_cvc5_ff_finds_counterexample() {
 /// `AliasCheck` — a 254-bit `CompConstant` with `out === 0` — which the
 /// basis2 companion recogniser matches purely from PolyIR structure,
 /// proving the bit-vector value `< p`. That relaxes the gate, lets
-/// propagation mark the bits known, and yields `Safe` in well under a
-/// second.
+/// propagation mark the bits known, and yields `Safe`.
 ///
-/// This is the counterpart to
+/// Counterpart to
 /// `basis2_does_not_overreport_when_bitwidth_exceeds_prime`: that test
 /// guarantees the gate stays closed when no companion is present; this
 /// one guarantees it opens when a genuine companion is. Without the
-/// recogniser the native backend returns `Unknown` (timeout), so the
-/// `Safe` assertion is a direct regression guard for the relaxation.
+/// recogniser the native backend returns `Unknown` (timeout).
 /// Skips if the benchmark fixture is unavailable.
 #[test]
 fn bug_basis2_relaxes_with_compconstant_companion() {

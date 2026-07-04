@@ -9,8 +9,7 @@
 //! 4. **end-to-end** — Full `encode` + `solve_encoded` pipeline.
 //!
 //! Workloads:
-//!   - `issue10937_gf7`    : 11-variable MAC linearity, GF(7) — the benchmark that
-//!                           revealed the 600,000x performance bug.
+//!   - `issue10937_gf7`    : 11-variable MAC linearity, GF(7).
 //!   - `bigff_is_zero_gf_bn128` : 4-variable soundness proof over BN128 (large prime).
 //!   - `field_poly_gf7`    : Fermat's little theorem a^7 = a, with field polys.
 //!   - `random_6var_gf11`  : Random 6-variable system (SAT by construction).

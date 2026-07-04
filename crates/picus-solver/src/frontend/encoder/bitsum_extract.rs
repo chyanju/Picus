@@ -51,8 +51,7 @@ pub(crate) fn bitsum_fits(len: usize, p: &BigUint) -> bool {
 /// [`bitsum_fits`]) so distinct bit patterns never collide modulo
 /// `prime`. The same invariant gates the `basis2` propagation lemma in
 /// `picus-analysis`. For cryptographic primes the cap is ~254; for
-/// small primes used in regression tests (GF(7), GF(11), GF(13))
-/// it's 2-3.
+/// small primes (GF(7), GF(11), GF(13)) it's 2-3.
 pub fn auto_extract_bitsums(
     system: &ConstraintSystem,
 ) -> ConstraintSystem {

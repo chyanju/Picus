@@ -1,9 +1,9 @@
 //! Univariate polynomial arithmetic and root finding over GF(p).
 //!
-//! Replaces `feanor_math::dense_poly` + `FactorPolyField` for the single use case
-//! of finding roots of polynomials over GF(p) (used by the model construction in
-//! the SMT layer for branching). The root-finding algorithm is Cantor–Zassenhaus
-//! with squarefree decomposition, specialised for GF(p).
+//! Scoped to the single use case of finding roots of polynomials over GF(p)
+//! (used by model construction in the SMT layer for branching). The
+//! root-finding algorithm is Cantor–Zassenhaus with squarefree decomposition,
+//! specialised for GF(p).
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};

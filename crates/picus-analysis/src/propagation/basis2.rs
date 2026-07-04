@@ -33,9 +33,8 @@
 //! decomposition of that sum, and the forced-zero output, decodes the
 //! constant `ct` from the part coefficients, and checks `ct < p`.
 //!
-//! Soundness of the relaxation (verified empirically on the real
-//! lowered gadget over 5000 random + all boundary inputs): with
-//! `a_i = 2^i`, `b_i = 2^128 - 2^i`, each `parts_i` evaluates to `b_i`
+//! Soundness of the relaxation: with `a_i = 2^i`,
+//! `b_i = 2^128 - 2^i`, each `parts_i` evaluates to `b_i`
 //! when its base-4 digit `d_i > c_i`, `0` when `d_i = c_i`, `a_i` when
 //! `d_i < c_i` (where `ct = Σ 4^i c_i`). Writing the sum
 //! `S = G·2^128 + R` with `R = Σ 2^i (l_i − g_i)` and `|R| < 2^127`,

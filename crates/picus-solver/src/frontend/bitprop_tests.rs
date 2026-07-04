@@ -756,8 +756,8 @@ fn hardprobe_phase1_sweep_soundness_and_completeness() {
 /// HARD-PROBE: GF(2) is a corner — the prime equals 2 so `2^k ≤ p` holds
 /// only for k=1. Spec: for a 1-bit bitsum pinned to v, propagation forces
 /// b0 = v. For k ≥ 2 the fit guard MUST refuse propagation (or only emit
-/// entailed equalities). GF(2) historically traps bit-width code that
-/// confuses "bit" with "field element" since GF(2) = {0,1}.
+/// entailed equalities). GF(2) traps bit-width code that confuses "bit"
+/// with "field element" since GF(2) = {0,1}.
 #[test]
 fn hardprobe_phase1_gf2_only_k1_propagates() {
     // k=1, v=0: b0 = 0

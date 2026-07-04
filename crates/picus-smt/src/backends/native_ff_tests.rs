@@ -1,6 +1,6 @@
 //! Tests for `native_ff.rs` — the `NativeFfBackend` constructor,
 //! `dump_smt` formatting, the `SolverBackendDescriptor` registration,
-//! and minimal end-to-end `solve` smoke (tiny GF(7) systems, <50ms).
+//! and minimal end-to-end `solve` smoke (tiny GF(7) systems).
 
 use super::NativeFfBackend;
 use crate::backends::{all_backend_descriptors, create_backend_by_name, SolverBackend, SolverResult};

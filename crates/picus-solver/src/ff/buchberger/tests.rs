@@ -886,8 +886,7 @@ fn bases_equal_as_sets(a: &[DensePoly], b: &[DensePoly], ring: &PolyRing) -> boo
 #[test]
 fn prop_interreduce_is_idempotent_across_primes() {
     // Spec: interreduce is a projection — applying it twice agrees with once.
-    // Sweep small + medium prime so a characteristic-dependent regression
-    // surfaces here too.
+    // Sweep small + medium prime to catch characteristic-dependent bugs.
     for &p in &[7u64, 101] {
         let r = ring_p(p, 3);
         let basis = vec![
@@ -1025,8 +1024,7 @@ fn prop_incremental_gb_matches_full_gb_on_union_gf101() {
 fn prop_single_linear_gen_is_already_a_gb_small_prime_sweep() {
     // Sweep (prime, leading_coeff, const): a single linear monic `a·x - c`
     // over GF(p) is already its own (monic) reduced GB. Small primes
-    // (GF(2)/3/5) are a high-signal regression surface for bit-width and
-    // bitprop logic, so probing the GB engines on each is worthwhile.
+    // (GF(2)/3/5) exercise bit-width and bitprop edge cases.
     for (prime, a, c) in [(2u64, 1i64, 1i64), (3, 2, 1), (5, 3, 2)] {
         let r = ring_p(prime, 1);
         let cfg = BuchbergerConfig { order: r.order, ..Default::default() };

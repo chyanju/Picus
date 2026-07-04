@@ -95,8 +95,7 @@ fn add_known_wire_is_equality_noop_for_input_wire() {
 //
 // These exercise `r1cs_to_uniqueness_query` end-to-end: ring layout, wire-0
 // pinning, copy symmetry, field-poly gating, error paths, and the wire
-// overlay it records. (Moved here from picus-smt's `poly_ir_tests.rs`, which
-// can no longer reach the lowering — it lives in this crate.)
+// overlay it records.
 
 /// Build a minimal in-memory R1csFile with the supplied prime, n_wires,
 /// inputs, and constraints (each as triples of (a, b, c) blocks).

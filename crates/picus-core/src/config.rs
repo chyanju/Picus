@@ -79,8 +79,7 @@ pub struct RuntimeConfig {
     /// default: each clause follows from an `s * o = 0` equality already
     /// in the IR, so it is sound and verdict-neutral; this keeps the
     /// pipeline's disjunction path live. Set `aboz_emit_disjunctions =
-    /// false` in config (CLI `--no-aboz-disj`) to disable (e.g. for an
-    /// A/B perf comparison).
+    /// false` in config (CLI `--no-aboz-disj`) to disable.
     pub aboz_emit_disjunctions: bool,
     /// Representation of the IR poly type ([`ReprKind`]). Defaults to
     /// `Sparse` so lowering + the cvc5 path scale on wide rings (the dense
@@ -93,11 +92,8 @@ pub struct RuntimeConfig {
     /// a Gröbner basis of the linear subsystem, substituting out pivot
     /// variables. Off by default — split-GB already handles linear
     /// constraints in basis 0, and the substitution can densify the
-    /// nonlinear part and add per-`solve` overhead. A PLDI corpus
-    /// differential measured +3.3% total wall-clock with regressions
-    /// (BinSum/BinSub 80×, EdDSA family 1.3-1.6×, Pedersen +2.9 s) and zero
-    /// wins. Exposed as a knob for linear-heavy conjunctive circuits where
-    /// it may pay off.
+    /// nonlinear part and add per-`solve` overhead. Exposed as a knob for
+    /// linear-heavy conjunctive circuits where it may pay off.
     pub linear_elim: bool,
     /// Track inter-reduction reducer dependencies in the single-GB UNSAT-core
     /// tracer (`GbTracer`), so a trivial core reflects the basis elements that
@@ -133,9 +129,7 @@ pub struct RuntimeConfig {
     /// through. For primes ≤ 1000 the basis already carries the field
     /// polynomials, so the test is exact radical membership; for large
     /// primes it is a one-sided Safe filter (misses fall through). On by
-    /// default: a PLDI same-binary A/B measured −2.9% total wall-clock on
-    /// completing circuits (the multi-output EdDSA family −0.03 to −0.37 s
-    /// each) with identical verdicts and no fixture-level regression.
+    /// default.
     pub membership_fastpath: bool,
     /// Monolithic-GB radical Safe fast-path. Upgrade of `membership_fastpath`:
     /// rather than reducing `x_a − x_b` against the union of the per-partition
@@ -160,14 +154,12 @@ pub struct RuntimeConfig {
     /// reads its order from the ring, so this only changes which (equally
     /// valid) reduced GB of the same ideal is computed; SAT/UNSAT verdicts
     /// are preserved (`verify_model` / whole-ring detection are
-    /// order-independent). Off by default: a PLDI same-binary A/B measured
-    /// +318% total wall-clock with five regressions to `unknown` / timeout
-    /// (MontgomeryAdd, MontgomeryDouble, BinSum, BinSub, Pedersen) and zero
-    /// wins — the elimination order's leading-term structure makes the
-    /// model search (`find_zero`) exhaust the per-query budget on those
-    /// circuits. Soundness held (every regression is an `unknown`, never a
-    /// wrong verdict). Kept as a research knob; re-evaluate if the model
-    /// search gains an elimination-aware branching strategy.
+    /// order-independent). Off by default: the elimination order's
+    /// leading-term structure can make the model search (`find_zero`)
+    /// exhaust the per-query budget on some circuits, degrading them to
+    /// `unknown` (never a wrong verdict — soundness is order-independent).
+    /// Kept as a research knob; re-evaluate if the model search gains an
+    /// elimination-aware branching strategy.
     pub matrix_elim_order: bool,
     /// Size-adaptive term-order selection for the native split-GB. When
     /// set, the encoder builds the solve ring under the alt-copy
@@ -177,10 +169,8 @@ pub struct RuntimeConfig {
     /// family) and regresses tiny ones. The split-GB is
     /// order-agnostic, so this only changes which equally valid GB is
     /// computed; verdicts are guarded independently of the order. On by
-    /// default: a PLDI same-binary A/B measured -3.1% total wall-clock — the
-    /// EdDSA family -54..-585 ms via the elimination order on its large rings —
-    /// with identical verdicts and no regression (the size guard routes
-    /// small rings, where the elimination order regressed, to DegRevLex).
+    /// default: the size guard routes small rings, where the elimination
+    /// order regresses, to DegRevLex.
     pub dynamic_order: bool,
     /// Signature-based Gröbner basis (GVW with signature-safe reduction) in
     /// place of the per-pair Buchberger run, for rings of at least
@@ -189,29 +179,25 @@ pub struct RuntimeConfig {
     /// signature-safely, and skips a J-pair a recorded syzygy / rewrite /
     /// singular criterion proves redundant — so the zero-reductions the
     /// product / Gebauer-Möller / Buchberger criteria fail to predict are
-    /// never paid for, rather than reduced-then-discarded. Off by default: a
-    /// PLDI same-binary A/B measured -0.2% total wall-clock with identical
-    /// verdicts (a 300-seed differential oracle pins the GVW basis equal to
-    /// the per-pair reduced GB) and no regression, but no clean fixture win —
-    /// the timeout circuits are bounded by the intrinsic Gröbner-basis size,
-    /// not by the zero-reductions GVW removes, so it does not resolve them.
-    /// The size guard routes small rings, where a from-scratch GVW recompute
-    /// on each split-GB extend regressed (Pedersen), to the per-pair engine.
-    /// Kept as a research knob and the foundation for further signature work.
+    /// never paid for, rather than reduced-then-discarded. Off by default:
+    /// the GVW basis equals the per-pair reduced GB (verdict-identical), but
+    /// timeout circuits are bounded by the intrinsic Gröbner-basis size, not
+    /// by the zero-reductions GVW removes, so it does not resolve them. The
+    /// size guard routes small rings — where a from-scratch GVW recompute on
+    /// each split-GB extend regresses — to the per-pair engine. Kept as a
+    /// research knob and the foundation for further signature work.
     pub signature_criterion: bool,
     /// Use Zech (discrete-log) tables for prime fields with
     /// `prime <= ff::field::ZECH_LOG_MAX_PRIME`, turning multiply / inverse /
     /// power into table lookups. Result-identical (the stored element is the
     /// plain residue either way). Off by default, for two reasons: (i) picus's
-    /// deployed workload is BN254 — the GMP backend, where the small-prime
-    /// path is never taken, so the PLDI corpus cannot gate it; (ii) the
-    /// speedup is not uniform. A 5M-op micro-benchmark: `inv` wins everywhere
-    /// (GF(101) 103→11 ms, GF(65521) 102→11 ms — a table lookup vs extended
-    /// Euclid), but `mul` regresses on mid-size primes (GF(65521) 46→81 ms:
-    /// the ~1 MB `exp` table overflows L2, and Gröbner reduction is mul-heavy)
-    /// and only marginally wins on tiny ones (GF(101) 46→40 ms). So the net is
-    /// workload-dependent; kept as an opt-in knob for inverse-heavy small-prime
-    /// arithmetic, with an `O(prime)` table build per field.
+    /// deployed workload is BN254 on the GMP backend, where the small-prime
+    /// path is never taken; (ii) the speedup is not uniform — `inv` wins
+    /// everywhere (a table lookup vs extended Euclid), but `mul` regresses on
+    /// mid-size primes because the ~1 MB `exp` table overflows L2 and Gröbner
+    /// reduction is mul-heavy, and only marginally wins on tiny primes. So the
+    /// net is workload-dependent; kept as an opt-in knob for inverse-heavy
+    /// small-prime arithmetic, with an `O(prime)` table build per field.
     pub zech_log_small_fp: bool,
     /// Cache the geobucket reducer's divisor index (DivMask buckets + degree
     /// order) across S-pair reductions whose active basis is unchanged,
@@ -224,8 +210,7 @@ pub struct RuntimeConfig {
     /// `distinct_linear_part` keyed by `(prime, f.coeffs)`. The result is a
     /// pure function of its key, so cached values are always correct. Helps
     /// model-construction phases that call root-finding on the same `(ring,
-    /// f)` across multiple DFS branches. Off by default; flip on if PLDI
-    /// total wall-clock drops.
+    /// f)` across multiple DFS branches.
     pub frobenius_cache: bool,
     /// In multivariate model construction (`find_zero_cancel`), use the
     /// incremental Buchberger driver (`compute_gb_incremental_with_order`)
@@ -233,56 +218,43 @@ pub struct RuntimeConfig {
     /// DFS branch, instead of running a fresh full Buchberger over the
     /// merged generator list. Result-preserving (same reduced GB modulo
     /// canonicalisation) — only the work to reach it is amortized across
-    /// branches. Off by default; flip on if PLDI total wall-clock drops.
+    /// branches.
     pub branching_incremental_gb: bool,
     /// Route the FF theory through `cdclt::multi_prime::FfTheoryRouter`
     /// instead of the single-prime `FfTheory`. Capability flag for
     /// future multi-prime SMT-LIB inputs; the parser today still
     /// rejects multi-prime sessions, so the router runs in single-slot
     /// mode (path-equivalent to `FfTheory` on the same input). Off by
-    /// default until corpus differential confirms equivalence and the
-    /// parser is widened to emit per-prime atom tables.
+    /// default until the parser is widened to emit per-prime atom tables.
     pub cdclt_multi_prime_router: bool,
     /// Interpose `cdclt::equality_engine::EqualityEngine` before the
     /// FF theory at fact-notification time. `Fresh` facts forward,
     /// `Redundant` facts drop, `Contradiction` facts surface a
     /// precise 2-literal lemma `{atom, witness}` via
     /// `EqualityEngine::prior_witness` instead of deferring to the
-    /// inner GB collapse. Off by default after a PLDI corpus
-    /// differential: −0.38% total wall-clock, 0 verdict regressions,
-    /// mixed fixtures (EdDSAMiMCVerifier −21% and Pedersen −3.6%, but a
-    /// borderline EdDSAMiMCSpongeVerifier +1.7%), so the default-flag-flip
-    /// rule keeps it off pending a noise-vs-systematic recheck.
+    /// inner GB collapse. Off by default.
     pub cdclt_equality_engine: bool,
     /// Reorder F4 S-pair batches by predicted Hilbert-function drop
     /// (Bigatti–Caboara–Robbiano selection oracle with
     /// `HilbertNum::add_generators_incremental` per candidate;
     /// `HILBERT_SELECT_BASIS_CAP=250` ceiling). Default ON when the
     /// F4 path is in use (`use_f4=true`); inert when the per-pair
-    /// path runs. PLDI corpus differential (with `--use-f4`): −1.3% total
-    /// wall-clock, 0 verdict regressions, EdDSAPoseidonVerifier −55%
-    /// (3349 → 1500 ms), EdDSAMiMCVerifier −21%, EdDSAVerifier −24%,
-    /// EdDSAMiMCSpongeVerifier −3.9%, no fixture regression > 200 ms.
-    /// Cyclic-N is homogeneous so the oracle has nothing to rank;
-    /// katsura-N (heterogeneous) is flat to marginally faster.
+    /// path runs. On homogeneous systems the oracle has nothing to rank.
     pub f4_hilbert_select: bool,
     /// Cross-batch sparse reducer-row cache inside `F4Workspace`:
     /// stores only the basis index per cache entry and rematerialises
     /// the reducer poly via `basis[bi].poly.mul_term(m / LT(basis[bi]),
     /// 1)` at hit time. Default ON when `use_f4=true`; inert
-    /// otherwise. PLDI corpus differential is the same run as
-    /// `f4_hilbert_select` above (both flags toggled together):
-    /// −1.3% total, 4 EdDSA-family clean wins. Per-entry memory drops
-    /// from O(n_terms × n_vars) to O(1) word, freeing allocator
-    /// pressure on wider-ring F4 workloads.
+    /// otherwise. Per-entry memory drops from O(n_terms × n_vars) to
+    /// O(1) word, freeing allocator pressure on wider-ring F4 workloads.
     pub f4_sparse_reducer_cache: bool,
     /// Route the FF theory through `cdclt::ff_theory_incremental::
     /// IncrementalFfTheoryState`, which carries an `IncrementalGB`
     /// across SAT decisions instead of rebuilding the basis per
     /// `post_check`. Off by default; the wire-up ports the tier1+tier2
     /// propagation from `FfTheory` and falls back to Unknown on
-    /// large-prime non-trivial bases (BN254/BabyJubJub) until model
-    /// extraction lands in a follow-up round.
+    /// large-prime non-trivial bases (BN254/BabyJubJub) pending model
+    /// extraction.
     pub cdclt_incremental_theory: bool,
 }
 

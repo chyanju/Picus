@@ -281,9 +281,7 @@ fn audit_inc_large_prime_pinned_eq_extracts_model_via_bridge() {
     // model-extraction bridge runs `find_zero_cancel` against a
     // user-namespaced facade ring; the only basis element after
     // notify is `x - 12345`, which `try_extract_full_assignment`
-    // resolves directly. Verdict: Sat with `{x: 12345}`. Was
-    // previously Unknown (large prime + non-trivial basis ⇒ Unknown
-    // hardcoded) before the bridge landed.
+    // resolves directly. Verdict: Sat with `{x: 12345}`.
     let cancel = CancelToken::none();
     let prime = BigUint::parse_bytes(
         b"21888242871839275222246405745257275088548364400416034343698204186575808495617",

@@ -66,9 +66,6 @@ pub use cvc5_ff_sys::InputLanguage;
 #[cfg(feature = "parser")]
 pub use parser::{Command, InputParser, SymbolManager};
 
-// Re-export PhantomData-related marker so users don't need to import it
-// (the lifetime is inferred automatically in most cases)
-
 /// Get a string representation of an [`InputLanguage`].
 #[cfg(feature = "parser")]
 pub fn input_language_to_string(lang: InputLanguage) -> String {

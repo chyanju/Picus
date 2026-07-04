@@ -378,7 +378,7 @@ impl DpvlContext {
     /// A lemma whose only output is a tightened range or a new
     /// learned constraint counts as progress and triggers another
     /// iteration. Per-lemma contribution counts are emitted at
-    /// `debug!` for ablation work.
+    /// `debug!`.
     fn propagate(
         &mut self,
         q: &mut UniquenessQuery,

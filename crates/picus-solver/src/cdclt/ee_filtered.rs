@@ -7,8 +7,7 @@
 //! polynomial at the same polarity is already on the trail); `Contradiction`
 //! outcomes are forwarded too — the inner theory's GB layer will detect
 //! the conflict at `post_check`, so the EE-side polarity contradiction is
-//! a hint, not the primary signal, until a precise lemma synthesis is
-//! added in a later round.
+//! a hint, not the primary signal.
 //!
 //! `push` / `pop` run in lockstep: EE first on push, inner first on pop,
 //! mirroring the SAT-trail invariant — a polarity asserted at level k

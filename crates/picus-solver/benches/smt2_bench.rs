@@ -1,4 +1,4 @@
-//! Parse + solve wall-time on the in-tree QF_FF SMT-LIB fixtures.
+//! Parse + solve timing on the in-tree QF_FF SMT-LIB fixtures.
 //!
 //! Each fixture under `benches/smt2/` is embedded at compile time via
 //! `include_str!` and timed through `parse → solve_formula`. The set

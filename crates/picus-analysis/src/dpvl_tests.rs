@@ -647,9 +647,8 @@ fn test_apply_overlay_later_layer_wins() {
     );
 }
 
-/// `DpvlOverlay::default()` is all-None — exercises the `Default` impl
-/// (`#[derive(Default)]` does fire here but it's worth a regression pin
-/// so a future hand-written impl can't silently flip a field).
+/// `DpvlOverlay::default()` is all-None. Pins this so a future
+/// hand-written `Default` impl can't silently flip a field.
 #[test]
 fn test_dpvl_overlay_default_is_all_none() {
     let o = DpvlOverlay::default();

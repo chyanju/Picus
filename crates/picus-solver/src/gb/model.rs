@@ -346,18 +346,13 @@ fn compute_candidates(
     // gate of field-polynomial injection upstream — returning
     // `Brancher::ProvedUnsat` lets the search loop backtrack soundly.
     //
-    // Why Case 2.5 lights zero hot fixtures on the PLDI corpus today:
-    // every PLDI fixture is R1CS over BN254. The post-encode ideal
-    // shape is overwhelmingly either (a) positive-dimensional — so
-    // `ideal.is_zero_dim()` is false and Case 2.5 never fires — or
-    // (b) zero-dimensional with a per-variable min-poly that
-    // `find_roots_checked` (Cantor–Zassenhaus over the prime field) is
-    // already `complete` on, so Case 2 succeeds without needing the
-    // FGLM fallback. Case 2.5 ships as a sound fallback for the class
-    // of zero-dim BN254 ideals whose min-poly has an irreducible
-    // factor of degree ≥ 2 that Cantor–Zassenhaus's randomised retry
-    // budget cannot split — a class the current PLDI corpus does not
-    // exercise but which appears in adversarial SMT-LIB inputs.
+    // Case 2.5 is a sound fallback for the class of zero-dimensional
+    // ideals whose per-variable min-poly has an irreducible factor of
+    // degree ≥ 2 that Cantor–Zassenhaus's randomised retry budget cannot
+    // split (so Case 2 is incomplete). Typical R1CS ideals over BN254 do
+    // not reach it: they are either positive-dimensional (`is_zero_dim()`
+    // false, so Case 2.5 never fires) or zero-dimensional with a min-poly
+    // that `find_roots_checked` already splits completely (Case 2 succeeds).
     if ideal.is_zero_dim() {
         for v in 0..n_vars {
             if !assigned[v] {
@@ -444,9 +439,9 @@ fn tri_dfs_on_lex(
 
 /// Convert a model `HashMap<var_idx, value>` into an ordered Vec the
 /// `Brancher::Roots` consumer pops from the back. Ordering is ascending
-/// by var index so the search loop applies x_0 first; this is irrelevant
-/// for correctness (any order assigns the same model) but stable for
-/// regression-test diffing.
+/// by var index so the search loop applies x_0 first; irrelevant for
+/// correctness (any order assigns the same model), but gives a
+/// deterministic output order.
 fn model_as_assignment_sequence(
     model: HashMap<usize, FieldElem>,
 ) -> Vec<(usize, FieldElem)> {

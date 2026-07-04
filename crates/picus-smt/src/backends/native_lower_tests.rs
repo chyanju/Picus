@@ -249,10 +249,10 @@ fn prop_pre_eliminate_linear_preserves_disequalities_when_applied() {
 
 #[test]
 fn prop_pre_eliminate_linear_preserves_metadata_when_applied() {
-    // `add_field_polys` carries over. (The wire-overlay metadata that used
-    // to be checked here — input/known sets, n_wires, target — lives on
-    // `UniquenessQuery` in picus-analysis, not on the slim `PolyIR` this
-    // operation returns, so there is nothing else to preserve at this layer.)
+    // `add_field_polys` carries over. Wire-overlay metadata (input/known
+    // sets, n_wires, target) lives on `UniquenessQuery` in picus-analysis,
+    // not on the slim `PolyIR` this operation returns, so there is nothing
+    // else to preserve at this layer.
     let r1cs = make_r1cs(p7(), 4, vec![0, 1], Vec::new());
     let ir = lower_two_copy(&r1cs, 3);
     let cancel = CancelToken::none();

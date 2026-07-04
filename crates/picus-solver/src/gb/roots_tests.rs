@@ -297,7 +297,6 @@ fn test_roots_full_big() {
     f2[0] = ff.from_biguint(&BigUint::from(4u32)); // 2^2 = 4
     f2[2] = ff.from_biguint(&BigUint::from(4u32)); // 2 * 2 = 4
     f2[4] = ff.one();
-    // Actually we want (x^2+2)^2 = x^4 + 4 x^2 + 4
-    // Confirm no roots:
+    // (x^2+2)^2 = x^4 + 4 x^2 + 4
     assert_eq!(find_roots(&ff, &f2).len(), 0);
 }

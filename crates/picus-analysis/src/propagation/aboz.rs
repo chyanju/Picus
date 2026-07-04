@@ -100,8 +100,7 @@ impl PropagationLemma for AbozLemma {
                         // zero-product clauses `x_s = 0 ∨ x_o = 0` so it
                         // can case-split. Sound — each follows from a
                         // `s * o = 0` equality already in the IR — and on
-                        // by default (verdict-neutral, exercises the
-                        // disjunction path).
+                        // by default.
                         if config::with(|c| c.aboz_emit_disjunctions) {
                             if self.emit_zero_product(q, ctx, x, y0) {
                                 progress = true;

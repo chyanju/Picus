@@ -8,9 +8,7 @@ fn ff(p: u32) -> PrimeField {
     PrimeField::new(BigUint::from(p))
 }
 
-/// Evaluate `p` at the given point. Local copy mirroring
-/// `tests::eval_poly` (helpers stay duplicated rather than shared via
-/// `pub(super)` to keep the source mod free of test-only items).
+/// Evaluate `p` at the given point.
 fn eval_poly(pr: &FfPolyRing, p: &Poly, point: &[FieldElem]) -> FieldElem {
     let ring = &pr.ring;
     let fp = &pr.field();
@@ -29,13 +27,13 @@ fn eval_poly(pr: &FfPolyRing, p: &Poly, point: &[FieldElem]) -> FieldElem {
 }
 
 // =============================================================================
-// HARD-PROBE TESTS — split-gb-orchestration risk surface
+// Split-GB orchestration tests
 // =============================================================================
 //
-// These tests are spec-driven and engineered to FAIL if a bug hides in the
-// multi-partition orchestration: differential against monolithic Buchberger,
-// cancellation determinism, edge primes (BN128, curve25519), and pathological
-// partition shapes (single partition, constants-only, disconnected components).
+// Cover multi-partition orchestration: differential against monolithic
+// Buchberger, cancellation determinism, edge primes (BN128, curve25519), and
+// pathological partition shapes (single partition, constants-only,
+// disconnected components).
 //
 // Spec sources:
 //   * Ideal theory: a system is SAT in GF(p) iff there exists a common
@@ -49,7 +47,7 @@ fn eval_poly(pr: &FfPolyRing, p: &Poly, point: &[FieldElem]) -> FieldElem {
 //     admits deg≤1 ∧ terms≤2; partition idx≥2 is never admitted (but ideals can
 //     still hold higher-degree generators in their basis).
 
-/// BN128 / BN254 scalar field prime (~2^254). Used as a real ZK use case.
+/// BN128 / BN254 scalar field prime (~2^254).
 fn bn128_field() -> PrimeField {
     PrimeField::new(
         BigUint::parse_bytes(

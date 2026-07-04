@@ -105,7 +105,7 @@ impl<'a> FfTheory<'a> {
 
 /// Free-function port of `FfTheory::pinned_vars` so a sibling theory
 /// implementation (`IncrementalFfTheoryState`) can reuse the propagation
-/// substrate without duplicating ~150 LoC of tier1/tier2 logic.
+/// substrate without duplicating the tier1/tier2 logic.
 pub(crate) fn pinned_vars_for(
     atoms: &AtomTable,
     facts: &[(Var, bool)],

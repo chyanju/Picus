@@ -42,22 +42,8 @@
 //!   call entry and assigned back at exit so allocator capacity
 //!   persists across batches in the same Buchberger run.
 //!
-//! Performance. Opt-in via the `use_f4` config key (CLI `--use-f4`).
-//! F4 / per-pair median ratios at `F4_MIN_BATCH = 12`
-//! (`tests/bench_perf.rs::bench_f4_vs_per_pair_large` +
-//! `bench_f4_non_cyclic_workloads`):
-//!
-//! | workload | ratio |
-//! |---|---|
-//! | cyclic-4 | 0.82–0.92× |
-//! | cyclic-5 | 0.91–1.12× |
-//! | cyclic-6 | 1.06–1.20× |
-//! | dense-10/20/30 | 0.96–1.02× |
-//! | katsura-3 | 0.77–0.88× |
-//! | katsura-4 | 0.92–1.02× |
-//! | diffuse-4vars | 0.92–1.15× |
-//!
-//! Default is per-pair (`use_f4_default()` returns the `use_f4` config
+//! Configuration. Opt-in via the `use_f4` config key (CLI `--use-f4`);
+//! default is per-pair (`use_f4_default()` returns the `use_f4` config
 //! value, compiled default `false`). Enabling `gb_stats` (CLI
 //! `--gb-stats`) emits per-run cache hits / misses / stales and the F4
 //! batch-size distribution.

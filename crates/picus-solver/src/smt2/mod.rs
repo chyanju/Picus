@@ -1236,9 +1236,8 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
         expansion_depth: 0,
     };
 
-    // Second pass: handle asserts in order. Asserts come after macros and
-    // declarations in conforming inputs; reading them in source order is
-    // sufficient for our needs.
+    // Second pass: handle asserts in source order (they follow macros and
+    // declarations in conforming inputs).
     for s in &sexprs {
         let list = match s {
             Sexpr::List(l) => l,

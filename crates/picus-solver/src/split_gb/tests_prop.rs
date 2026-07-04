@@ -269,8 +269,7 @@ fn prop_quadratic_residue_root_is_valid_gf7() {
 
 /// Property (6) BIT-PROP SPEC: `x · (x - 1) = 0` over GF(p) forces
 /// x ∈ {0, 1}. Solve and check the returned model. MATH: roots of the
-/// polynomial are exactly 0 and 1. Bitprop is a recurring hazard —
-/// probe it on multiple primes.
+/// polynomial are exactly 0 and 1. Probe on multiple primes.
 #[test]
 fn prop_bit_constraint_forces_zero_or_one() {
     for p in [3u32, 5, 7, 11, 101] {
@@ -303,7 +302,7 @@ fn prop_bit_constraint_forces_zero_or_one() {
 /// Property (6) BIT-DECOMPOSITION SPEC: three bit vars `b0, b1, b2` with
 /// the bitsum constraint `x = b0 + 2·b1 + 4·b2`. MATH: x ∈ [0, 8). If we
 /// also pin `x = 5`, the unique decomposition is b0=1, b1=0, b2=1 (binary
-/// representation of 5). Probe the bitprop pipeline on a recurring hazard.
+/// representation of 5).
 #[test]
 fn prop_bitsum_decomposition_matches_binary_repr() {
     let pr = FfPolyRing::new(
@@ -410,13 +409,10 @@ fn prop_bit_decomposition_out_of_range_is_unsat() {
     );
 }
 
-/// Property (6) BIT-PROP SOUNDNESS PROBE: the GF(7) quadratic from
-/// `core_tests.rs::satisfiable_system_with_bitsum_shaped_linear_part_is_not_false_unsat`
-/// has a confirmed-positive root count. Same shape, here at the split-GB
-/// layer: a single satisfiable polynomial whose linear part has a `1,2`
-/// coefficient run is exposed as a bitsum candidate. Spec: a bitsum
-/// pattern alone (without bit constraints proving bit-ness) MUST NOT
-/// prune SAT models.
+/// Property (6) BIT-PROP SOUNDNESS PROBE: a satisfiable GF(7) quadratic
+/// whose linear part has a `1,2` coefficient run is exposed as a bitsum
+/// candidate. Spec: a bitsum pattern alone (without bit constraints
+/// proving bit-ness) MUST NOT prune SAT models.
 #[test]
 fn prop_bitsum_shaped_linear_does_not_force_false_unsat_gf7() {
     let pr = FfPolyRing::new(ff(7), vec!["y".into(), "z".into(), "x".into()]);

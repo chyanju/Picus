@@ -1,5 +1,5 @@
 //! Per-fixture timing comparison between picus's native FF solver and
-//! the vendored cvc5 backend on the FULL PLDI circomlib subset (all
+//! the vendored cvc5 backend on the full circomlib subset (all
 //! 68 fixtures in `benchmarks/circom/circomlib-cff5ab6/`).
 //!
 //! Run manually:
@@ -16,7 +16,7 @@
 //! Timeout per fixture per backend is 30s. Verdicts are
 //! cross-validated: both backends must agree (or both must time out
 //! to Unknown) on every fixture, otherwise the test fails. This
-//! catches refactor-induced regressions even where the PLDI
+//! catches refactor-induced regressions even where the
 //! expected-verdict table doesn't cover a fixture.
 
 #![cfg(all(feature = "cvc5", feature = "native"))]

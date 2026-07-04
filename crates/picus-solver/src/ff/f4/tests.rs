@@ -964,7 +964,7 @@ fn f4_matrix_path_fires_on_cyclic_5() {
 ///     back),
 ///   * F4 and per-pair leading-term sets match.
 ///
-/// `#[ignore]`d because cyclic-6 takes ~100 ms. Run with
+/// `#[ignore]`d because cyclic-6 is expensive. Run with
 /// `cargo test -p picus-solver --release -- --ignored f4_large_batch_cyclic_6`.
 #[test]
 #[ignore]
