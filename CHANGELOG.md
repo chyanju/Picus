@@ -12,3 +12,4 @@ Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1
 - `cvc5_ff`/`cvc5_nia`/`z3_nia` emit the disequality from generic `PolyIR::disequalities` (was `target_signal`/`x_name`/`y_name`), matching `native_ff`.
 - Test env var `PICUS_SKIP_PLDI_SMOKE` → `PICUS_TEST_SKIP_SMOKE`; picus-smt unit tests lower locally via `src/test_lowering.rs` (no picus-analysis dep), lowering/wire tests moved to `uniqueness_tests`.
 - Maintainability: doc/inline comments across the workspace trimmed to pure-technical prose — removed benchmark anecdotes (PLDI A/B wall-clock deltas), changelog-style historical narration, and non-technical asides; soundness/algorithm rationale kept.
+- Test: `picus-smt/tests/external_solve.rs` (feature-gated) — real cvc5/z3 backend solves over a GF(7) suite (SAT/model, UNSAT, and both disequality paths), verifying the `PolyIR::disequalities` backend change end to end.
