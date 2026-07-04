@@ -1,5 +1,6 @@
 [package]
 name = "picus-r1cs"
+publish = false
 description = "R1CS binary parser and constraint AST for Picus"
 version.workspace = true
 authors.workspace = true

@@ -1,5 +1,6 @@
 [package]
 name = "picus-smt"
+publish = false
 description = "SMT solver backends for Picus"
 version.workspace = true
 authors.workspace = true

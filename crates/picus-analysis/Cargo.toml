@@ -1,5 +1,6 @@
 [package]
 name = "picus-analysis"
+publish = false
 description = "DPVL algorithm and propagation lemmas for Picus"
 version.workspace = true
 authors.workspace = true

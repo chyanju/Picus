@@ -82,11 +82,17 @@ pub use picus_smt::backends::{SolverResult, UnknownReason};
 // Imported privately here only to name it in `solve_system`'s signature.
 use picus_smt::poly_system::PolySystem;
 
-// Sub-crates exposed for advanced usage (e.g., dump_smt, custom pipelines).
-pub use picus_r1cs;
-pub use picus_smt;
-pub use picus_analysis;
-pub use picus_solver;
+/// Lower-level escape hatch for power users building custom pipelines: decide a
+/// [`PolySystem`](advanced::PolySystem) directly, select or dump a backend, or
+/// reach the R1CS var-index decoder. These carry weaker stability guarantees
+/// than the [`PolyIR`] builder — prefer `PolyIR` unless you need this. (Replaces
+/// the former blanket `pub use` of the whole internal sub-crates.)
+pub mod advanced {
+    pub use picus_r1cs::parse_var_index;
+    pub use picus_smt::backends::SolverBackend;
+    pub use picus_smt::poly_system::PolySystem;
+    pub use picus_smt::{create_backend, validate_combination};
+}
 
 /// Ergonomic, ring-free API for building and solving GF(p) polynomial
 /// constraint systems with natural operator syntax (`x*x - x`, `2*x + 3*y`, …).

@@ -513,7 +513,7 @@ fn cmd_check(r1cs_path: PathBuf, config: PicusConfig, format: OutputFormat) {
     };
 
     // Validate up front for a clean message (check_r1cs validates too).
-    if let Err(e) = picus::picus_smt::validate_combination(solver, theory) {
+    if let Err(e) = picus::advanced::validate_combination(solver, theory) {
         exit_error(&e);
     }
 
@@ -613,8 +613,8 @@ fn print_counter_example_human(
     let mut x_vals: Vec<_> = witness_1.iter().collect();
     let mut y_vals: Vec<_> = witness_2.iter().collect();
 
-    x_vals.sort_by_key(|(k, _)| picus::picus_r1cs::parse_var_index(k).unwrap_or(usize::MAX));
-    y_vals.sort_by_key(|(k, _)| picus::picus_r1cs::parse_var_index(k).unwrap_or(usize::MAX));
+    x_vals.sort_by_key(|(k, _)| picus::advanced::parse_var_index(k).unwrap_or(usize::MAX));
+    y_vals.sort_by_key(|(k, _)| picus::advanced::parse_var_index(k).unwrap_or(usize::MAX));
 
     aprintln!();
     aprintln!("  {}:", "Counter-example".dimmed());
