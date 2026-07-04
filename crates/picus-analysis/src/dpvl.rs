@@ -271,8 +271,18 @@ pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, Dpvl
         backend,
         timeout_ms: config.timeout_ms,
         dump_smt: config.dump_smt.clone(),
+        solve_errors: 0,
     };
-    Ok(ctx.iterate(&mut q, &mut lemma_instances, &mut ks, &mut us, &mut ranges))
+    let result = ctx.iterate(&mut q, &mut lemma_instances, &mut ks, &mut us, &mut ranges);
+    if ctx.solve_errors > 0 && matches!(result, DpvlResult::Unknown) {
+        log::warn!(
+            "DPVL: {} solver invocation(s) failed with a hard error; the Unknown \
+             verdict may reflect a broken or misconfigured solver rather than a \
+             genuinely hard problem",
+            ctx.solve_errors
+        );
+    }
+    Ok(result)
 }
 
 struct DpvlContext {
@@ -281,6 +291,11 @@ struct DpvlContext {
     backend: Option<Box<dyn SolverBackend>>,
     timeout_ms: u64,
     dump_smt: Option<PathBuf>,
+    /// Count of per-query backend *hard errors* (as opposed to `Unknown`).
+    /// A systematically-failing solver drives every wire to `Skip` and yields
+    /// `Unknown`; this lets `run_dpvl` distinguish that from a genuinely hard
+    /// problem in its final log.
+    solve_errors: usize,
 }
 
 impl DpvlContext {
@@ -476,6 +491,7 @@ impl DpvlContext {
                 SolveResult::Skip
             }
             Err(e) => {
+                self.solve_errors += 1;
                 log::warn!("Solver error: {}", e);
                 SolveResult::Skip
             }
