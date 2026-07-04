@@ -36,15 +36,15 @@ fn eddsa_poseidon_lowering_footprint() {
 
     // Lowering only — no backend, no Gröbner solve.
     let known = HashSet::new();
-    let ir = picus_smt::poly_ir::r1cs_to_poly_ir(&r1cs, &known, 0)
+    let ir = picus_analysis::uniqueness::r1cs_to_uniqueness_query(&r1cs, &known, 0)
         .expect("lowering should succeed");
 
-    let n_vars = ir.ring.n_vars();
-    let n_eq = ir.equalities.len();
+    let n_vars = ir.ir.ring.n_vars();
+    let n_eq = ir.ir.equalities.len();
     let mut total_terms = 0usize;
     let mut total_nnz = 0usize;
-    for poly in &ir.equalities {
-        for (_coeff, vars) in ir.poly_terms_idx(poly) {
+    for poly in &ir.ir.equalities {
+        for (_coeff, vars) in ir.ir.poly_terms_idx(poly) {
             total_terms += 1;
             total_nnz += vars.len();
         }
@@ -73,9 +73,9 @@ fn eddsa_poseidon_lowering_footprint() {
     {
         use std::collections::{HashMap, HashSet};
         let mut counter: HashMap<usize, usize> = HashMap::new();
-        for poly in &ir.equalities {
+        for poly in &ir.ir.equalities {
             let mut seen: HashSet<usize> = HashSet::new();
-            for v in ir.ring.appearing_indeterminates(poly).iter() {
+            for v in ir.ir.ring.appearing_indeterminates(poly).iter() {
                 seen.insert(ir.var_to_wire(v));
             }
             for w in seen {

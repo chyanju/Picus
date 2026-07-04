@@ -709,6 +709,7 @@ dependencies = [
  "log",
  "num-bigint",
  "num-traits",
+ "picus-analysis",
  "picus-core",
  "picus-r1cs",
  "picus-solver",

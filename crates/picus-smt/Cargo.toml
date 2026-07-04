@@ -31,3 +31,14 @@ z3 = { version = "0.20", features = ["vendored"], optional = true }
 cvc5-ff = { path = "../cvc5-ff", optional = true }
 picus-solver = { path = "../picus-solver" }
 picus-core = { path = "../picus-core" }
+
+[dev-dependencies]
+# Test-only: the R1CS two-copy lowering (`r1cs_to_uniqueness_query`) lives in
+# picus-analysis, which depends on picus-smt. The *integration* tests
+# (`tests/*.rs`, a separate crate that links a single picus-smt) use it to
+# build a realistic PolyIR from an R1CS. Cargo permits the resulting cycle
+# because it runs only through a dev-dependency (never the normal build graph).
+# The lib's own *unit* tests do NOT use this (a dev-dep cycle would link a
+# second copy of picus-smt for unit tests); they lower locally via
+# `src/test_lowering.rs` instead.
+picus-analysis = { path = "../picus-analysis" }

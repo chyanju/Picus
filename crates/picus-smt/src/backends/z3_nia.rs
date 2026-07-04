@@ -66,19 +66,24 @@ impl SolverBackend for Z3NiaBackend {
             solver.assert(sum.rem(&p_ast).eq(Int::from_u64(0)));
         }
 
-        // Target disequality. A missing copy var would silently drop the
-        // `x_target != y_target` constraint → trivially SAT → spurious
-        // counter-example; error out (→ Unknown) instead of a false UNSAFE.
-        let s = ir.target_signal;
-        match (vars.get(ir.x_name(s)), vars.get(ir.y_name(s))) {
-            (Some(x), Some(y)) => {
-                solver.assert(x.eq(y).not());
-            }
-            _ => {
-                return Err(SolverError::Internal(format!(
-                    "target wire {} missing a declared copy variable",
-                    s
-                )));
+        // Disequalities: each `(a, b)` becomes `(not (= var_a var_b))`. A
+        // missing var would silently drop the constraint → trivially SAT →
+        // spurious counter-example; error out (→ Unknown) instead of a false
+        // UNSAFE. (A uniqueness query carries the single target pair.)
+        {
+            let names = ir.ring.var_names();
+            for &(a, b) in &ir.disequalities {
+                match (vars.get(&names[a]), vars.get(&names[b])) {
+                    (Some(x), Some(y)) => {
+                        solver.assert(x.eq(y).not());
+                    }
+                    _ => {
+                        return Err(SolverError::Internal(format!(
+                            "disequality ({}, {}) missing a declared variable",
+                            a, b
+                        )));
+                    }
+                }
             }
         }
 
@@ -116,12 +121,12 @@ impl SolverBackend for Z3NiaBackend {
                 p
             ));
         }
-        let s = ir.target_signal;
-        lines.push(format!(
-            "(assert (not (= {} {})))",
-            ir.x_name(s),
-            ir.y_name(s)
-        ));
+        {
+            let names = ir.ring.var_names();
+            for &(a, b) in &ir.disequalities {
+                lines.push(format!("(assert (not (= {} {})))", names[a], names[b]));
+            }
+        }
         lines.push("(check-sat)".to_string());
         lines.push("(get-model)".to_string());
         lines.join("\n")

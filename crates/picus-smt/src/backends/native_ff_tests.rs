@@ -4,7 +4,7 @@
 
 use super::NativeFfBackend;
 use crate::backends::{all_backend_descriptors, create_backend_by_name, SolverBackend, SolverResult};
-use crate::poly_ir::{r1cs_to_poly_ir, PolyIR};
+use crate::poly_ir::PolyIR;
 use crate::Theory;
 
 use num_bigint::BigUint;
@@ -12,7 +12,6 @@ use picus_core::timeout::CancelToken;
 use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
-use std::collections::HashSet;
 
 // ─── Test fixtures ────────────────────────────────────────────────
 
@@ -54,8 +53,7 @@ fn blk(wid: u32, factor: u32) -> ConstraintBlock {
 
 fn empty_ir(p: BigUint, n_wires: usize, inputs: Vec<usize>, target: usize) -> PolyIR {
     let r1cs = make_r1cs(p, n_wires as u32, inputs, Vec::new());
-    let known = HashSet::new();
-    r1cs_to_poly_ir(&r1cs, &known, target).expect("ir builds")
+    crate::test_lowering::lower_two_copy(&r1cs, target)
 }
 
 // ─── Constructor + default ─────────────────────────────────────────
@@ -217,7 +215,7 @@ fn smoke_solve_forced_unsat_returns_unsat() {
         c: blk(0, 3),
     };
     let r1cs = make_r1cs(BigUint::from(7u32), 3, vec![0], vec![c1, c2]);
-    let ir = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).unwrap();
+    let ir = crate::test_lowering::lower_two_copy(&r1cs, 1);
 
     let mut backend = NativeFfBackend::new();
     let cancel = CancelToken::none();

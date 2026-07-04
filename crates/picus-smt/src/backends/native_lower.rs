@@ -51,12 +51,8 @@ impl PolyIR {
         };
         Some(PolyIR {
             ring: Arc::clone(&self.ring),
-            n_wires: self.n_wires,
-            input_indices: self.input_indices.clone(),
             equalities,
             disjunctions: self.disjunctions.clone(),
-            known_signals: self.known_signals.clone(),
-            target_signal: self.target_signal,
             disequalities: self.disequalities.clone(),
             assignments: self.assignments.clone(),
             bitsums: self.bitsums.clone(),

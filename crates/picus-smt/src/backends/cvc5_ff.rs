@@ -77,22 +77,27 @@ impl SolverBackend for Cvc5FfBackend {
             solver.assert_formula(tm.mk_term(cvc5_ff::Kind::Equal, &[lhs, zero.clone()]));
         }
 
-        // Target disequality. Both copy vars must be declared; a missing
-        // one would silently drop the `x_target != y_target` constraint,
-        // leaving the query trivially SAT — a spurious counter-example.
-        // Surface it as an error (→ Unknown) rather than a false UNSAFE.
-        let target_x = vars.get(ir.x_name(ir.target_signal)).cloned();
-        let target_y = vars.get(ir.y_name(ir.target_signal)).cloned();
-        match (target_x, target_y) {
-            (Some(x), Some(y)) => {
-                let eq = tm.mk_term(cvc5_ff::Kind::Equal, &[x, y]);
-                solver.assert_formula(tm.mk_term(cvc5_ff::Kind::Not, &[eq]));
-            }
-            _ => {
-                return Err(SolverError::Internal(format!(
-                    "target wire {} missing a declared copy variable",
-                    ir.target_signal
-                )));
+        // Disequalities: each `(a, b)` becomes `(not (= var_a var_b))`. Both
+        // vars must be declared; a missing one would silently drop the
+        // constraint, leaving the query trivially SAT — a spurious
+        // counter-example. Surface it as an error (→ Unknown) rather than a
+        // false UNSAFE. (A uniqueness query carries the single target
+        // `(x_target, y_target)` pair; other producers may add more.)
+        {
+            let names = ir.ring.var_names();
+            for &(a, b) in &ir.disequalities {
+                match (vars.get(&names[a]).cloned(), vars.get(&names[b]).cloned()) {
+                    (Some(x), Some(y)) => {
+                        let eq = tm.mk_term(cvc5_ff::Kind::Equal, &[x, y]);
+                        solver.assert_formula(tm.mk_term(cvc5_ff::Kind::Not, &[eq]));
+                    }
+                    _ => {
+                        return Err(SolverError::Internal(format!(
+                            "disequality ({}, {}) missing a declared variable",
+                            a, b
+                        )));
+                    }
+                }
             }
         }
 
@@ -149,12 +154,12 @@ impl SolverBackend for Cvc5FfBackend {
                 poly_to_smtlib_ff(ir, poly)
             ));
         }
-        let s = ir.target_signal;
-        lines.push(format!(
-            "(assert (not (= {} {})))",
-            ir.x_name(s),
-            ir.y_name(s)
-        ));
+        {
+            let names = ir.ring.var_names();
+            for &(a, b) in &ir.disequalities {
+                lines.push(format!("(assert (not (= {} {})))", names[a], names[b]));
+            }
+        }
         for clause in &ir.disjunctions {
             let parts: Vec<String> = clause
                 .iter()

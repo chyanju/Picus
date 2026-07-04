@@ -33,12 +33,8 @@ fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<IrPoly>) 
     let equalities = build(&ring);
     let ir = PolyIR {
         ring,
-        n_wires,
-        input_indices: HashSet::new(),
         equalities,
         disjunctions: Vec::new(),
-        known_signals: HashSet::new(),
-        target_signal: 0,
         disequalities: Vec::new(),
         assignments: Vec::new(),
         bitsums: Vec::new(),

@@ -93,12 +93,11 @@ fn prop_create_backend_by_name_wrong_theory_returns_none() {
 #[cfg(any(feature = "cvc5", feature = "z3"))]
 mod nia_smtlib {
     use crate::backends::poly_to_smtlib_nia;
-    use crate::poly_ir::{r1cs_to_poly_ir, PolyIR};
+    use crate::poly_ir::PolyIR;
     use num_bigint::BigUint;
     use picus_r1cs::grammar::{
-        Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
+        ConstraintSection, HeaderSection, R1csFile, W2lSection,
     };
-    use std::collections::HashSet;
 
     fn make_ir(p: BigUint, n_wires: usize) -> PolyIR {
         let r1cs = R1csFile {
@@ -122,7 +121,7 @@ mod nia_smtlib {
             inputs: vec![0],
             outputs: Vec::new(),
         };
-        r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).unwrap()
+        crate::test_lowering::lower_two_copy(&r1cs, 1)
     }
 
     #[test]
@@ -167,12 +166,11 @@ mod nia_smtlib {
 #[cfg(feature = "cvc5")]
 mod ff_smtlib {
     use crate::backends::poly_to_smtlib_ff;
-    use crate::poly_ir::{r1cs_to_poly_ir, PolyIR};
+    use crate::poly_ir::PolyIR;
     use num_bigint::BigUint;
     use picus_r1cs::grammar::{
         ConstraintSection, HeaderSection, R1csFile, W2lSection,
     };
-    use std::collections::HashSet;
 
     fn make_ir(p: BigUint, n_wires: usize) -> PolyIR {
         let r1cs = R1csFile {
@@ -196,7 +194,7 @@ mod ff_smtlib {
             inputs: vec![0],
             outputs: Vec::new(),
         };
-        r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).unwrap()
+        crate::test_lowering::lower_two_copy(&r1cs, 1)
     }
 
     #[test]

@@ -9,7 +9,7 @@ use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
 use picus_smt::backends::{SolverBackend, SolverResult};
-use picus_smt::poly_ir::r1cs_to_poly_ir;
+use picus_analysis::uniqueness::r1cs_to_uniqueness_query;
 
 /// Build a synthetic R1CS over GF(7) encoding the trivial constraint
 /// `x_1 * x_1 = x_2` over 3 wires (wire 0 is the one-wire, wire 1 is
@@ -74,18 +74,18 @@ fn build_x1_squared_eq_x2() -> R1csFile {
 fn poly_ir_lowering_honours_non_bn128_prime() {
     let r1cs = build_x1_squared_eq_x2();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
 
     // Ring prime matches the R1CS header.
     assert_eq!(
-        ir.ring.field().prime(),
+        ir.ir.ring.field().prime(),
         &BigUint::from(7u32),
         "ring prime should be 7, not BN128"
     );
     // Variable layout: 2 * n_wires = 6 (x0..x2, y0..y2).
-    assert_eq!(ir.ring.var_names().len(), 6);
+    assert_eq!(ir.ir.ring.var_names().len(), 6);
     // Equalities: 1 orig + 1 alt + x_0 = 1 pin = 3.
-    assert_eq!(ir.equalities.len(), 3);
+    assert_eq!(ir.ir.equalities.len(), 3);
 }
 
 /// Copy-symmetry of the lowering (load-bearing for the wire-keyed
@@ -98,13 +98,13 @@ fn poly_ir_lowering_honours_non_bn128_prime() {
 fn lowering_shares_input_copies_and_splits_noninput_copies() {
     let r1cs = build_x1_squared_eq_x2(); // 3 wires; wire 1 input, wire 2 output
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
     let n_wires = 3usize;
     let y1 = n_wires + 1;
     let y2 = n_wires + 2;
     let mut seen: HashSet<usize> = HashSet::new();
-    for eq in &ir.equalities {
-        for (_coeff, vars) in ir.poly_terms_idx(eq) {
+    for eq in &ir.ir.equalities {
+        for (_coeff, vars) in ir.ir.poly_terms_idx(eq) {
             for (v, _e) in vars {
                 seen.insert(v);
             }
@@ -118,13 +118,13 @@ fn lowering_shares_input_copies_and_splits_noninput_copies() {
 fn native_ff_solves_over_gf7() {
     let r1cs = build_x1_squared_eq_x2();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
     ir.set_target(2);
 
     let mut backend = picus_smt::backends::native_ff::NativeFfBackend::new();
     let cancel = picus_core::timeout::CancelToken::none();
     let outcome = backend
-        .solve(&ir, 5000, &cancel)
+        .solve(&ir.ir, 5000, &cancel)
         .expect("native_ff backend should not error on GF(7)");
     // x_1^2 uniquely determines x_2 (function), so target wire 2's
     // disequality is UNSAT.
@@ -145,7 +145,7 @@ fn native_ff_solves_over_gf7() {
 fn set_target_rejects_input_wire() {
     let r1cs = build_x1_squared_eq_x2(); // inputs = [0, 1]
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
     ir.set_target(1); // wire 1 is an input ⇒ must panic
 }
 
@@ -158,16 +158,16 @@ fn set_target_rejects_input_wire() {
 fn ir_with_benign_disjunction() -> picus_smt::poly_ir::PolyIR {
     let r1cs = build_x1_squared_eq_x2();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
     ir.set_target(2);
     // (x0 - 1 = 0) ∨ (x2 - 5 = 0)
-    let one = ir.constant(&BigUint::from(1u32));
-    let five = ir.constant(&BigUint::from(5u32));
-    let x0_minus_1 = ir.ring.sub(ir.ring.var(0), one);
-    let x2_minus_5 = ir.ring.sub(ir.ring.var(2), five);
-    ir.disjunctions.push(vec![x0_minus_1, x2_minus_5]);
-    assert!(!ir.disjunctions.is_empty(), "disjunction must be present");
-    ir
+    let one = ir.ir.constant(&BigUint::from(1u32));
+    let five = ir.ir.constant(&BigUint::from(5u32));
+    let x0_minus_1 = ir.ir.ring.sub(ir.ir.ring.var(0), one);
+    let x2_minus_5 = ir.ir.ring.sub(ir.ir.ring.var(2), five);
+    ir.ir.disjunctions.push(vec![x0_minus_1, x2_minus_5]);
+    assert!(!ir.ir.disjunctions.is_empty(), "disjunction must be present");
+    ir.ir
 }
 
 #[test]

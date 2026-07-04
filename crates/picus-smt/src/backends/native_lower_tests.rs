@@ -8,9 +8,9 @@ use num_bigint::BigUint;
 use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
-use std::collections::HashSet;
 
-use crate::poly_ir::{r1cs_to_poly_ir, PolyIR};
+use crate::poly_ir::PolyIR;
+use crate::test_lowering::lower_two_copy;
 use picus_core::timeout::CancelToken;
 
 // ─── Test fixtures (mirror the poly_ir tests) ────────────────────
@@ -55,10 +55,11 @@ fn p7() -> BigUint {
     BigUint::from(7u32)
 }
 
+/// Lower a constraint-free R1CS into the crate-local `PolyIR`, with the
+/// target disequality already materialised at `(target, n_wires + target)`.
 fn empty_ir(p: BigUint, n_wires: usize, inputs: Vec<usize>, target: usize) -> PolyIR {
     let r1cs = make_r1cs(p, n_wires as u32, inputs, Vec::new());
-    let known = HashSet::new();
-    r1cs_to_poly_ir(&r1cs, &known, target).expect("ir builds")
+    lower_two_copy(&r1cs, target)
 }
 
 // ─── to_constraint_system ────────────────────────────────────────
@@ -146,7 +147,7 @@ fn prop_to_constraint_system_includes_user_constraints() {
         c: blk(3, 1),
     };
     let r1cs = make_r1cs(p7(), 4, vec![0], vec![cons]);
-    let ir = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).unwrap();
+    let ir = lower_two_copy(&r1cs, 1);
     let cs = ir.to_constraint_system();
     assert_eq!(cs.equalities.len(), 3);
 }
@@ -170,9 +171,9 @@ fn prop_to_boolean_query_var_names_match_ring_order() {
 #[test]
 fn prop_to_boolean_query_empty_constraints_yields_true_or_and() {
     // With no equalities/diseqs/assignments/disjunctions, the
-    // conj is empty ⇒ Formula::True. r1cs_to_poly_ir always emits
-    // at least the wire-0 pin, so the realistic empty case is
-    // hard to reach; just check the formula is well-formed.
+    // conj is empty ⇒ Formula::True. The lowering always emits at
+    // least the wire-0 pin, so the realistic empty case is hard to
+    // reach; just check the formula is well-formed.
     use picus_solver::boolean::Formula;
     let ir = empty_ir(p7(), 3, vec![0], 1);
     let q = ir.to_boolean_query();
@@ -184,9 +185,9 @@ fn prop_to_boolean_query_empty_constraints_yields_true_or_and() {
 
 #[test]
 fn prop_encode_returns_nonempty_polynomials_for_pinned_wire0() {
-    // r1cs_to_poly_ir always emits at least the `x_0 - 1 = 0` equality.
-    // `encode` lowers each non-zero equality into a polynomial, so
-    // the result must have at least one polynomial.
+    // The lowering always emits at least the `x_0 - 1 = 0` equality.
+    // `encode` lowers each non-zero equality into a polynomial, so the
+    // result must have at least one polynomial.
     let ir = empty_ir(p7(), 3, vec![0], 1);
     let enc = ir.encode().expect("encode should succeed on empty system");
     assert!(!enc.polynomials.is_empty(), "wire-0 pin survives encoding");
@@ -222,19 +223,16 @@ fn prop_encode_var_map_includes_used_vars() {
 
 #[test]
 fn prop_pre_eliminate_linear_returns_none_on_empty() {
-    // No equalities (only `x_0 - 1 = 0`, a single linear with one
-    // pivot variable) — may or may not "change" depending on whether
-    // the linsolve treats `x_0 = 1` as already-reduced. Either way,
-    // the function must return without panicking and the result is
-    // either None or a structurally valid PolyIR.
+    // No user equalities (only `x_0 - 1 = 0`, a single linear with one
+    // pivot variable) — may or may not "change" depending on whether the
+    // linsolve treats `x_0 = 1` as already-reduced. Either way, the
+    // function must return without panicking, and if it reduces, the
+    // reduced `PolyIR` keeps the same ring.
     let ir = empty_ir(p7(), 3, vec![0], 1);
     let cancel = CancelToken::none();
     let r = ir.pre_eliminate_linear(&cancel);
-    // Structural: not a panic, and if Some, the new ring is the
-    // same Arc.
-    if let Some(new_ir) = r {
-        assert_eq!(new_ir.n_wires, ir.n_wires);
-        assert_eq!(new_ir.ring.n_vars(), ir.ring.n_vars());
+    if let Some(reduced) = r {
+        assert_eq!(reduced.ring.n_vars(), ir.ring.n_vars());
     }
 }
 
@@ -244,24 +242,22 @@ fn prop_pre_eliminate_linear_preserves_disequalities_when_applied() {
     // target signal) must propagate unchanged.
     let ir = empty_ir(p7(), 4, vec![0], 2);
     let cancel = CancelToken::none();
-    if let Some(new_ir) = ir.pre_eliminate_linear(&cancel) {
-        assert_eq!(new_ir.disequalities, ir.disequalities);
-        assert_eq!(new_ir.target_signal, ir.target_signal);
+    if let Some(reduced) = ir.pre_eliminate_linear(&cancel) {
+        assert_eq!(reduced.disequalities, ir.disequalities);
     }
 }
 
 #[test]
 fn prop_pre_eliminate_linear_preserves_metadata_when_applied() {
-    // input_indices / known_signals / add_field_polys carry over.
-    let mut known = HashSet::new();
-    known.insert(2usize);
+    // `add_field_polys` carries over. (The wire-overlay metadata that used
+    // to be checked here — input/known sets, n_wires, target — lives on
+    // `UniquenessQuery` in picus-analysis, not on the slim `PolyIR` this
+    // operation returns, so there is nothing else to preserve at this layer.)
     let r1cs = make_r1cs(p7(), 4, vec![0, 1], Vec::new());
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 3).unwrap();
+    let ir = lower_two_copy(&r1cs, 3);
     let cancel = CancelToken::none();
-    if let Some(new_ir) = ir.pre_eliminate_linear(&cancel) {
-        assert_eq!(new_ir.input_indices, ir.input_indices);
-        assert_eq!(new_ir.known_signals, ir.known_signals);
-        assert_eq!(new_ir.add_field_polys, ir.add_field_polys);
-        assert_eq!(new_ir.n_wires, ir.n_wires);
+    if let Some(reduced) = ir.pre_eliminate_linear(&cancel) {
+        assert_eq!(reduced.add_field_polys, ir.add_field_polys);
+        assert_eq!(reduced.ring.n_vars(), ir.ring.n_vars());
     }
 }
