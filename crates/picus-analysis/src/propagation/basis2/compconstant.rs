@@ -334,14 +334,10 @@ fn find_inner_bit(
         if canon[decomp.target_var] != s_var || decomp.bits.len() <= bit {
             continue;
         }
-        if &(BigUint::one() << decomp.bits.len()) > p {
+        if !super::decomp_is_faithful(decomp.bits.len(), p) {
             continue; // not faithful
         }
-        let all_binary = decomp
-            .bits
-            .iter()
-            .all(|&v| matches!(ranges.get(&q.var_to_wire(v)), Some(r) if r.is_binary()));
-        if all_binary {
+        if super::all_bits_binary(q, &decomp.bits, ranges) {
             return Some(decomp.bits[bit]);
         }
     }

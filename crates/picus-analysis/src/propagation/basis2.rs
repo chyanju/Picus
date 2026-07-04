@@ -57,6 +57,24 @@ use crate::uniqueness::UniquenessQuery;
 mod compconstant;
 use compconstant::companion_proves_below_prime;
 
+use super::range::RangeValue;
+
+/// True iff every variable in `bits` is pinned to `{0, 1}` by `ranges`.
+pub(super) fn all_bits_binary(
+    q: &UniquenessQuery,
+    bits: &[usize],
+    ranges: &HashMap<usize, RangeValue>,
+) -> bool {
+    bits.iter()
+        .all(|&v| matches!(ranges.get(&q.var_to_wire(v)), Some(r) if r.is_binary()))
+}
+
+/// True iff an `n_bits`-bit decomposition is faithful under mod-`p` reduction,
+/// i.e. `2^n_bits <= p` (no two bit patterns collide modulo `p`).
+pub(super) fn decomp_is_faithful(n_bits: usize, p: &BigUint) -> bool {
+    &(BigUint::one() << n_bits) <= p
+}
+
 #[derive(Default)]
 pub struct Basis2Lemma;
 
@@ -74,17 +92,15 @@ impl PropagationLemma for Basis2Lemma {
             };
             let bit_wires: Vec<usize> = decomp.bits.iter().map(|&v| q.var_to_wire(v)).collect();
             // Every bit must already be pinned to {0, 1}.
-            let all_binary = bit_wires
-                .iter()
-                .all(|w| matches!(ctx.ranges.get(w), Some(r) if r.is_binary()));
-            if !all_binary {
+            if !all_bits_binary(q, &decomp.bits, ctx.ranges) {
                 continue;
             }
-            // Soundness gate: `2^n > p` admits colliding bit patterns
-            // under mod-p reduction. Relax only when a recognised
-            // companion proves the bit-vector value `< p`.
-            let two_pow_n: BigUint = BigUint::one() << decomp.bits.len();
-            if &two_pow_n > p && !companion_proves_below_prime(q, &decomp.bits, ctx.ranges) {
+            // Soundness gate: an unfaithful decomposition (`2^n > p`) admits
+            // colliding bit patterns under mod-p reduction. Relax only when a
+            // recognised companion proves the bit-vector value `< p`.
+            if !decomp_is_faithful(decomp.bits.len(), p)
+                && !companion_proves_below_prime(q, &decomp.bits, ctx.ranges)
+            {
                 continue;
             }
             let target_wire = q.var_to_wire(decomp.target_var);
