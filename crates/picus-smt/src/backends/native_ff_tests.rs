@@ -45,7 +45,6 @@ fn make_r1cs(
 
 fn blk(wid: u32, factor: u32) -> ConstraintBlock {
     ConstraintBlock {
-        nnz: 1,
         wire_ids: vec![wid],
         factors: vec![BigUint::from(factor)],
     }

@@ -70,7 +70,10 @@ impl CancelToken {
         t
     }
 
-    /// Create a token that will never be cancelled.
+    /// Create a fresh, not-yet-cancelled token. Alias for [`CancelToken::new`]
+    /// (and [`CancelToken::default`]) — all three are equivalent; the returned
+    /// token can still be cancelled later via [`Self::cancel`]. `none()` is the
+    /// preferred spelling at call sites where "no timeout" is the intent.
     pub fn none() -> Self {
         Self::new()
     }

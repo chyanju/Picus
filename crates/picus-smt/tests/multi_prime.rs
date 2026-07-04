@@ -36,17 +36,14 @@ fn build_x1_squared_eq_x2() -> R1csFile {
     //   c = [x_2]
     let constraint = Constraint {
         a: ConstraintBlock {
-            nnz: 1,
             wire_ids: vec![1],
             factors: vec![BigUint::from(1u32)],
         },
         b: ConstraintBlock {
-            nnz: 1,
             wire_ids: vec![1],
             factors: vec![BigUint::from(1u32)],
         },
         c: ConstraintBlock {
-            nnz: 1,
             wire_ids: vec![2],
             factors: vec![BigUint::from(1u32)],
         },

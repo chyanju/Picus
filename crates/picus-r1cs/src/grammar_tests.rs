@@ -1,12 +1,12 @@
 use super::*;
 use num_bigint::BigUint;
 
-fn block(nnz: u32, wire_ids: Vec<u32>, factors: Vec<BigUint>) -> ConstraintBlock {
-    ConstraintBlock { nnz, wire_ids, factors }
+fn block(wire_ids: Vec<u32>, factors: Vec<BigUint>) -> ConstraintBlock {
+    ConstraintBlock { wire_ids, factors }
 }
 
 fn empty_block() -> ConstraintBlock {
-    block(0, vec![], vec![])
+    block(vec![], vec![])
 }
 
 fn dummy_header() -> HeaderSection {
@@ -67,8 +67,8 @@ fn test_constraint_to_string_zero_block_is_zero_literal() {
 fn test_constraint_to_string_single_term_block() {
     // a: 2 * x0; b: 1 * x1; c: empty
     let c = Constraint {
-        a: block(1, vec![0], vec![BigUint::from(2u32)]),
-        b: block(1, vec![1], vec![BigUint::from(1u32)]),
+        a: block(vec![0], vec![BigUint::from(2u32)]),
+        b: block(vec![1], vec![BigUint::from(1u32)]),
         c: empty_block(),
     };
     let f = r1cs_file(vec![c], 1);
@@ -81,7 +81,6 @@ fn test_constraint_to_string_multi_term_joined_with_plus() {
     // a: 1 * x0 + 3 * x1
     let c = Constraint {
         a: block(
-            2,
             vec![0, 1],
             vec![BigUint::from(1u32), BigUint::from(3u32)],
         ),
@@ -105,9 +104,9 @@ fn test_constraint_to_string_out_of_range_yields_diag() {
 #[test]
 fn test_constraint_block_clone_preserves_fields() {
     // Sanity check for #[derive(Clone)] on ConstraintBlock.
-    let b = block(2, vec![5, 7], vec![BigUint::from(11u32), BigUint::from(13u32)]);
+    let b = block(vec![5, 7], vec![BigUint::from(11u32), BigUint::from(13u32)]);
     let cloned = b.clone();
-    assert_eq!(cloned.nnz, 2);
+    assert_eq!(cloned.wire_ids.len(), 2);
     assert_eq!(cloned.wire_ids, vec![5, 7]);
     assert_eq!(cloned.factors, vec![BigUint::from(11u32), BigUint::from(13u32)]);
 }

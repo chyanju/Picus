@@ -45,7 +45,6 @@ pub struct Constraint {
 
 #[derive(Debug, Clone)]
 pub struct ConstraintBlock {
-    pub nnz: u32,
     pub wire_ids: Vec<u32>,
     pub factors: Vec<BigUint>,
 }
@@ -72,7 +71,7 @@ impl R1csFile {
             return format!("<constraint index {id} out of range>");
         };
         let block_str = |b: &ConstraintBlock| -> String {
-            if b.nnz == 0 {
+            if b.wire_ids.is_empty() {
                 return "0".to_string();
             }
             b.wire_ids

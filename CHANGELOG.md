@@ -9,7 +9,9 @@ Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1
 ## [Unreleased]
 
 ### Maintainability refactor (per `chat/plan2.md`)
-- Refactor: removed the redundant `picus_core::poly::IrPoly` alias — it was a second public name for `Polynomial`, identical to `Poly`, and 11 of 13 use sites re-imported it as `IrPoly as Poly`. All sites now use `Poly`; also removes the `PolyIR`/`IrPoly` word-reversal collision.
+- Refactor: removed the redundant `picus_core::poly::IrPoly` alias — it was a second public name for `Polynomial`, identical to `Poly`, and 11 of 13 use sites re-imported it as `IrPoly as Poly`. All sites now use `Poly`; also removes the `PolyIR`/`IrPoly` word-reversal collision. (T1)
+- API: `check_circuit`/`check_r1cs_bytes` now take `PicusConfig` (matching `check_r1cs`/`solve_with`) instead of the `Config` alias, for one consistent config type in signatures; the `Config` alias stays exported (non-breaking). `CancelToken::none()` doc corrected to state it is an alias of `new()`/`default()`, not an uncancellable token. (T3)
+- Refactor: dropped the never-constructed `R1csParseError::BadFieldSize` variant and the denormalized `ConstraintBlock.nnz` field (it always equalled `wire_ids.len()`); `constraint_to_string` now tests `wire_ids.is_empty()`. (T10)
 
 ## [1.8.24] - 2026-07-04
 - API: `picus::PolyIR` (module `picus::ir`) is now the ergonomic public constraint-system builder over GF(p) — `Copy` `Var` handles + a ring-free symbolic `Expr` with `std::ops` operator overloading (`x*x - x`, `2*x + 3*y - 5`, `x.pow(3)`), constants via `Into`; `eq`/`ne`/`assert_zero`/`assert`/`assign`/`or`/`bitsum`/`field_polys`; `solve`/`solve_with` → `Solution { Unsat, Sat(Model), Unknown }` with `Model` indexable by handle (`m[x]`) or name (`m["x"]`). `Arc`/`FfPolyRing`/`Poly` hidden (lowered in `ir::lower`); solver unchanged. `ne` uses the native disequality primitive for bare-var pairs, else a Rabinowitsch witness.

@@ -370,9 +370,9 @@ fn prop_well_formed_single_constraint_parses() {
     let r = read_r1cs(&assemble(&header_payload, &cp, &w2l)).expect("must parse");
     assert_eq!(r.n_constraints(), 1);
     let c = &r.constraints.constraints[0];
-    assert_eq!(c.a.nnz, 1);
-    assert_eq!(c.b.nnz, 1);
-    assert_eq!(c.c.nnz, 1);
+    assert_eq!(c.a.wire_ids.len(), 1);
+    assert_eq!(c.b.wire_ids.len(), 1);
+    assert_eq!(c.c.wire_ids.len(), 1);
     assert_eq!(c.a.wire_ids, vec![0u32]);
     assert_eq!(c.b.wire_ids, vec![1u32]);
     assert_eq!(c.c.wire_ids, vec![2u32]);
@@ -406,8 +406,8 @@ fn prop_factor_reduced_modulo_prime() {
     let r = read_r1cs(&assemble(&header_payload, &cp, &w2l)).expect("must parse");
     let c = &r.constraints.constraints[0];
     assert_eq!(c.a.factors, vec![BigUint::from(2u32)]);
-    assert_eq!(c.b.nnz, 0);
-    assert_eq!(c.c.nnz, 0);
+    assert_eq!(c.b.wire_ids.len(), 0);
+    assert_eq!(c.c.wire_ids.len(), 0);
 }
 
 #[test]

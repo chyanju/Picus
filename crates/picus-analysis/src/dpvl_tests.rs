@@ -336,7 +336,6 @@ fn block(pairs: &[(u32, u32)]) -> ConstraintBlock {
     let wire_ids: Vec<u32> = pairs.iter().map(|&(w, _)| w).collect();
     let factors: Vec<BigUint> = pairs.iter().map(|&(_, f)| BigUint::from(f)).collect();
     ConstraintBlock {
-        nnz: wire_ids.len() as u32,
         wire_ids,
         factors,
     }

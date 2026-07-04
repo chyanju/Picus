@@ -288,7 +288,7 @@ pub enum CheckResult {
 /// ```
 pub fn check_circuit(
     path: impl AsRef<Path>,
-    config: Config,
+    config: PicusConfig,
 ) -> Result<CheckResult, PicusError> {
     let r1cs = picus_r1cs::parser::read_r1cs_file(path.as_ref())?;
     check_r1cs(&r1cs, config)
@@ -306,7 +306,7 @@ pub fn check_circuit(
 /// ```
 pub fn check_r1cs_bytes(
     data: &[u8],
-    config: Config,
+    config: PicusConfig,
 ) -> Result<CheckResult, PicusError> {
     let r1cs = picus_r1cs::parser::read_r1cs(data)?;
     check_r1cs(&r1cs, config)

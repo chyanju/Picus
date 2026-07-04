@@ -130,7 +130,6 @@ fn make_r1cs(
 /// Single-term constraint block: `factor * x_wid`.
 fn blk(wid: u32, factor: u32) -> ConstraintBlock {
     ConstraintBlock {
-        nnz: 1,
         wire_ids: vec![wid],
         factors: vec![BigUint::from(factor)],
     }
@@ -139,7 +138,6 @@ fn blk(wid: u32, factor: u32) -> ConstraintBlock {
 /// Empty (zero) constraint block.
 fn zero_blk() -> ConstraintBlock {
     ConstraintBlock {
-        nnz: 0,
         wire_ids: vec![],
         factors: vec![],
     }

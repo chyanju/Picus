@@ -33,14 +33,13 @@ fn block(pairs: &[(u32, u32)]) -> ConstraintBlock {
     let wire_ids: Vec<u32> = pairs.iter().map(|&(w, _)| w).collect();
     let factors: Vec<BigUint> = pairs.iter().map(|&(_, f)| BigUint::from(f)).collect();
     ConstraintBlock {
-        nnz: wire_ids.len() as u32,
         wire_ids,
         factors,
     }
 }
 
 fn empty_block() -> ConstraintBlock {
-    ConstraintBlock { nnz: 0, wire_ids: vec![], factors: vec![] }
+    ConstraintBlock { wire_ids: vec![], factors: vec![] }
 }
 
 /// Build an R1CS over GF(`p`) with `n_wires` total wires, the given

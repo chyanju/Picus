@@ -22,8 +22,6 @@ pub enum R1csParseError {
     SectionNotFound(u32),
     #[error("Constraint count mismatch: header says {expected}, parsed {actual}")]
     ConstraintCountMismatch { expected: u32, actual: u32 },
-    #[error("Field size {0} is not a multiple of 8")]
-    BadFieldSize(u32),
     #[error("W2L section size {0} is not a multiple of 8")]
     BadW2lSize(usize),
     #[error("Truncated data: need {need} bytes for {ctx}, only {have} available")]
@@ -345,7 +343,7 @@ fn parse_constraint_block(
         factors.push(factor);
     }
 
-    Ok((ConstraintBlock { nnz, wire_ids, factors }, pos))
+    Ok((ConstraintBlock { wire_ids, factors }, pos))
 }
 
 #[allow(clippy::manual_is_multiple_of)]
