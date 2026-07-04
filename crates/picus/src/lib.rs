@@ -100,6 +100,16 @@ pub use picus_smt;
 pub use picus_analysis;
 pub use picus_solver;
 
+/// Ergonomic, ring-free API for building and solving GF(p) polynomial
+/// constraint systems with natural operator syntax (`x*x - x`, `2*x + 3*y`, …).
+pub mod ir;
+
+/// The headline builder type of the [`ir`] module.
+pub use ir::PolyIR;
+
+/// Ergonomic IR surface re-exported at the crate root.
+pub use ir::{Constraint, Expr, IrError, Model, Solution, Value, Var};
+
 // ============================================================
 // Error type
 // ============================================================
