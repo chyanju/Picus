@@ -34,7 +34,6 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 // `gb_stats` config flag. Independent of the `ScopedTimer` table. All counters
 // are `AtomicU64` so updates are wait-free and thread-safe.
 
-#[derive(Default)]
 pub struct SplitDfsCounters {
     pub branches_tried: AtomicU64,
     pub quick_eval_unsat_hits: AtomicU64,
@@ -51,7 +50,6 @@ pub struct SplitDfsCounters {
     pub split_zero_extend_calls: AtomicU64,
 }
 
-#[derive(Default)]
 pub struct SplitGbCounters {
     pub split_gb_extend_calls: AtomicU64,
     pub fixpoint_iters_total: AtomicU64,
@@ -93,7 +91,6 @@ pub static SPLIT_GB: SplitGbCounters = SplitGbCounters::new_const();
 
 /// Counters for `gb::ideal::Ideal` introspection used by FGLM /
 /// model construction. `gb_stats`-gated like the others.
-#[derive(Default)]
 pub struct IdealCounters {
     pub is_zero_dim_calls: AtomicU64,
     pub quotient_dimension_calls: AtomicU64,
@@ -113,7 +110,6 @@ pub static IDEAL: IdealCounters = IdealCounters::new_const();
 /// Counters for the native-ff SMT backend, surfaced when `gb_stats` is
 /// enabled. Reports per-call encoding vs. solving time and
 /// constraint-side digest stability across consecutive calls.
-#[derive(Default)]
 pub struct NativeFfBackendCounters {
     pub solve_calls: AtomicU64,
     pub encode_time_ns: AtomicU64,

@@ -357,21 +357,21 @@ fn main() {
                     // Config-file only (no CLI flag): precise inter-reduce
                     // core tracking is a niche knob; set it via picus.toml.
                     track_inter_reduce_deps: None,
-                    split_triangular: split_triangular.as_deref().map(|s| s == "on"),
-                    membership_fastpath: membership_fastpath.as_deref().map(|s| s == "on"),
-                    radical_membership: radical_membership.as_deref().map(|s| s == "on"),
-                    matrix_elim_order: matrix_elim_order.as_deref().map(|s| s == "on"),
-                    dynamic_order: dynamic_order.as_deref().map(|s| s == "on"),
-                    signature_criterion: signature_criterion.as_deref().map(|s| s == "on"),
-                    zech_log_small_fp: zech_log_small_fp.as_deref().map(|s| s == "on"),
-                    reducer_index_cache: reducer_index_cache.as_deref().map(|s| s == "on"),
-                    frobenius_cache: frobenius_cache.as_deref().map(|s| s == "on"),
-                    branching_incremental_gb: branching_incremental_gb.as_deref().map(|s| s == "on"),
-                    cdclt_multi_prime_router: cdclt_multi_prime_router.as_deref().map(|s| s == "on"),
-                    cdclt_equality_engine: cdclt_equality_engine.as_deref().map(|s| s == "on"),
-                    f4_hilbert_select: f4_hilbert_select.as_deref().map(|s| s == "on"),
-                    f4_sparse_reducer_cache: f4_sparse_reducer_cache.as_deref().map(|s| s == "on"),
-                    cdclt_incremental_theory: cdclt_incremental_theory.as_deref().map(|s| s == "on"),
+                    split_triangular: on_off(&split_triangular),
+                    membership_fastpath: on_off(&membership_fastpath),
+                    radical_membership: on_off(&radical_membership),
+                    matrix_elim_order: on_off(&matrix_elim_order),
+                    dynamic_order: on_off(&dynamic_order),
+                    signature_criterion: on_off(&signature_criterion),
+                    zech_log_small_fp: on_off(&zech_log_small_fp),
+                    reducer_index_cache: on_off(&reducer_index_cache),
+                    frobenius_cache: on_off(&frobenius_cache),
+                    branching_incremental_gb: on_off(&branching_incremental_gb),
+                    cdclt_multi_prime_router: on_off(&cdclt_multi_prime_router),
+                    cdclt_equality_engine: on_off(&cdclt_equality_engine),
+                    f4_hilbert_select: on_off(&f4_hilbert_select),
+                    f4_sparse_reducer_cache: on_off(&f4_sparse_reducer_cache),
+                    cdclt_incremental_theory: on_off(&cdclt_incremental_theory),
                 },
             };
             let resolved = resolve_config(config.as_deref(), &overlay)
@@ -474,6 +474,13 @@ fn print_field_pair(l1: &str, v1: &str, l2: &str, v2: &str) {
 fn exit_error(msg: &str) -> ! {
     aprintln!("{} {}", "error:".red().bold(), msg);
     std::process::exit(1);
+}
+
+/// Map a tri-state `--flag on|off` argument (parsed by clap into
+/// `Option<String>`) to `Option<bool>`: `None` when the flag was not passed,
+/// else `Some(s == "on")`. The `value_parser` restricts `s` to `on`/`off`.
+fn on_off(v: &Option<String>) -> Option<bool> {
+    v.as_deref().map(|s| s == "on")
 }
 
 /// On SIGTERM/SIGINT, dump profile counters to stderr before exiting.
