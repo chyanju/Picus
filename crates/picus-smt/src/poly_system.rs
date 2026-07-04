@@ -54,7 +54,7 @@ impl PolySystem {
     /// (rather than lowering an R1CS uniqueness query). Assemble it with the
     /// `push_equality` / `add_disequality` / `add_assignment` / `add_bitsum` /
     /// `push_disjunction` / `set_add_field_polys` mutators, then hand it to a
-    /// solver backend (or `picus::solve`).
+    /// solver backend (or the solver).
     pub fn new(ring: Arc<FfPolyRing>) -> Self {
         PolySystem {
             ring,
@@ -102,7 +102,7 @@ impl PolySystem {
 
     /// Opt into field polynomials `x^p - x = 0` for every ring variable
     /// (needed for exact reasoning over small primes; the encoder still gates
-    /// on `prime <= 1000`). See `picus::solve` for the soundness implications.
+    /// on `prime <= 1000`). See the solver for the soundness implications.
     pub fn set_add_field_polys(&mut self, on: bool) -> &mut Self {
         self.add_field_polys = on;
         self

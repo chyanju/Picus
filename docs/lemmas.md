@@ -14,7 +14,7 @@ Lemmas implement
 ```rust
 pub trait PropagationLemma: Send {
     fn name(&self) -> &'static str;
-    fn run(&mut self, ir: &PolyIR, ctx: &mut PropagationCtx) -> bool;
+    fn run(&mut self, ir: &PolySystem, ctx: &mut PropagationCtx) -> bool;
 }
 ```
 
@@ -64,7 +64,7 @@ starts with everyone's facts merged. Per-lemma contribution counts
 
 ## Built-in lemmas
 
-All six built-ins operate on `PolyIR` directly; they pattern-match
+All six built-ins operate on `PolySystem` directly; they pattern-match
 on polynomial structure (via `appearing_indeterminates`,
 `poly_terms`, and direct monomial inspection) rather than on an AST.
 

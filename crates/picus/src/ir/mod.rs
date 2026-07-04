@@ -270,7 +270,7 @@ impl PolyIR {
     /// Solve with an explicit [`PicusConfig`].
     pub fn solve_with(&self, cfg: PicusConfig) -> Result<Solution, IrError> {
         let ps = lower::lower(self);
-        Ok(match crate::solve(&ps, cfg)? {
+        Ok(match crate::solve_system(&ps, cfg)? {
             SolverResult::Unsat => Solution::Unsat,
             SolverResult::Sat(map) => Solution::Sat(Model {
                 vals: map,

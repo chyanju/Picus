@@ -12,7 +12,7 @@ the one below it.
           └──────┬──────┘
         ┌────────┴────────┐
 ┌───────▼──────┐   ┌──────▼──────┐
-│picus-analysis│   │  picus-smt  │   PolyIR constraint system + solver backends
+│picus-analysis│   │  picus-smt  │   PolySystem constraint system + solver backends
 │ DPVL·lemmas· │   └──────┬──────┘
 │ UniquenessQ  │          │
 └───────┬──────┘          │
@@ -36,7 +36,7 @@ the one below it.
 `picus-core` holds the shared GF(p) algebra (`Poly` / `FfPolyRing`, field,
 dense/sparse polynomials and reduction), the runtime config, the cancellation
 token, and the profiler. `picus-solver` builds the GB / CDCL(T) engine on it;
-`picus-smt` depends on both (`PolyIR` is built on `picus_core::poly::Poly`, and
+`picus-smt` depends on both (`PolySystem` is built on `picus_core::poly::Poly`, and
 the `native_ff` backend drives `picus-solver`). `picus-analysis` depends on
 `picus-core` (its lemmas pattern-match against `Poly`) and `picus-smt`, not on
 the solver engine.
@@ -264,19 +264,19 @@ algebra), `smt2/`, and `split_gb/`, with `core.rs`, `boolean.rs`, and
 
 ### `picus-smt`
 
-The `PolyIR` constraint system and the solver-backend trait.
+The `PolySystem` constraint system and the solver-backend trait.
 
-- **`poly_ir.rs`** — `PolyIR` is a **use-agnostic** GF(p) polynomial
+- **`poly_system.rs`** — `PolySystem` is a **use-agnostic** GF(p) polynomial
   constraint system: it knows nothing about "wires", "copies", or
   "uniqueness". It bundles a polynomial ring over GF(p) with a flat
   `Vec<Poly>` of equality constraints, a disjunction list, and the
   general-purpose GB-query fields — `disequalities` (each a
   Rabinowitsch witness site), `assignments`, `bitsums`, and
-  `add_field_polys` — that let the encoder lower a `PolyIR` to an
+  `add_field_polys` — that let the encoder lower a `PolySystem` to an
   `EncodedSystem` without a separate `ConstraintSystem` intermediate.
   Indices in those fields are into `ring.var_names()`.
 
-  `PolyIR`'s own methods are the generic ones: `poly_terms(poly)`
+  `PolySystem`'s own methods are the generic ones: `poly_terms(poly)`
   yields each monomial as `(coeff, Vec<String>)` (one name per
   degree); the sibling `poly_terms_idx(poly)` yields
   `(coeff, Vec<(var_idx, exp)>)` for callers that don't need names;
@@ -289,16 +289,16 @@ The `PolyIR` constraint system and the solver-backend trait.
   `add_known_wire`), and the R1CS lowering `r1cs_to_uniqueness_query`
   — lives one layer up in
   [`picus_analysis::uniqueness::UniquenessQuery`](#picus-analysis)
-  (see below), which owns a `PolyIR` and adds those. `picus-smt`
+  (see below), which owns a `PolySystem` and adds those. `picus-smt`
   itself depends only on `picus-core`.
 
-  The native lowering `PolyIR::to_constraint_system` /
-  `PolyIR::to_boolean_query` / `PolyIR::encode` /
-  `PolyIR::pre_eliminate_linear` lives in the native backend
-  (`backends/native_lower.rs`, an `impl PolyIR`); the `native_ff`
+  The native lowering `PolySystem::to_constraint_system` /
+  `PolySystem::to_boolean_query` / `PolySystem::encode` /
+  `PolySystem::pre_eliminate_linear` lives in the native backend
+  (`backends/native_lower.rs`, an `impl PolySystem`); the `native_ff`
   backend's stateless path goes through `ir.encode()` directly.
 - **`backends/`** — Solver-backend implementations, each consuming
-  `&PolyIR`:
+  `&PolySystem`:
   - **`z3_nia.rs`** — z3 Rust API, QF_NIA (integer arithmetic with
     `rem p`). Gated by the `z3` Cargo feature.
   - **`cvc5_ff.rs`** — cvc5 Rust API, QF_FF (native finite field).
@@ -313,7 +313,7 @@ The `PolyIR` constraint system and the solver-backend trait.
     `RuntimeConfig::cache_enabled = false` (`--no-cache` on the
     CLI, or `cache_enabled = false` in config) opts out.
   - `mod.rs` defines the `SolverBackend` trait
-    (`solve(&PolyIR, timeout_ms, &CancelToken)` + `dump_smt(&PolyIR)`),
+    (`solve(&PolySystem, timeout_ms, &CancelToken)` + `dump_smt(&PolySystem)`),
     the `SolverResult { Unsat, Sat(model), Unknown(UnknownReason) }`
     return type with `UnknownReason { Timeout, IncompleteTheory,
     BackendError(String) }`, the shared `poly_to_smtlib_nia` /
@@ -353,12 +353,12 @@ compiles them.
 DPVL algorithm, the uniqueness overlay, and propagation lemma plugins.
 
 - **`uniqueness.rs`** — `UniquenessQuery` owns a solver-agnostic
-  `PolyIR` (from `picus-smt`) and adds the uniqueness overlay: the
+  `PolySystem` (from `picus-smt`) and adds the uniqueness overlay: the
   two-copy wire bookkeeping (`n_wires` / `input_indices` /
   `known_signals` / `target_signal`) and the wire methods
   (`orig_var` / `alt_var` / `var_to_wire` / `x_name` / `y_name` /
   `set_target` / `add_known_wire`). `set_target(w)` writes the single
-  disequality `(x_w, y_w)` onto the underlying `PolyIR`;
+  disequality `(x_w, y_w)` onto the underlying `PolySystem`;
   `add_known_wire(w)` appends `x_w - y_w = 0`.
   `r1cs_to_uniqueness_query(r1cs, &known, target) -> Result<UniquenessQuery, LowerError>`
   performs the two-copy R1CS lowering in one pass: for `n_wires`
@@ -391,7 +391,7 @@ DPVL algorithm, the uniqueness overlay, and propagation lemma plugins.
   infrastructure. See [Propagation Lemmas](./lemmas.md).
 - **`selector.rs`** — `SelectorKind` (`First` / `Counter`) +
   `SelectorState`. The counter strategy consumes a
-  `wire_connectivity_score(&PolyIR)` map built once by the DPVL
+  `wire_connectivity_score(&PolySystem)` map built once by the DPVL
   driver: wires that participate in more constraints score higher.
 
 ### `picus`
@@ -402,17 +402,24 @@ Public library facade.
   full uniqueness analysis pipeline.
 - **`check_r1cs_bytes(data, config)`** — Analyse from raw bytes.
 - **`check_r1cs(r1cs, config)`** — Analyse a pre-parsed `R1csFile`.
-- **`solve(ir, config) -> SolverResult`** — the low-level entry point:
-  decide a caller-built `PolyIR` constraint system directly (raw
-  `Unsat` / `Sat(model)` / `Unknown(reason)`), with no R1CS or
-  uniqueness/two-copy layer. Re-exports `PolyIR` (+ `PolyIR::new` and
-  the `push_equality` / `add_disequality` / `add_assignment` /
-  `add_bitsum` / `push_disjunction` / `set_add_field_polys` builder),
-  `FfPolyRing`, `PrimeField`, `IrPoly`, and `SolverResult` /
-  `UnknownReason` give advanced callers a `use picus::*` construction
-  path. Soundness: the native FF backend is sound; completeness over
-  small primes needs `set_add_field_polys(true)` (encoder gate:
-  `prime <= 1000`), else it is sound-but-incomplete.
+- **`ir` module — `PolyIR`** — the ergonomic public builder for a
+  polynomial constraint system over GF(p), independent of R1CS /
+  uniqueness. `PolyIR::new(prime)` mints `Copy` `Var` handles
+  (`var` / `vars`); a ring-free symbolic `Expr` is built with `std::ops`
+  operator overloading (`x*x - x`, `2*x + 3*y - 5`, `x.pow(3)`), constants
+  via `Into`. Constraints: `eq` / `ne` / `assert_zero` / `assert` /
+  `assign` / `or` / `bitsum` / `field_polys` (`==` / `!=` are methods
+  because `PartialEq` must return `bool`; `ne` routes bare-var pairs to the
+  native disequality primitive, else a Rabinowitsch witness). `solve` /
+  `solve_with` return `Solution { Unsat, Sat(Model), Unknown }`; `Model` is
+  indexable by handle (`m[x]`) or name (`m["x"]`). Lowering to a
+  `PolySystem` (the `ir::lower` module) is the only place `Arc` /
+  `FfPolyRing` / `Poly` appear; the solver is unchanged.
+  `PolyIR::lower()` is the power-user bridge to the low-level `PolySystem`;
+  the internal `solve_system(&PolySystem, config)` decides it. Soundness:
+  the native FF backend is sound; completeness over small primes needs
+  `field_polys(true)` (encoder gate `prime <= 1000`), else
+  sound-but-incomplete.
 - **`PicusConfig { analysis, engine }`** (aliased `Config`) — the resolved
   configuration. `analysis` (`AnalysisConfig`: `solver = Native`,
   `theory = Ff`, `timeout_ms = 5000`, `lemmas = all`, `selector = Counter`,
@@ -456,14 +463,14 @@ R1CS binary (.r1cs)
 R1csFile struct
   │  picus-analysis::uniqueness::r1cs_to_uniqueness_query
   ▼
-UniquenessQuery  (wire overlay + inner PolyIR: ring + Vec<Poly> equalities)
+UniquenessQuery  (wire overlay + inner PolySystem: ring + Vec<Poly> equalities)
   │
   ├──► propagation lemmas (inventory registry, read-only &UniquenessQuery + mutable ctx)
   │       │  ctx.known / ctx.unknown / ctx.ranges / ctx.learned
   │       ▼
   │     known_set grows; ctx.learned folded into q.ir.equalities
   │       │
-  └──► SolverBackend::solve(&q.ir: &PolyIR, timeout, &CancelToken)
+  └──► SolverBackend::solve(&q.ir: &PolySystem, timeout, &CancelToken)
           ├── Z3NiaBackend       (QF_NIA, rem p)      [`z3` feature]
           ├── Cvc5FfBackend      (QF_FF, native FF)   [`cvc5` feature]
           ├── Cvc5NiaBackend     (QF_NIA, mod p)      [`cvc5` feature]
@@ -473,7 +480,7 @@ UniquenessQuery  (wire overlay + inner PolyIR: ring + Vec<Poly> equalities)
         DpvlResult { Safe | Unsafe(model) | Unknown }
 ```
 
-Propagation and solving consume the same `PolyIR`. Lemmas
+Propagation and solving consume the same `PolySystem`. Lemmas
 pattern-match on polynomial structure via `appearing_indeterminates`
 and `poly_terms` / `poly_terms_idx`; SMT backends translate each
 `Poly` into their solver-native term tree via `poly_to_smtlib_ff` /

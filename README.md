@@ -78,7 +78,28 @@ match result {
 }
 ```
 
-See `crates/picus/src/lib.rs` for the full API, including `check_r1cs_bytes()`, `check_r1cs()`, `PicusConfig::from_file()`, and re-exported types. Advanced callers can build a `PolyIR` constraint system directly (`PolyIR::new` + the `push_equality` / `add_disequality` / … builder) and decide it with `picus::solve(&ir, config)` — a raw SAT/UNSAT/model entry point with no R1CS or uniqueness layer.
+See `crates/picus/src/lib.rs` for the full API, including `check_r1cs_bytes()`, `check_r1cs()`, `PicusConfig::from_file()`, and re-exported types.
+
+### Build a constraint system directly (`picus::PolyIR`)
+
+Beyond R1CS uniqueness checking, `picus::PolyIR` is an ergonomic builder for an arbitrary polynomial constraint system over GF(p): declare variables by name, write constraints with ordinary Rust operators, and `solve()` — no R1CS, no `Arc`/ring plumbing.
+
+```rust
+use picus::PolyIR;
+
+let mut pir = PolyIR::new(7u32);        // GF(7)
+let [x, y] = pir.vars(["x", "y"]);
+pir.eq(x * x - x, 0);                   // x*x - x == 0  (x ∈ {0,1})
+pir.eq(y, 1);                           // y == 1
+pir.ne(x, y);                           // x != y        (⇒ x = 0)
+pir.field_polys(true);
+
+if let picus::Solution::Sat(m) = pir.solve().unwrap() {
+    assert_eq!(m.u64(x), Some(0));      // by handle; m["x"] works too
+}
+```
+
+See [docs/usage.md](docs/usage.md#library-api-build-and-solve-a-polyir) for the full builder surface.
 
 ## Documentation
 

@@ -73,26 +73,14 @@ pub use picus_analysis::dpvl::DpvlOverlay as AnalysisOverlay;
 /// Partial overlay (all fields optional) for the engine layer.
 pub use picus_core::config::EngineOverlay;
 
-// ── Advanced: build and solve a polynomial constraint system directly ──
-
-/// A use-agnostic GF(p) polynomial constraint system. Build one with
-/// [`PolySystem::new`] + the `push_equality` / `add_disequality` / … mutators and
-/// hand it to [`solve`] for a raw SAT/UNSAT decision — no R1CS, no uniqueness
-/// semantics. (R1CS uniqueness checking goes through [`check_circuit`].)
-pub use picus_smt::poly_system::PolySystem;
-
-/// Multivariate polynomial ring over GF(p); construct one (via [`FfPolyRing::new`]
-/// with a [`PrimeField`] and variable names) to build a [`PolySystem`].
-pub use picus_core::poly::FfPolyRing;
-
-/// A polynomial over an [`FfPolyRing`] — the element type of `PolySystem::equalities`.
-pub use picus_core::poly::IrPoly;
-
-/// The prime field GF(p) used to build an [`FfPolyRing`].
-pub use picus_core::ff::field::PrimeField;
-
-/// Raw result of [`solve`]: `Unsat`, `Sat(model)`, or `Unknown(reason)`.
+/// Raw solver verdict discriminants, surfaced through [`ir::Solution`]
+/// ([`ir::PolyIR::solve`]): `Sat(model)`, `Unsat`, or `Unknown(reason)`.
 pub use picus_smt::backends::{SolverResult, UnknownReason};
+
+// The lowered constraint-system type (`ir::PolyIR::lower`'s output, and the
+// backend input) is a low-level detail — the public builder is `ir::PolyIR`.
+// Imported privately here only to name it in `solve_system`'s signature.
+use picus_smt::poly_system::PolySystem;
 
 // Sub-crates exposed for advanced usage (e.g., dump_smt, custom pipelines).
 pub use picus_r1cs;
@@ -364,51 +352,17 @@ pub fn check_r1cs(
     }
 }
 
-/// Directly decide a polynomial constraint system, returning a raw
-/// SAT/UNSAT/model verdict.
+/// Decide a lowered [`PolySystem`] directly, returning a raw
+/// `Unsat` / `Sat(model)` / `Unknown` verdict.
 ///
-/// Unlike [`check_circuit`] / [`check_r1cs`] — which run the DPVL *uniqueness*
-/// analysis over an R1CS — this is the low-level entry point for callers who
-/// have built a [`PolySystem`] themselves (a ring plus
-/// equalities / disjunctions / disequalities / assignments / bitsums) and want
-/// a plain decision. There is **no** uniqueness / two-copy semantics: the
-/// query means exactly what its constraints say.
-///
-/// `config.analysis.solver` / `.theory` pick the backend (default `native` +
-/// `ff`) and `config.analysis.timeout_ms` bounds it; `config.engine` tunes the
-/// native FF engine. `solver = none` is rejected (nothing to solve with).
-///
-/// # Soundness / completeness
-///
-/// The native FF backend is a **sound** decision procedure. Its completeness
-/// depends on the field polynomials `x^p - x = 0`: call
-/// [`PolySystem::set_add_field_polys(true)`](PolySystem::set_add_field_polys) for exact
-/// reasoning over small primes (the encoder materialises them only for
-/// `prime <= 1000`). Over cryptographic primes it is sound-but-incomplete —
-/// `Unsat` is trustworthy, a returned `Sat` model is re-validated before it is
-/// handed back, and queries it cannot decide come back `Unknown`.
-///
-/// # Example
-///
-/// ```no_run
-/// use std::sync::Arc;
-/// use picus::{solve, PolySystem, FfPolyRing, PrimeField, PicusConfig, SolverResult, BigUint};
-///
-/// // GF(7) ring with one variable `x`.
-/// let field = PrimeField::new(BigUint::from(7u32));
-/// let ring = Arc::new(FfPolyRing::new(field, vec!["x".to_string()]));
-///
-/// let mut ir = PolySystem::new(Arc::clone(&ring));
-/// let x = ir.linear_term(&BigUint::from(1u32), 0);   // 1 * x
-/// let three = ir.constant(&BigUint::from(3u32));      // 3
-/// ir.push_equality(ring.sub(x, three));               // x - 3 = 0
-///
-/// match solve(&ir, PicusConfig::default()).unwrap() {
-///     SolverResult::Sat(model) => assert_eq!(model["x"], BigUint::from(3u32)),
-///     other => panic!("expected Sat, got {:?}", other),
-/// }
-/// ```
-pub fn solve(ir: &PolySystem, config: PicusConfig) -> Result<SolverResult, PicusError> {
+/// Internal: the public, ergonomic entry point is [`ir::PolyIR::solve`], which
+/// builds a `PolySystem` and calls this. `config.analysis.solver` / `.theory`
+/// pick the backend, `.timeout_ms` bounds it, `config.engine` tunes the native
+/// FF engine; `solver = none` is rejected.
+pub(crate) fn solve_system(
+    ir: &PolySystem,
+    config: PicusConfig,
+) -> Result<SolverResult, PicusError> {
     picus_smt::validate_combination(config.analysis.solver, config.analysis.theory)
         .map_err(PicusError::Config)?;
 
