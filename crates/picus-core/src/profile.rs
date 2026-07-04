@@ -244,10 +244,13 @@ pub fn gb_trace_enabled() -> bool {
 // ─────────────────────────── metric:: instrumentation ──────────────────────
 //
 // gb-stats instrumentation is invoked through the `metric::` namespace
-// (`metric::incr!`, `metric::add!`, `metric::max!`, `metric::timer!`) plus the
-// `#[metric]` attribute. Every profiling site uses this syntax and does not
-// borrow main-logic syntax (`let`, `+=`, `if`), so
-// `grep -E 'metric::|#\[metric\]'` finds exactly the profiling.
+// (`metric::incr!`, `metric::add!`, `metric::max!`, `metric::timer!`, ...).
+// Every profiling site uses this syntax and does not borrow main-logic syntax
+// (`let`, `+=`, `if`), so `grep -E 'metric::|#\[metric\]'` finds exactly the
+// profiling. NOTE: the `metric::` macros here are gated by `gb_stats_enabled`
+// (except `trace!`/`clock!`, gated by `gb_trace_enabled`); the `#[metric]`
+// attribute is a *separate* subsystem — it wraps a fn in a `ScopedTimer` gated
+// by `profile_enabled` (the `--profile wall` phase table), NOT gb-stats.
 //
 // Each macro takes the *typed counter path* (e.g.
 // `SPLIT_GB.fixpoint_iters_total`) and lowers to a direct,
@@ -275,6 +278,7 @@ pub fn gb_trace_enabled() -> bool {
 
 /// Backs `metric::incr!(counter)`: `counter += 1` when gb-stats is on.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_incr {
     ($c:expr) => {
         if $crate::profile::gb_stats_enabled() {
@@ -285,6 +289,7 @@ macro_rules! __metric_incr {
 
 /// Backs `metric::add!(counter, n)`: `counter += n` when gb-stats is on.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_add {
     ($c:expr, $n:expr) => {
         if $crate::profile::gb_stats_enabled() {
@@ -295,6 +300,7 @@ macro_rules! __metric_add {
 
 /// Backs `metric::max!(counter, v)`: `counter = max(counter, v)` when on.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_max {
     ($c:expr, $v:expr) => {
         if $crate::profile::gb_stats_enabled() {
@@ -346,6 +352,7 @@ impl Drop for MetricTimer<'_> {
 /// `let` at the call site); on drop it adds the elapsed ns to `counter`. Times
 /// "this line → end of enclosing block".
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_timer {
     ($c:expr) => {
         let _metric_guard = $crate::profile::MetricTimer::new(&$c);
@@ -418,6 +425,7 @@ impl Drop for LocalTimer<'_> {
 /// loops). Block-scoped RAII timer adding elapsed ns to the local `u64`
 /// accumulator on drop. See [`LocalTimer`].
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_timer_local {
     ($local:expr) => {
         let _metric_guard = $crate::profile::LocalTimer::new(&mut $local);
@@ -431,6 +439,7 @@ macro_rules! __metric_timer_local {
 /// [`Gate`] for a hot loop, then gate per-iteration `metric::timer_local!(g, ..)`
 /// on the cached bool instead of re-reading the thread-local config.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_gate {
     ($name:ident) => {
         let $name = $crate::profile::Gate::new();
@@ -442,6 +451,7 @@ macro_rules! __metric_gate {
 /// later `metric::scope!` dump points via `name.map(|t| t.elapsed())`. The
 /// gb-stats analogue of [`metric::clock!`] (which is gb-trace).
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_stopwatch {
     ($name:ident) => {
         let $name = if $crate::profile::gb_stats_enabled() {
@@ -461,6 +471,7 @@ macro_rules! __metric_stopwatch {
 /// `metric::def!(name = expr);` (a profiling-local seeded from `expr`, e.g. an
 /// entry snapshot of a counter, or `metric::next!`).
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_def {
     ($name:ident) => {
         let mut $name: u64 = 0;
@@ -475,6 +486,7 @@ macro_rules! __metric_def {
 /// profiling ids that need the post-increment value, which `metric::incr!`
 /// discards.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_next {
     ($c:expr) => {
         if $crate::profile::gb_stats_enabled() {
@@ -489,6 +501,7 @@ macro_rules! __metric_next {
 /// `gb_trace_enabled`, the verbose per-step diagnostic sink, distinct from the
 /// gb-stats `metric::scope!`).
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_trace {
     ($($body:tt)*) => {
         if $crate::profile::gb_trace_enabled() {
@@ -501,6 +514,7 @@ macro_rules! __metric_trace {
 /// local that is `Some(now)` only when gb-trace is on, for a
 /// `metric::trace!`-printed elapsed. No `Instant::now()` cost when trace is off.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_clock {
     ($name:ident) => {
         let $name = if $crate::profile::gb_trace_enabled() {
@@ -513,6 +527,7 @@ macro_rules! __metric_clock {
 
 /// Backs `metric::bump!(acc)` / `metric::bump!(acc, n)`: local `acc += 1|n`.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_bump {
     ($name:ident) => {
         $name += 1;
@@ -528,6 +543,7 @@ macro_rules! __metric_bump {
 /// contain only profiling — no main-logic side effects, since it is skipped
 /// when gb-stats is off.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! __metric_scope {
     ($($body:tt)*) => {
         if $crate::profile::gb_stats_enabled() {

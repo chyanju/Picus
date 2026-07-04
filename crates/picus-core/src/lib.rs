@@ -17,12 +17,20 @@ pub mod poly;
 pub mod profile;
 pub mod timeout;
 
-/// Namespaced gb-stats instrumentation vocabulary: `metric::incr!`,
-/// `metric::add!`, `metric::max!`, `metric::timer!`. Every profiling call site
-/// goes through this `metric::` namespace (paired with the `#[metric]`
-/// attribute), so `grep -E 'metric::|#\[metric\]'` finds exactly the profiling
-/// and nothing in main logic. Backed by [`profile`] (`record_add` / `MetricTimer`
-/// / `GbStatsLayer`).
+/// Namespaced instrumentation vocabulary. Every profiling call site goes
+/// through this `metric::` namespace, so `grep -E 'metric::|#\[metric\]'`
+/// finds exactly the profiling and nothing in main logic.
+///
+/// The vocabulary spans two independently-gated subsystems (see [`config`]):
+/// - **gb-stats** (`gb_stats_enabled`): `incr!`, `add!`, `max!`, `timer!`,
+///   `timer_local!`, `gate!`, `stopwatch!`, `def!`, `next!`, `bump!`, `scope!`
+///   — counters/timers backed by [`profile`]'s `AtomicU64` registries,
+///   [`profile::MetricTimer`]/[`profile::LocalTimer`], and `observe_max`.
+/// - **gb-trace** (`gb_trace_enabled`): `trace!`, `clock!` — verbose tracing.
+///
+/// The separate `#[metric]` attribute (from `picus-metric-macros`) is a
+/// *third* subsystem: it wraps a fn body in a [`profile::ScopedTimer`] and is
+/// gated by `profile_enabled` (the `--profile wall` phase table), NOT gb-stats.
 pub mod metric {
     pub use crate::{
         __metric_add as add, __metric_bump as bump, __metric_clock as clock,
