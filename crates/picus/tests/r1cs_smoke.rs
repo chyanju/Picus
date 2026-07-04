@@ -2,8 +2,11 @@
 //! subset, run through the native finite-field backend.
 //!
 //! Reads compiled `.r1cs` files from `benchmarks/circom/circomlib-cff5ab6/`.
-//! If the submodule is not initialised or the circuits are not yet
-//! compiled, the test logs a hint and exits 0.
+//! If the fixtures are missing (the `benchmarks` submodule is not initialised
+//! or the circuits are not yet compiled) the test FAILS, so a forgotten
+//! submodule can't slip through CI as a green run. Set the test-only env var
+//! `PICUS_TEST_SKIP_SMOKE=1` to opt out locally — it is *not* a Picus runtime
+//! knob (all runtime configuration is TOML / CLI; see `docs/testing.md`).
 //!
 //! To provision the fixtures:
 //!
@@ -62,12 +65,12 @@ fn r1cs_smoke_native_ff() {
     if !dir.exists() {
         // Missing fixtures fail the test rather than skip silently —
         // a forgotten submodule init must not show up as a green run.
-        // `PICUS_SKIP_PLDI_SMOKE=1` is the explicit opt-out for
+        // `PICUS_TEST_SKIP_SMOKE=1` is the explicit opt-out for
         // contributors who deliberately don't initialise the
         // benchmarks submodule.
-        if std::env::var_os("PICUS_SKIP_PLDI_SMOKE").is_some() {
+        if std::env::var_os("PICUS_TEST_SKIP_SMOKE").is_some() {
             eprintln!(
-                "r1cs_smoke: {} not present and PICUS_SKIP_PLDI_SMOKE=1 — skipping",
+                "r1cs_smoke: {} not present and PICUS_TEST_SKIP_SMOKE=1 — skipping",
                 dir.display()
             );
             return;
@@ -75,7 +78,7 @@ fn r1cs_smoke_native_ff() {
         panic!(
             "r1cs_smoke: {} not present.\n\
              Initialise the submodule and compile the circuits (see\n\
-             the test docstring), or set PICUS_SKIP_PLDI_SMOKE=1 to\n\
+             the test docstring), or set PICUS_TEST_SKIP_SMOKE=1 to\n\
              skip this test locally.",
             dir.display()
         );
