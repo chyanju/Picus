@@ -35,7 +35,7 @@ use std::sync::Arc;
 
 use num_bigint::BigUint;
 
-use crate::{PicusConfig, PicusError, SolverResult, UnknownReason};
+use crate::{PicusConfig, SolverResult, UnknownReason};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Errors
@@ -56,7 +56,7 @@ pub enum IrError {
     BadPrime(String),
     /// The underlying solver returned an error.
     #[error(transparent)]
-    Solver(#[from] PicusError),
+    Solver(#[from] crate::SolveError),
 }
 
 // ─────────────────────────────────────────────────────────────────────────

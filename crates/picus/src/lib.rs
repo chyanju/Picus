@@ -75,7 +75,7 @@ pub use picus_core::config::EngineOverlay;
 
 /// Raw solver verdict discriminants, surfaced through [`ir::Solution`]
 /// ([`ir::PolyIR::solve`]): `Sat(model)`, `Unsat`, or `Unknown(reason)`.
-pub use picus_smt::backends::{SolverResult, UnknownReason};
+pub use picus_smt::backends::{SolverError, SolverResult, UnknownReason};
 
 // The lowered constraint-system type (`ir::PolyIR::lower`'s output, and the
 // backend input) is a low-level detail — the public builder is `ir::PolyIR`.
@@ -368,18 +368,18 @@ pub fn check_r1cs(
 pub(crate) fn solve_system(
     ir: &PolySystem,
     config: PicusConfig,
-) -> Result<SolverResult, PicusError> {
+) -> Result<SolverResult, SolveError> {
     picus_smt::validate_combination(config.analysis.solver, config.analysis.theory)
-        .map_err(PicusError::Config)?;
+        .map_err(SolveError::Config)?;
 
     // Install the engine config on this thread for the duration of the solve
     // (RAII-restored on return, as in `check_r1cs`).
     let _engine_guard = picus_core::config::ConfigGuard::install(config.engine.clone());
 
     let mut backend = picus_smt::create_backend(config.analysis.solver, config.analysis.theory)
-        .map_err(PicusError::Config)?
+        .map_err(SolveError::Config)?
         .ok_or_else(|| {
-            PicusError::Config(
+            SolveError::Config(
                 "solver = none has no backend to solve() with; pick native, cvc5, or z3"
                     .to_string(),
             )
@@ -388,7 +388,21 @@ pub(crate) fn solve_system(
     let cancel = picus_core::timeout::CancelToken::none();
     backend
         .solve(ir, config.analysis.timeout_ms, &cancel)
-        .map_err(|e| PicusError::Solver(e.to_string()))
+        .map_err(SolveError::Solver)
+}
+
+/// Error from deciding a caller-built constraint system through the
+/// [`ir::PolyIR::solve`] path. Deliberately narrower than [`PicusError`]: the
+/// in-memory IR path never parses R1CS files or touches the filesystem, so only
+/// a bad solver/theory configuration or a backend failure can arise.
+#[derive(Debug, thiserror::Error)]
+pub enum SolveError {
+    /// Invalid solver/theory combination, or `solver = none` (no backend).
+    #[error("invalid configuration: {0}")]
+    Config(String),
+    /// The chosen backend itself failed.
+    #[error(transparent)]
+    Solver(#[from] SolverError),
 }
 
 // ============================================================

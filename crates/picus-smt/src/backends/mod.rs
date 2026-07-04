@@ -53,8 +53,6 @@ pub enum SolverResult {
 pub enum SolverError {
     #[error("solver error: {0}")]
     Internal(String),
-    #[error("unsupported solver/theory combination: {0}")]
-    Unsupported(String),
 }
 
 /// Trait for solver backends.
