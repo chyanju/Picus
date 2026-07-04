@@ -6,7 +6,7 @@
 //! or the circuits are not yet compiled) the test FAILS, so a forgotten
 //! submodule can't slip through CI as a green run. Set the test-only env var
 //! `PICUS_TEST_SKIP_SMOKE=1` to opt out locally — it is *not* a Picus runtime
-//! knob (all runtime configuration is TOML / CLI; see `docs/testing.md`).
+//! knob (all runtime configuration is TOML / CLI; see `docs/building.md`).
 //!
 //! To provision the fixtures:
 //!

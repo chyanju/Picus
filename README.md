@@ -85,10 +85,9 @@ See `crates/picus/src/lib.rs` for the full API, including `check_r1cs_bytes()`, 
 | | |
 |---|---|
 | [Usage](docs/usage.md) | CLI flags, configuration, result interpretation, solver differences, troubleshooting |
-| [Building cvc5 / z3](docs/building.md) | Optional external backends: build requirements and licensing |
+| [Building & Testing](docs/building.md) | Optional cvc5 / z3 backends (build requirements, licensing); running the test suite; environment variables |
 | [Architecture](docs/architecture.md) | Crate structure, data flow, solver backends |
 | [Propagation Lemmas](docs/lemmas.md) | Deduction rules and their implementation |
-| [Testing](docs/testing.md) | Running the suite, the circomlib smoke test, environment variables |
 | [Changelog](CHANGELOG.md) | Version history |
 
 ## Citation

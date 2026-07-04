@@ -1,4 +1,4 @@
-# Building with cvc5 / z3
+# Building & Testing
 
 The default build is pure Rust — the in-tree `native` finite-field solver needs
 no external solver and no extra system dependencies. The default commands build
@@ -45,6 +45,36 @@ Z3_LIBRARY_PATH_OVERRIDE=/path/to/z3/lib cargo build --release -p picus-cli --fe
 
 For `CVC5_LIB_DIR`, headers are expected at `../include/` relative to the lib
 directory (or set `CVC5_INCLUDE_DIR` separately).
+
+## Testing
+
+```bash
+cargo test                       # default: native-only, pure Rust
+cargo test --features cvc5,z3    # also test the external backends (slow: vendored builds)
+```
+
+`crates/picus/tests/r1cs_smoke.rs` runs a `circomlib-cff5ab6` subset end to end
+through the native backend. It reads `.r1cs` fixtures from the `benchmarks`
+submodule and **fails** if they are missing (a forgotten `git submodule update`
+must not pass CI silently). Provision them, or skip that one test locally:
+
+```bash
+git submodule update --init benchmarks
+cd benchmarks/circom && ./compile.sh build circomlib-cff5ab6
+# — or, to run everything else without the submodule:
+PICUS_TEST_SKIP_SMOKE=1 cargo test
+```
+
+### Environment variables
+
+Picus reads **no environment variables at runtime** — solver, theory, timeout,
+and every engine knob are TOML / CLI only (the pre-1.8.1 `PICUS_*` runtime
+overrides were removed; see [usage.md](usage.md)). The only variables the
+project reads are `PICUS_TEST_SKIP_SMOKE` (test-only, above) and the build-time
+solver locators `CVC5_LIB_DIR` / `CVC5_INCLUDE_DIR` / `CVC5_DIR` /
+`Z3_LIBRARY_PATH_OVERRIDE` (above). Everything else the build touches
+(`OUT_DIR`, `TARGET`, `CXXSTDLIB`, …) is a standard Cargo / build-system
+variable, not a Picus setting.
 
 ## Licensing
 
