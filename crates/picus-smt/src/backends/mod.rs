@@ -59,15 +59,16 @@ pub enum SolverError {
 
 /// Trait for solver backends.
 ///
-/// Backends consume a [`PolyIR`] snapshot whose `target_signal` and
-/// `known_signals` reflect the current DPVL state. The PolyIR's
-/// `equalities` already encode `x_0 = 1` and every learned equality from
-/// previous solves (input wires reuse `x_i` across copies, so no
-/// `x_i = y_i` equality appears); the
-/// backend additionally asserts `x_target ≠ y_target` and runs SMT
-/// `(check-sat)`. SAT models are returned as
-/// `HashMap<String, BigUint>` keyed by the ring's canonical variable
-/// names (`x0`, `y3`, ...).
+/// Backends consume a [`PolyIR`] constraint system and decide it: they assert
+/// every `equalities` polynomial `= 0`, each `disjunctions` clause as an
+/// `or`, each `disequalities` pair as `x_a ≠ x_b`, each `assignments` pair as
+/// `x_i = val`, expand `bitsums`, optionally add `x^p - x` field polynomials
+/// (`add_field_polys`), and run SMT `(check-sat)`. The IR carries no
+/// uniqueness/wire semantics — a uniqueness query reaches a backend as an
+/// ordinary constraint system whose `disequalities` hold the single target
+/// pair (see `picus_analysis::uniqueness`). SAT models are returned as
+/// `HashMap<String, BigUint>` keyed by the ring's canonical variable names
+/// (`x0`, `y3`, ...).
 pub trait SolverBackend {
     /// Run the SMT query encoded by `ir`. The backend honours **both**
     /// `timeout_ms` (its own per-call budget) and `cancel` (an external

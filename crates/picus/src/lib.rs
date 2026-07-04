@@ -73,6 +73,27 @@ pub use picus_analysis::dpvl::DpvlOverlay as AnalysisOverlay;
 /// Partial overlay (all fields optional) for the engine layer.
 pub use picus_core::config::EngineOverlay;
 
+// ── Advanced: build and solve a polynomial constraint system directly ──
+
+/// A use-agnostic GF(p) polynomial constraint system. Build one with
+/// [`PolyIR::new`] + the `push_equality` / `add_disequality` / … mutators and
+/// hand it to [`solve`] for a raw SAT/UNSAT decision — no R1CS, no uniqueness
+/// semantics. (R1CS uniqueness checking goes through [`check_circuit`].)
+pub use picus_smt::poly_ir::PolyIR;
+
+/// Multivariate polynomial ring over GF(p); construct one (via [`FfPolyRing::new`]
+/// with a [`PrimeField`] and variable names) to build a [`PolyIR`].
+pub use picus_core::poly::FfPolyRing;
+
+/// A polynomial over an [`FfPolyRing`] — the element type of `PolyIR::equalities`.
+pub use picus_core::poly::IrPoly;
+
+/// The prime field GF(p) used to build an [`FfPolyRing`].
+pub use picus_core::ff::field::PrimeField;
+
+/// Raw result of [`solve`]: `Unsat`, `Sat(model)`, or `Unknown(reason)`.
+pub use picus_smt::backends::{SolverResult, UnknownReason};
+
 // Sub-crates exposed for advanced usage (e.g., dump_smt, custom pipelines).
 pub use picus_r1cs;
 pub use picus_smt;
@@ -331,6 +352,73 @@ pub fn check_r1cs(
         }
         picus_analysis::dpvl::DpvlResult::Unknown => Ok(CheckResult::Unknown),
     }
+}
+
+/// Directly decide a polynomial constraint system, returning a raw
+/// SAT/UNSAT/model verdict.
+///
+/// Unlike [`check_circuit`] / [`check_r1cs`] — which run the DPVL *uniqueness*
+/// analysis over an R1CS — this is the low-level entry point for callers who
+/// have built a [`PolyIR`] themselves (a ring plus
+/// equalities / disjunctions / disequalities / assignments / bitsums) and want
+/// a plain decision. There is **no** uniqueness / two-copy semantics: the
+/// query means exactly what its constraints say.
+///
+/// `config.analysis.solver` / `.theory` pick the backend (default `native` +
+/// `ff`) and `config.analysis.timeout_ms` bounds it; `config.engine` tunes the
+/// native FF engine. `solver = none` is rejected (nothing to solve with).
+///
+/// # Soundness / completeness
+///
+/// The native FF backend is a **sound** decision procedure. Its completeness
+/// depends on the field polynomials `x^p - x = 0`: call
+/// [`PolyIR::set_add_field_polys(true)`](PolyIR::set_add_field_polys) for exact
+/// reasoning over small primes (the encoder materialises them only for
+/// `prime <= 1000`). Over cryptographic primes it is sound-but-incomplete —
+/// `Unsat` is trustworthy, a returned `Sat` model is re-validated before it is
+/// handed back, and queries it cannot decide come back `Unknown`.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::sync::Arc;
+/// use picus::{solve, PolyIR, FfPolyRing, PrimeField, PicusConfig, SolverResult, BigUint};
+///
+/// // GF(7) ring with one variable `x`.
+/// let field = PrimeField::new(BigUint::from(7u32));
+/// let ring = Arc::new(FfPolyRing::new(field, vec!["x".to_string()]));
+///
+/// let mut ir = PolyIR::new(Arc::clone(&ring));
+/// let x = ir.linear_term(&BigUint::from(1u32), 0);   // 1 * x
+/// let three = ir.constant(&BigUint::from(3u32));      // 3
+/// ir.push_equality(ring.sub(x, three));               // x - 3 = 0
+///
+/// match solve(&ir, PicusConfig::default()).unwrap() {
+///     SolverResult::Sat(model) => assert_eq!(model["x"], BigUint::from(3u32)),
+///     other => panic!("expected Sat, got {:?}", other),
+/// }
+/// ```
+pub fn solve(ir: &PolyIR, config: PicusConfig) -> Result<SolverResult, PicusError> {
+    picus_smt::validate_combination(config.analysis.solver, config.analysis.theory)
+        .map_err(PicusError::Config)?;
+
+    // Install the engine config on this thread for the duration of the solve
+    // (RAII-restored on return, as in `check_r1cs`).
+    let _engine_guard = picus_core::config::ConfigGuard::install(config.engine.clone());
+
+    let mut backend = picus_smt::create_backend(config.analysis.solver, config.analysis.theory)
+        .map_err(PicusError::Config)?
+        .ok_or_else(|| {
+            PicusError::Config(
+                "solver = none has no backend to solve() with; pick native, cvc5, or z3"
+                    .to_string(),
+            )
+        })?;
+
+    let cancel = picus_core::timeout::CancelToken::none();
+    backend
+        .solve(ir, config.analysis.timeout_ms, &cancel)
+        .map_err(|e| PicusError::Solver(e.to_string()))
 }
 
 // ============================================================

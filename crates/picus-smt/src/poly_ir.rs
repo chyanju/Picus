@@ -47,6 +47,67 @@ pub struct PolyIR {
 }
 
 impl PolyIR {
+    /// An empty constraint system over `ring`: no equalities, disjunctions,
+    /// disequalities, assignments, or bitsums, with `add_field_polys` off.
+    ///
+    /// This is the entry point for callers that build a `PolyIR` directly
+    /// (rather than lowering an R1CS uniqueness query). Assemble it with the
+    /// `push_equality` / `add_disequality` / `add_assignment` / `add_bitsum` /
+    /// `push_disjunction` / `set_add_field_polys` mutators, then hand it to a
+    /// solver backend (or `picus::solve`).
+    pub fn new(ring: Arc<FfPolyRing>) -> Self {
+        PolyIR {
+            ring,
+            equalities: Vec::new(),
+            disjunctions: Vec::new(),
+            disequalities: Vec::new(),
+            assignments: Vec::new(),
+            bitsums: Vec::new(),
+            add_field_polys: false,
+        }
+    }
+
+    /// Append an equality constraint `poly = 0`. Returns `&mut self` for
+    /// chaining.
+    pub fn push_equality(&mut self, poly: Poly) -> &mut Self {
+        self.equalities.push(poly);
+        self
+    }
+
+    /// Append a disjunction `p_1 = 0 ∨ … ∨ p_k = 0` (`clause = [p_1, …, p_k]`).
+    pub fn push_disjunction(&mut self, clause: Vec<Poly>) -> &mut Self {
+        self.disjunctions.push(clause);
+        self
+    }
+
+    /// Append a disequality: the ring variables at indices `a` and `b` must
+    /// differ. Lowered to a Rabinowitsch polynomial at encoding time.
+    pub fn add_disequality(&mut self, a: usize, b: usize) -> &mut Self {
+        self.disequalities.push((a, b));
+        self
+    }
+
+    /// Pin the ring variable at index `var` to `val` (emits `x_var - val = 0`).
+    pub fn add_assignment(&mut self, var: usize, val: BigUint) -> &mut Self {
+        self.assignments.push((var, val));
+        self
+    }
+
+    /// Declare a bitsum chain: `bits = [b_0, …, b_{k-1}]` defines an auxiliary
+    /// `sum(2^i · x_{b_i})`.
+    pub fn add_bitsum(&mut self, bits: Vec<usize>) -> &mut Self {
+        self.bitsums.push(bits);
+        self
+    }
+
+    /// Opt into field polynomials `x^p - x = 0` for every ring variable
+    /// (needed for exact reasoning over small primes; the encoder still gates
+    /// on `prime <= 1000`). See `picus::solve` for the soundness implications.
+    pub fn set_add_field_polys(&mut self, on: bool) -> &mut Self {
+        self.add_field_polys = on;
+        self
+    }
+
     /// Build a `Poly` representing the linear polynomial `coeff * x` for
     /// variable index `var`. Used by callers that need to emit a learned
     /// constraint from a `(var, value)` pair.

@@ -399,9 +399,20 @@ DPVL algorithm, the uniqueness overlay, and propagation lemma plugins.
 Public library facade.
 
 - **`check_circuit(path, config)`** — Read an R1CS file and run the
-  full analysis pipeline.
+  full uniqueness analysis pipeline.
 - **`check_r1cs_bytes(data, config)`** — Analyse from raw bytes.
 - **`check_r1cs(r1cs, config)`** — Analyse a pre-parsed `R1csFile`.
+- **`solve(ir, config) -> SolverResult`** — the low-level entry point:
+  decide a caller-built `PolyIR` constraint system directly (raw
+  `Unsat` / `Sat(model)` / `Unknown(reason)`), with no R1CS or
+  uniqueness/two-copy layer. Re-exports `PolyIR` (+ `PolyIR::new` and
+  the `push_equality` / `add_disequality` / `add_assignment` /
+  `add_bitsum` / `push_disjunction` / `set_add_field_polys` builder),
+  `FfPolyRing`, `PrimeField`, `IrPoly`, and `SolverResult` /
+  `UnknownReason` give advanced callers a `use picus::*` construction
+  path. Soundness: the native FF backend is sound; completeness over
+  small primes needs `set_add_field_polys(true)` (encoder gate:
+  `prime <= 1000`), else it is sound-but-incomplete.
 - **`PicusConfig { analysis, engine }`** (aliased `Config`) — the resolved
   configuration. `analysis` (`AnalysisConfig`: `solver = Native`,
   `theory = Ff`, `timeout_ms = 5000`, `lemmas = all`, `selector = Counter`,

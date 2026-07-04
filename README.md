@@ -78,7 +78,7 @@ match result {
 }
 ```
 
-See `crates/picus/src/lib.rs` for the full API, including `check_r1cs_bytes()`, `check_r1cs()`, `PicusConfig::from_file()`, and re-exported types.
+See `crates/picus/src/lib.rs` for the full API, including `check_r1cs_bytes()`, `check_r1cs()`, `PicusConfig::from_file()`, and re-exported types. Advanced callers can build a `PolyIR` constraint system directly (`PolyIR::new` + the `push_equality` / `add_disequality` / … builder) and decide it with `picus::solve(&ir, config)` — a raw SAT/UNSAT/model entry point with no R1CS or uniqueness layer.
 
 ## Documentation
 
