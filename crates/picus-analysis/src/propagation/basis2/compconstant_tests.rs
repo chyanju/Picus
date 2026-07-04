@@ -23,7 +23,7 @@ use num_traits::{One, Zero};
 use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
-use picus_smt::poly_ir::r1cs_to_poly_ir;
+use crate::uniqueness::{r1cs_to_uniqueness_query, UniquenessQuery};
 
 use crate::propagation::range::RangeValue;
 
@@ -108,7 +108,7 @@ fn prop_companion_rejects_wrong_bit_count_empty() {
     // Empty bits → length 0 ≠ 254 → false. Returns immediately without
     // touching the IR (so any prime works).
     let r = tiny_r1cs(101, 4);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let ranges: HashMap<usize, RangeValue> = HashMap::new();
     assert!(!companion_proves_below_prime(&ir, &[], &ranges));
 }
@@ -117,7 +117,7 @@ fn prop_companion_rejects_wrong_bit_count_empty() {
 fn prop_companion_rejects_wrong_bit_count_too_few() {
     // 4 bits ≠ 254.
     let r = tiny_r1cs(101, 5);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let ranges: HashMap<usize, RangeValue> = HashMap::new();
     assert!(!companion_proves_below_prime(&ir, &[1, 2, 3, 4], &ranges));
 }
@@ -126,7 +126,7 @@ fn prop_companion_rejects_wrong_bit_count_too_few() {
 fn prop_companion_rejects_wrong_bit_count_one_less() {
     // 253 bits ≠ 254 (off-by-one at the COMPCONSTANT_BITS boundary).
     let r = tiny_r1cs(101, 4);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let ranges: HashMap<usize, RangeValue> = HashMap::new();
     let bits: Vec<usize> = (0..253).collect();
     assert!(!companion_proves_below_prime(&ir, &bits, &ranges));
@@ -136,7 +136,7 @@ fn prop_companion_rejects_wrong_bit_count_one_less() {
 fn prop_companion_rejects_wrong_bit_count_one_more() {
     // 255 bits ≠ 254.
     let r = tiny_r1cs(101, 4);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let ranges: HashMap<usize, RangeValue> = HashMap::new();
     let bits: Vec<usize> = (0..255).collect();
     assert!(!companion_proves_below_prime(&ir, &bits, &ranges));
@@ -148,7 +148,7 @@ fn prop_companion_rejects_when_no_part_equalities() {
     // so the first weight-0 part_map lookup misses → false.
     // (The recogniser shortcircuits on the first missing part.)
     let r = tiny_r1cs(101, 256);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let ranges: HashMap<usize, RangeValue> = HashMap::new();
     let bits: Vec<usize> = (1..=254).collect();
     assert!(!companion_proves_below_prime(&ir, &bits, &ranges));
@@ -162,12 +162,12 @@ fn prop_companion_rejects_when_no_part_equalities() {
 fn prop_build_canon_no_equalities_gives_identity() {
     // No `c1·x_i + c2·x_j = 0` two-term identities → canon is identity.
     let r = tiny_r1cs(101, 4);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let canon = build_canon(&ir);
     // Each variable is its own representative (modulo the structural
     // pin `x_0 - 1`, which is a constant-bearing equality not matched
     // by the two-term linear union-find).
-    assert_eq!(canon.len(), ir.ring.n_vars());
+    assert_eq!(canon.len(), ir.ir.ring.n_vars());
     // x_0 has the `x_0 - 1 = 0` constant equality and never merges.
     // Self-rep invariant: every entry must point to itself or to
     // another node in the same equivalence class.
@@ -182,7 +182,7 @@ fn prop_build_canon_no_equalities_gives_identity() {
 fn prop_build_canon_idempotent() {
     // Running canon twice yields the same map.
     let r = tiny_r1cs(101, 4);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let c1 = build_canon(&ir);
     let c2 = build_canon(&ir);
     assert_eq!(c1, c2);
@@ -196,7 +196,7 @@ fn prop_build_canon_idempotent() {
 fn prop_find_pinned_zero_negative_no_such_var() {
     // No equality references variable 99 — `find_pinned_zero` returns false.
     let r = tiny_r1cs(101, 4);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let canon = build_canon(&ir);
     assert!(!find_pinned_zero(&ir, &canon, 99));
 }
@@ -234,7 +234,7 @@ fn prop_find_pinned_zero_positive_on_pin_equality() {
         inputs: vec![0],
         outputs: vec![1],
     };
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let canon = build_canon(&ir);
     // x_1 (variable index 1) is pinned to zero.
     assert!(find_pinned_zero(&ir, &canon, canon[1]));
@@ -273,7 +273,7 @@ fn prop_find_pinned_zero_rejects_two_term_equality() {
         inputs: vec![0],
         outputs: vec![1, 2],
     };
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let canon = build_canon(&ir);
     // The equality has TWO linear terms, so `find_pinned_zero` requires
     // a *single*-term form and rejects both b0 and b1.
@@ -318,9 +318,9 @@ fn prop_product_pair_finds_unique_pair() {
         inputs: vec![0],
         outputs: vec![1, 2],
     };
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     // The first equality in the IR is the orig-copy `b0 * b1 = 0`.
-    let poly0 = &ir.equalities[0];
+    let poly0 = &ir.ir.equalities[0];
     let pair = product_pair(&ir, poly0).expect("product pair found");
     // Pair contains variable indices for b0 and b1 (= ring indices 1
     // and 2). Order is undefined here so accept either ordering.
@@ -333,11 +333,11 @@ fn prop_product_pair_rejects_pure_linear() {
     // Pure linear constraint `b0 - 1 = 0` (from the x_0 - 1 pin) has
     // no product monomial → `product_pair` returns None.
     let r = tiny_r1cs(7, 2);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     // Find an equality with only linear/constant terms — the x_0 - 1
     // pin is always emitted.
     let mut found_linear = false;
-    for poly in &ir.equalities {
+    for poly in &ir.ir.equalities {
         if product_pair(&ir, poly).is_none() {
             found_linear = true;
             break;
@@ -380,9 +380,9 @@ fn prop_product_pair_rejects_square() {
         inputs: vec![0],
         outputs: vec![1],
     };
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     // First equality is `b0^2 = 0` (the orig copy).
-    let poly = &ir.equalities[0];
+    let poly = &ir.ir.equalities[0];
     assert!(product_pair(&ir, poly).is_none(), "x^2 monomial is not a product pair");
 }
 
@@ -420,7 +420,7 @@ fn prop_build_part_map_bucket_per_product_pair() {
         inputs: vec![0],
         outputs: vec![1, 2],
     };
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let canon = build_canon(&ir);
     let map = build_part_map(&ir, &canon);
     // The orig-copy `b0 * b1 = 0` lands in the bucket keyed by the
@@ -446,37 +446,37 @@ fn prop_build_part_map_bucket_per_product_pair() {
 /// the equalities so callers can inject exactly the polys they want to
 /// test. Wire-0 pin is also dropped — tests opt back in by injecting it
 /// explicitly when needed.
-fn ir_fresh(p: u64, n_wires: u32) -> PolyIR {
+fn ir_fresh(p: u64, n_wires: u32) -> UniquenessQuery {
     let r = tiny_r1cs(p, n_wires);
-    let mut ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
-    ir.equalities.clear();
+    let mut ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
+    ir.ir.equalities.clear();
     ir
 }
 
 /// Build a linear polynomial `c · x_var` from a BigUint coefficient.
-fn lin(ir: &PolyIR, c: &BigUint, var: usize) -> Poly {
-    let el = ir.ring.field().from_biguint(c);
-    ir.ring.scale(el, ir.ring.var(var))
+fn lin(ir: &UniquenessQuery, c: &BigUint, var: usize) -> Poly {
+    let el = ir.ir.ring.field().from_biguint(c);
+    ir.ir.ring.scale(el, ir.ir.ring.var(var))
 }
 
 /// Build a constant polynomial from a BigUint.
-fn konst_poly(ir: &PolyIR, c: &BigUint) -> Poly {
-    let el = ir.ring.field().from_biguint(c);
-    ir.ring.constant(el)
+fn konst_poly(ir: &UniquenessQuery, c: &BigUint) -> Poly {
+    let el = ir.ir.ring.field().from_biguint(c);
+    ir.ir.ring.constant(el)
 }
 
 /// Build a product polynomial `c · x_a · x_b`.
-fn prod_poly(ir: &PolyIR, c: &BigUint, a: usize, b: usize) -> Poly {
-    let el = ir.ring.field().from_biguint(c);
-    let ab = ir.ring.mul(ir.ring.var(a), ir.ring.var(b));
-    ir.ring.scale(el, ab)
+fn prod_poly(ir: &UniquenessQuery, c: &BigUint, a: usize, b: usize) -> Poly {
+    let el = ir.ir.ring.field().from_biguint(c);
+    let ab = ir.ir.ring.mul(ir.ir.ring.var(a), ir.ir.ring.var(b));
+    ir.ir.ring.scale(el, ab)
 }
 
 /// Sum a list of polys into one.
-fn sum_polys(ir: &PolyIR, ps: Vec<Poly>) -> Poly {
-    let mut acc = ir.ring.zero();
+fn sum_polys(ir: &UniquenessQuery, ps: Vec<Poly>) -> Poly {
+    let mut acc = ir.ir.ring.zero();
     for p in ps {
-        acc = ir.ring.add(acc, p);
+        acc = ir.ir.ring.add(acc, p);
     }
     acc
 }
@@ -494,7 +494,7 @@ fn sum_polys(ir: &PolyIR, ps: Vec<Poly>) -> Poly {
 //   c=3: prod=a,   sl=0,  sm=0,  const=-a
 
 fn build_match_part_poly(
-    ir: &PolyIR,
+    ir: &UniquenessQuery,
     sl: usize,
     sm: usize,
     out: usize,
@@ -529,7 +529,7 @@ fn prop_match_part_recognises_digit_0() {
     let p_u = 7u64;
     let p = BigUint::from(p_u);
     let ir = ir_fresh(p_u, 5);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = ((BigUint::from(1u32) << 128usize) - &a) % &p;
@@ -549,7 +549,7 @@ fn prop_match_part_recognises_digit_1() {
     let p_u = 7u64;
     let p = BigUint::from(p_u);
     let ir = ir_fresh(p_u, 5);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = ((BigUint::from(1u32) << 128usize) - &a) % &p;
@@ -568,7 +568,7 @@ fn prop_match_part_recognises_digit_2() {
     let p_u = 7u64;
     let p = BigUint::from(p_u);
     let ir = ir_fresh(p_u, 5);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = ((BigUint::from(1u32) << 128usize) - &a) % &p;
@@ -587,7 +587,7 @@ fn prop_match_part_recognises_digit_3() {
     let p_u = 7u64;
     let p = BigUint::from(p_u);
     let ir = ir_fresh(p_u, 5);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = ((BigUint::from(1u32) << 128usize) - &a) % &p;
@@ -606,7 +606,7 @@ fn prop_match_part_rejects_no_product_monomial() {
     // No quadratic term => `prod?` is None => match_part returns None.
     let p_u = 257u64;
     let ir = ir_fresh(p_u, 5);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = BigUint::from(2u32);
@@ -619,7 +619,7 @@ fn prop_match_part_rejects_no_wire() {
     // Has product term but no extra linear term => `wire?` is None.
     let p_u = 257u64;
     let ir = ir_fresh(p_u, 5);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm) = (1usize, 2usize);
     let a = BigUint::one();
     let b = BigUint::from(2u32);
@@ -637,7 +637,7 @@ fn prop_match_part_rejects_two_product_monomials() {
     // into one monomial and so are unreachable from this API.)
     let p_u = 257u64;
     let ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = BigUint::from(2u32);
@@ -661,7 +661,7 @@ fn prop_match_part_rejects_product_pair_mismatch() {
     // Product is over a different variable pair than (sl, sm).
     let p_u = 257u64;
     let ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = BigUint::from(2u32);
@@ -682,7 +682,7 @@ fn prop_match_part_rejects_two_extra_linear_terms() {
     // `wire.is_some()` early-out.
     let p_u = 257u64;
     let ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = BigUint::from(2u32);
@@ -703,14 +703,14 @@ fn prop_match_part_rejects_higher_degree_monomial() {
     // A degree-3 monomial trips the `_ => return None` arm.
     let p_u = 257u64;
     let ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = BigUint::from(2u32);
     // x_sl * x_sm * x_out is degree 3.
     let deg3 = {
-        let ab = ir.ring.mul(ir.ring.var(sl), ir.ring.var(sm));
-        ir.ring.mul(ab, ir.ring.var(out))
+        let ab = ir.ir.ring.mul(ir.ir.ring.var(sl), ir.ir.ring.var(sm));
+        ir.ir.ring.mul(ab, ir.ir.ring.var(out))
     };
     let poly = sum_polys(&ir, vec![deg3, lin(&ir, &BigUint::one(), out)]);
     assert!(match_part(&ir, &canon, &poly, sl, sm, &a, &b).is_none());
@@ -728,7 +728,7 @@ fn prop_match_part_rejects_signature_mismatch() {
     // We pick `(3, 3, 3, 3)` which is none of the above.
     let p_u = 257u64;
     let ir = ir_fresh(p_u, 5);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (sl, sm, out) = (1usize, 2usize, 3usize);
     let a = BigUint::one();
     let b = BigUint::from(2u32);
@@ -748,7 +748,7 @@ fn prop_find_sum_var_positive_simple() {
     let p_u = 257u64;
     let p = BigUint::from(p_u);
     let mut ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let (s, p0, p1, p2) = (1usize, 2usize, 3usize, 4usize);
     let one = BigUint::one();
     let neg_one = (&p - &one) % &p;
@@ -761,7 +761,7 @@ fn prop_find_sum_var_positive_simple() {
             lin(&ir, &neg_one, p2),
         ],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     let found = find_sum_var(&ir, &canon, &[p0, p1, p2]);
     assert_eq!(found, Some(s));
 }
@@ -772,7 +772,7 @@ fn prop_find_sum_var_rejects_two_extras() {
     let p_u = 257u64;
     let p = BigUint::from(p_u);
     let mut ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let one = BigUint::one();
     let neg_one = (&p - &one) % &p;
     let poly = sum_polys(
@@ -784,7 +784,7 @@ fn prop_find_sum_var_rejects_two_extras() {
             lin(&ir, &neg_one, 4),
         ],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     assert_eq!(find_sum_var(&ir, &canon, &[3, 4]), None);
 }
 
@@ -794,13 +794,13 @@ fn prop_find_sum_var_rejects_zero_extras() {
     let p_u = 257u64;
     let p = BigUint::from(p_u);
     let mut ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let neg_one = (&p - &BigUint::one()) % &p;
     let poly = sum_polys(
         &ir,
         vec![lin(&ir, &neg_one, 3), lin(&ir, &neg_one, 4)],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     assert_eq!(find_sum_var(&ir, &canon, &[3, 4]), None);
 }
 
@@ -811,14 +811,14 @@ fn prop_find_sum_var_rejects_missing_target() {
     let p_u = 257u64;
     let p = BigUint::from(p_u);
     let mut ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let one = BigUint::one();
     let neg_one = (&p - &one) % &p;
     let poly = sum_polys(
         &ir,
         vec![lin(&ir, &one, 1), lin(&ir, &neg_one, 3)],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     // Targets = {3, 4} but only 3 appears.
     assert_eq!(find_sum_var(&ir, &canon, &[3, 4]), None);
 }
@@ -830,7 +830,7 @@ fn prop_find_sum_var_rejects_unequal_target_coeffs() {
     let p_u = 257u64;
     let p = BigUint::from(p_u);
     let mut ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let one = BigUint::one();
     let neg_one = (&p - &one) % &p;
     let neg_two = (&p - &BigUint::from(2u32)) % &p;
@@ -842,7 +842,7 @@ fn prop_find_sum_var_rejects_unequal_target_coeffs() {
             lin(&ir, &neg_two, 4),
         ],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     assert_eq!(find_sum_var(&ir, &canon, &[3, 4]), None);
 }
 
@@ -853,7 +853,7 @@ fn prop_find_sum_var_skips_nonzero_constant() {
     let p_u = 257u64;
     let p = BigUint::from(p_u);
     let mut ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let one = BigUint::one();
     let neg_one = (&p - &one) % &p;
     let poly = sum_polys(
@@ -865,7 +865,7 @@ fn prop_find_sum_var_skips_nonzero_constant() {
             konst_poly(&ir, &BigUint::from(2u32)),
         ],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     assert_eq!(find_sum_var(&ir, &canon, &[3, 4]), None);
 }
 
@@ -874,7 +874,7 @@ fn prop_find_sum_var_skips_nonlinear() {
     // A polynomial with a product monomial is skipped wholesale.
     let p_u = 257u64;
     let mut ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let poly = sum_polys(
         &ir,
         vec![
@@ -882,7 +882,7 @@ fn prop_find_sum_var_skips_nonlinear() {
             prod_poly(&ir, &BigUint::one(), 3, 4),
         ],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     assert_eq!(find_sum_var(&ir, &canon, &[3, 4]), None);
 }
 
@@ -892,7 +892,7 @@ fn prop_find_sum_var_returns_none_when_no_equalities() {
     // matching sum poly.
     let p_u = 7u64;
     let ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     assert_eq!(find_sum_var(&ir, &canon, &[3, 4]), None);
 }
 
@@ -904,9 +904,9 @@ fn prop_find_sum_var_returns_none_when_no_equalities() {
 // ±1 and bit weights forming an exact `2^0..2^{n-1}` set. We compose
 // such polys directly so we can probe every gate of `find_inner_bit`.
 
-fn build_decomp_poly(ir: &PolyIR, target: usize, bits: &[usize]) -> Poly {
+fn build_decomp_poly(ir: &UniquenessQuery, target: usize, bits: &[usize]) -> Poly {
     // target = Σ 2^k bits[k]  ⇔  -target + Σ 2^k bits[k] = 0
-    let p = ir.ring.field().prime();
+    let p = ir.ir.ring.field().prime();
     let one = BigUint::one();
     let neg_one = (p - &one) % p;
     let mut terms = vec![lin(ir, &neg_one, target)];
@@ -922,7 +922,7 @@ fn prop_find_inner_bit_negative_no_decomp_at_all() {
     // No decomp equalities present -> None.
     let p_u = 257u64;
     let ir = ir_fresh(p_u, 6);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let ranges: HashMap<usize, RangeValue> = HashMap::new();
     assert_eq!(find_inner_bit(&ir, &canon, 1, 0, &ranges), None);
 }
@@ -932,9 +932,9 @@ fn prop_find_inner_bit_negative_target_mismatch() {
     // Decomp's target_var canonicalises to a DIFFERENT s_var.
     let p_u = 257u64;
     let mut ir = ir_fresh(p_u, 8);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     // decomp of var 1 over bits {2, 3} (weights 2^0, 2^1).
-    ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3]));
+    ir.ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3]));
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     let binary: HashSet<BigUint> = [BigUint::zero(), BigUint::one()].into_iter().collect();
     ranges.insert(2, RangeValue::Values(binary.clone()));
@@ -948,8 +948,8 @@ fn prop_find_inner_bit_negative_bit_index_out_of_range() {
     // Decomp width = 2 but requested bit = 5 -> bits.len() <= bit.
     let p_u = 257u64;
     let mut ir = ir_fresh(p_u, 8);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
-    ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3]));
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
+    ir.ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3]));
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     let binary: HashSet<BigUint> = [BigUint::zero(), BigUint::one()].into_iter().collect();
     ranges.insert(2, RangeValue::Values(binary.clone()));
@@ -963,8 +963,8 @@ fn prop_find_inner_bit_negative_not_faithful_small_prime() {
     // rejected even though bits are binary.
     let p_u = 7u64;
     let mut ir = ir_fresh(p_u, 8);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
-    ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3, 4]));
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
+    ir.ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3, 4]));
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     let binary: HashSet<BigUint> = [BigUint::zero(), BigUint::one()].into_iter().collect();
     for v in [2usize, 3, 4] {
@@ -980,8 +980,8 @@ fn prop_find_inner_bit_negative_not_all_binary() {
     // binary range -> all_binary false -> None.
     let p_u = 257u64;
     let mut ir = ir_fresh(p_u, 8);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
-    ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3]));
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
+    ir.ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3]));
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     let binary: HashSet<BigUint> = [BigUint::zero(), BigUint::one()].into_iter().collect();
     // Only bit-0 is binary; bit-1 missing.
@@ -995,8 +995,8 @@ fn prop_find_inner_bit_positive() {
     // requested bit variable.
     let p_u = 257u64;
     let mut ir = ir_fresh(p_u, 8);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
-    ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3, 4]));
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
+    ir.ir.equalities.push(build_decomp_poly(&ir, 1, &[2, 3, 4]));
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     let binary: HashSet<BigUint> = [BigUint::zero(), BigUint::one()].into_iter().collect();
     for v in [2usize, 3, 4] {
@@ -1017,12 +1017,12 @@ fn prop_find_pinned_zero_skips_nonzero_constant() {
     // form must not pin anything to zero.
     let p_u = 7u64;
     let mut ir = ir_fresh(p_u, 4);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let poly = sum_polys(
         &ir,
         vec![lin(&ir, &BigUint::one(), 1), konst_poly(&ir, &BigUint::from(3u32))],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     // ok=false branch triggered (poly has nonzero const + a linear term
     // alongside) -> rejected.
     assert!(!find_pinned_zero(&ir, &canon, 1));
@@ -1033,9 +1033,9 @@ fn prop_find_pinned_zero_skips_nonlinear() {
     // Equality with a product monomial -> rejected wholesale.
     let p_u = 7u64;
     let mut ir = ir_fresh(p_u, 4);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     let poly = prod_poly(&ir, &BigUint::one(), 1, 2);
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     assert!(!find_pinned_zero(&ir, &canon, 1));
 }
 
@@ -1044,7 +1044,7 @@ fn prop_find_pinned_zero_negative_when_no_equalities() {
     // No equalities -> outer loop never enters -> returns false.
     let p_u = 7u64;
     let ir = ir_fresh(p_u, 4);
-    let canon: Vec<usize> = (0..ir.ring.n_vars()).collect();
+    let canon: Vec<usize> = (0..ir.ir.ring.n_vars()).collect();
     assert!(!find_pinned_zero(&ir, &canon, 1));
 }
 
@@ -1064,7 +1064,7 @@ fn prop_build_canon_merges_two_term_linear_identity() {
         &ir,
         vec![lin(&ir, &BigUint::one(), 1), lin(&ir, &neg_one, 2)],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     let canon = build_canon(&ir);
     assert_eq!(canon[1], canon[2], "x_1 and x_2 must share a representative");
 }
@@ -1084,8 +1084,8 @@ fn prop_build_canon_chains_merges() {
         &ir,
         vec![lin(&ir, &BigUint::one(), 2), lin(&ir, &neg_one, 3)],
     );
-    ir.equalities.push(p12);
-    ir.equalities.push(p23);
+    ir.ir.equalities.push(p12);
+    ir.ir.equalities.push(p23);
     let canon = build_canon(&ir);
     assert_eq!(canon[1], canon[2]);
     assert_eq!(canon[2], canon[3]);
@@ -1102,7 +1102,7 @@ fn prop_build_canon_rejects_two_term_sum_not_canceling() {
         &ir,
         vec![lin(&ir, &BigUint::one(), 1), lin(&ir, &BigUint::one(), 2)],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     let canon = build_canon(&ir);
     assert_ne!(canon[1], canon[2]);
 }
@@ -1122,7 +1122,7 @@ fn prop_build_canon_skips_three_term_linear() {
             lin(&ir, &BigUint::one(), 3),
         ],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     let canon = build_canon(&ir);
     // Three-term linear identities are not the recogniser's concern;
     // no merging should happen.
@@ -1141,7 +1141,7 @@ fn prop_build_canon_skips_nonlinear_equality() {
             prod_poly(&ir, &BigUint::one(), 2, 3),
         ],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     let canon = build_canon(&ir);
     // Identity (no merges) because the equality is non-linear.
     for v in 0..canon.len() {
@@ -1166,7 +1166,7 @@ fn prop_build_canon_skips_nonzero_constant_equality() {
             konst_poly(&ir, &BigUint::from(3u32)),
         ],
     );
-    ir.equalities.push(poly);
+    ir.ir.equalities.push(poly);
     let canon = build_canon(&ir);
     assert_ne!(canon[1], canon[2]);
 }

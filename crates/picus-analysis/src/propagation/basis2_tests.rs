@@ -21,7 +21,7 @@ use num_traits::{One, Zero};
 use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
-use picus_smt::poly_ir::r1cs_to_poly_ir;
+use crate::uniqueness::{r1cs_to_uniqueness_query, UniquenessQuery};
 
 use crate::propagation::range::RangeValue;
 
@@ -152,8 +152,8 @@ fn prop_is_power_of_2_large_power_minus_one() {
 
 /// Returns the first equality in `ir` that `match_decomp` accepts as
 /// `target = Σ 2^k bit_k`, normalised to (target_wire, sorted bit wires).
-fn first_decomp(ir: &picus_smt::poly_ir::PolyIR) -> Option<(usize, Vec<usize>, usize)> {
-    for poly in &ir.equalities {
+fn first_decomp(ir: &UniquenessQuery) -> Option<(usize, Vec<usize>, usize)> {
+    for poly in &ir.ir.equalities {
         if let Some(d) = match_decomp(ir, poly) {
             let target = ir.var_to_wire(d.target_var);
             let bits: Vec<usize> = d.bits.iter().map(|&v| ir.var_to_wire(v)).collect();
@@ -168,7 +168,7 @@ fn prop_match_decomp_finds_target_and_ordered_bits() {
     // 4-bit decomposition over GF(101): 2^4 = 16 <= 101. The lemma
     // recognises the equality; bits[k] is the weight-2^k wire.
     let r = basis2_r1cs(101, 4, /*target_is_input=*/ true);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
 
     let (target, bits, count) = first_decomp(&ir).expect("decomposition matched");
     assert_eq!(target, 5, "target wire is k+1");
@@ -191,7 +191,7 @@ fn prop_match_decomp_rejects_missing_weight() {
         },
     ];
     let r = r1cs(p, 5, constraints, vec![0, 4], vec![1, 2, 3]);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     // Even though every coefficient is a power of two, the weight set
     // {0, 2, 3} is non-contiguous → reject.
     assert!(first_decomp(&ir).is_none(), "non-contiguous weights must not match");
@@ -207,7 +207,7 @@ fn prop_match_decomp_rejects_non_power_of_two_coefficient() {
         c: block(&[(3, 1)]),
     }];
     let r = r1cs(p, 4, constraints, vec![0, 3], vec![1, 2]);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     assert!(first_decomp(&ir).is_none());
 }
 
@@ -221,7 +221,7 @@ fn prop_match_decomp_rejects_duplicate_weights() {
         c: block(&[(3, 1)]),
     }];
     let r = r1cs(p, 4, constraints, vec![0, 3], vec![1, 2]);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     // Two terms with the SAME weight — `match_decomp` must reject.
     // Note: the constructed equality is `b0 + b1 - target = 0`. Choosing
     // target as the ±1 candidate leaves bits {b0, b1} both at weight 0.
@@ -240,7 +240,7 @@ fn prop_match_decomp_needs_at_least_two_terms() {
         c: empty_block(),
     }];
     let r = r1cs(p, 2, constraints, vec![0], vec![1]);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     assert!(first_decomp(&ir).is_none());
 }
 
@@ -273,7 +273,7 @@ fn prop_basis2_promotes_bits_when_target_known_and_gate_passes() {
     // 4-bit decomposition over GF(101); 2^4 = 16 < 101 — gate passes.
     // Bits are pinned binary, target is known → every bit promoted.
     let r = basis2_r1cs(101, 4, /*target_is_input=*/ true);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let (mut known, mut unknown, mut ranges, mut learned, mut learned_disj) =
         ctx_state(ir.n_wires, &[1, 2, 3, 4], &[0, 5]);
     let mut lemma = Basis2Lemma::default();
@@ -296,7 +296,7 @@ fn prop_basis2_promotes_bits_when_target_known_and_gate_passes() {
 fn prop_basis2_does_not_promote_when_target_unknown() {
     // Same setup but target wire (5) NOT in `known`. Bits stay unknown.
     let r = basis2_r1cs(101, 4, /*target_is_input=*/ false);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let (mut known, mut unknown, mut ranges, mut learned, mut learned_disj) =
         ctx_state(ir.n_wires, &[1, 2, 3, 4], &[0]);
     let mut lemma = Basis2Lemma::default();
@@ -319,7 +319,7 @@ fn prop_basis2_does_not_promote_when_bits_not_pinned_binary() {
     // Target known, but bits not pinned to {0, 1} (no binary range
     // entries). Lemma must NOT fire — its precondition is unmet.
     let r = basis2_r1cs(101, 4, /*target_is_input=*/ true);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let (mut known, mut unknown, mut ranges, mut learned, mut learned_disj) =
         ctx_state(ir.n_wires, /* no bits marked binary */ &[], &[0, 5]);
     let mut lemma = Basis2Lemma::default();
@@ -342,7 +342,7 @@ fn prop_basis2_soundness_gate_blocks_when_two_pow_n_exceeds_prime_no_companion()
     // GF(11), 4 bits → 2^4 = 16 > 11. With no companion, the gate
     // MUST stay closed even when target is known and bits are binary.
     let r = basis2_r1cs(11, 4, /*target_is_input=*/ true);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let (mut known, mut unknown, mut ranges, mut learned, mut learned_disj) =
         ctx_state(ir.n_wires, &[1, 2, 3, 4], &[0, 5]);
     let mut lemma = Basis2Lemma::default();
@@ -365,7 +365,7 @@ fn prop_basis2_gate_open_when_two_pow_n_equals_prime_bound() {
     // GF(17), 4 bits → 2^4 = 16 <= 17. The gate uses `2^n <= p`
     // (strict `>` blocks), so the boundary `<=` permits propagation.
     let r = basis2_r1cs(17, 4, /*target_is_input=*/ true);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let (mut known, mut unknown, mut ranges, mut learned, mut learned_disj) =
         ctx_state(ir.n_wires, &[1, 2, 3, 4], &[0, 5]);
     let mut lemma = Basis2Lemma::default();
@@ -397,7 +397,7 @@ fn prop_basis2_idempotent_when_already_known() {
     // Bits already in `known` (e.g., promoted by an earlier iteration).
     // The lemma must NOT report progress on a no-op run.
     let r = basis2_r1cs(101, 4, /*target_is_input=*/ true);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     let (mut known, mut unknown, mut ranges, mut learned, mut learned_disj) =
         ctx_state(ir.n_wires, &[1, 2, 3, 4], &[0, 1, 2, 3, 4, 5]);
     let mut lemma = Basis2Lemma::default();
@@ -441,7 +441,7 @@ fn test_basis2_match_decomp_rejects_when_no_pm1_target_coeff() {
         c: block(&[(3, (p - 2) as u32)]),
     }];
     let r = r1cs(p, 4, constraints, vec![0, 3], vec![1, 2]);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     assert!(first_decomp(&ir).is_none(), "no ±1 coefficient ⇒ no match");
 }
 
@@ -457,7 +457,7 @@ fn test_basis2_match_decomp_rejects_nonlinear_term() {
         c: empty_block(),
     }];
     let r = r1cs(p, 3, constraints, vec![0, 1, 2], vec![]);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     assert!(first_decomp(&ir).is_none(), "bilinear poly cannot be a basis2 decomp");
 }
 
@@ -476,7 +476,7 @@ fn test_basis2_match_decomp_rejects_nonzero_constant() {
         c: block(&[(0, 1)]),
     }];
     let r = r1cs(p, 3, constraints, vec![0], vec![1, 2]);
-    let ir = r1cs_to_poly_ir(&r, &HashSet::new(), 1).expect("lowering");
+    let ir = r1cs_to_uniqueness_query(&r, &HashSet::new(), 1).expect("lowering");
     assert!(
         first_decomp(&ir).is_none(),
         "non-zero constant in poly must disqualify match_decomp"

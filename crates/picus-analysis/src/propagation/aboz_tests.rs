@@ -15,7 +15,7 @@ use picus_core::config::ConfigGuard;
 use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
-use picus_smt::poly_ir::r1cs_to_poly_ir;
+use crate::uniqueness::r1cs_to_uniqueness_query;
 
 use super::*;
 use crate::propagation::lemma::{PropagationCtx, PropagationLemma};
@@ -114,8 +114,8 @@ fn prop_aboz_no_progress_on_empty_ir() {
     // clear equalities to leave the lemma nothing to match.
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
-    ir.equalities.clear();
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
+    ir.ir.equalities.clear();
     let mut lemma = AbozLemma::default();
     let mut known_set: HashSet<usize> = known.clone();
     let mut unknown: HashSet<usize> = HashSet::new();
@@ -140,7 +140,7 @@ fn prop_aboz_no_progress_on_empty_ir() {
 fn prop_aboz_promotes_when_selector_excludes_zero() {
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     // Wires: 1 = y0, 2 = sel, 3 = c_extra, 4 = y1. Mark sel and c_extra
     // known; mark y0, y1 unknown; pin sel ∈ {1, ...} so range excludes 0.
@@ -186,7 +186,7 @@ fn prop_aboz_does_not_promote_when_selector_can_be_zero() {
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -229,7 +229,7 @@ fn prop_aboz_does_not_promote_when_selector_range_is_bottom() {
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -274,7 +274,7 @@ fn prop_aboz_requires_known_linear_partner() {
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -317,7 +317,7 @@ fn prop_aboz_emits_disjunctions_when_gate_closed() {
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -369,7 +369,7 @@ fn prop_aboz_dedup_across_repeat_runs() {
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -456,7 +456,7 @@ fn test_aboz_no_progress_without_linear_sum() {
         outputs: vec![1, 4],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -519,7 +519,7 @@ fn prop_aboz_bilinear_rejects_squared_term() {
         outputs: vec![2],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -583,7 +583,7 @@ fn test_aboz_shared_arm_a0_eq_a1() {
         inputs: vec![0, 1, 3],
         outputs: vec![2, 4],
     };
-    let ir = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
     known_set.insert(1); // sel
@@ -651,7 +651,7 @@ fn test_aboz_shared_arm_none_no_overlap() {
         inputs: vec![0, 1, 2, 3, 4],
         outputs: vec![],
     };
-    let ir = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
     let mut known_set: HashSet<usize> = HashSet::new();
     for w in [0usize, 1, 2, 3, 4] {
         known_set.insert(w);
@@ -685,7 +685,7 @@ fn test_aboz_skips_when_selector_not_known() {
         c.aboz_emit_disjunctions = false;
     });
     let r1cs = aboz_shape_r1cs();
-    let ir = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
 
     // sel (wire 2) intentionally NOT known.
     let mut known_set: HashSet<usize> = HashSet::new();
@@ -747,7 +747,7 @@ fn test_aboz_match_bilinear_rejects_two_bilinear_terms() {
         inputs: vec![0, 1, 2, 3],
         outputs: vec![],
     };
-    let ir = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
     let mut known_set: HashSet<usize> = HashSet::new();
     for w in [0usize, 1, 2, 3] {
         known_set.insert(w);
@@ -779,16 +779,16 @@ fn test_aboz_match_bilinear_rejects_two_bilinear_terms() {
 #[test]
 fn test_aboz_no_progress_when_linear_sums_empty() {
     let r1cs = aboz_shape_r1cs();
-    let ir_template = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1)
+    let ir_template = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1)
         .expect("lowering should succeed");
     // Take the lowered IR but replace equalities with two bilinear-only
     // polys: x_1 * x_2 = 0 and x_3 * x_4 = 0. No linear sum, no constants.
     let mut ir = ir_template;
-    ir.equalities.clear();
-    let bilinear_12 = ir.ring.mul(ir.ring.var(1), ir.ring.var(2));
-    let bilinear_34 = ir.ring.mul(ir.ring.var(3), ir.ring.var(4));
-    ir.equalities.push(bilinear_12);
-    ir.equalities.push(bilinear_34);
+    ir.ir.equalities.clear();
+    let bilinear_12 = ir.ir.ring.mul(ir.ir.ring.var(1), ir.ir.ring.var(2));
+    let bilinear_34 = ir.ir.ring.mul(ir.ir.ring.var(3), ir.ir.ring.var(4));
+    ir.ir.equalities.push(bilinear_12);
+    ir.ir.equalities.push(bilinear_34);
 
     let mut known_set: HashSet<usize> = HashSet::new();
     for w in [0usize, 1, 2, 3, 4] {
@@ -853,7 +853,7 @@ fn test_aboz_shared_arm_b0_eq_b1() {
         inputs: vec![0, 3, 4],
         outputs: vec![1, 2],
     };
-    let ir = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -919,7 +919,7 @@ fn test_aboz_match_bilinear_rejects_bilinear_plus_nonzero_constant() {
         inputs: vec![0, 1, 2],
         outputs: vec![],
     };
-    let ir = r1cs_to_poly_ir(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
 
     // Sanity: collect_bilinear_zero must return EMPTY because each
     // bilinear-bearing poly also carries the rejected nonzero constant.

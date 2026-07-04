@@ -29,7 +29,7 @@ use std::collections::BTreeMap;
 use inventory;
 use num_bigint::BigUint;
 use picus_core::poly::IrPoly as Poly;
-use picus_smt::poly_ir::PolyIR;
+use crate::uniqueness::UniquenessQuery;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
 
@@ -55,10 +55,10 @@ impl PropagationLemma for TecompleteLemma {
         "tecomplete"
     }
 
-    fn run(&mut self, ir: &PolyIR, ctx: &mut PropagationCtx) -> bool {
-        let cur = ir.equalities.len();
+    fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
+        let cur = q.ir.equalities.len();
         if self.gadgets.is_none() || self.cached_len != Some(cur) {
-            self.gadgets = Some(find_gadgets(ir));
+            self.gadgets = Some(find_gadgets(q));
             self.cached_len = Some(cur);
         }
         let mut progress = false;
@@ -80,10 +80,10 @@ impl PropagationLemma for TecompleteLemma {
 /// Orig-copy term map of `poly`: `None` if any variable is an alt-copy wire
 /// (index ≥ `n_wires`), restricting the matcher to the `x_i` copy. For the
 /// orig copy a variable index equals its wire index.
-fn orig_term_map(ir: &PolyIR, poly: &Poly) -> Option<TermMap> {
-    let nw = ir.n_wires;
+fn orig_term_map(q: &UniquenessQuery, poly: &Poly) -> Option<TermMap> {
+    let nw = q.n_wires;
     let mut map = TermMap::new();
-    for (c, vars) in ir.poly_terms_idx(poly) {
+    for (c, vars) in q.ir.poly_terms_idx(poly) {
         let mut mono: Mono = Vec::with_capacity(vars.len());
         for (v, e) in vars {
             if v >= nw {
@@ -214,16 +214,17 @@ fn legendre(field: &picus_core::ff::field::PrimeField, x: &BigUint, p: &BigUint)
     }
 }
 
-fn find_gadgets(ir: &PolyIR) -> Vec<Gadget> {
-    let field = ir.ring.field();
+fn find_gadgets(q: &UniquenessQuery) -> Vec<Gadget> {
+    let field = q.ir.ring.field();
     let p = field.prime().clone();
     let one = BigUint::from(1u32);
 
-    let polys: Vec<(usize, TermMap)> = ir
+    let polys: Vec<(usize, TermMap)> = q
+        .ir
         .equalities
         .iter()
         .enumerate()
-        .filter_map(|(i, poly)| orig_term_map(ir, poly).map(|tm| (i, tm)))
+        .filter_map(|(i, poly)| orig_term_map(q, poly).map(|tm| (i, tm)))
         .collect();
     let pdef = product_defs(&polys, &p);
 

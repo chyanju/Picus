@@ -295,7 +295,7 @@ fn prop_apply_overlay_partial_only_touches_set_fields() {
 /// distinguish lowering failures from backend failures.
 #[test]
 fn test_dpvl_error_from_lower_error_variant() {
-    use picus_smt::poly_ir::LowerError;
+    use crate::uniqueness::LowerError;
     fn classify(e: &DpvlError) -> &'static str {
         match e {
             DpvlError::Lower(_) => "lower",
@@ -666,7 +666,7 @@ fn test_dpvl_overlay_default_is_all_none() {
 /// generated `Display`.
 #[test]
 fn test_dpvl_error_display_strings() {
-    use picus_smt::poly_ir::LowerError;
+    use crate::uniqueness::LowerError;
     let lower = DpvlError::Lower(LowerError::WireOutOfBounds {
         wire: 7,
         n_wires: 4,

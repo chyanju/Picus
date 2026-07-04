@@ -13,13 +13,14 @@ use picus_core::ff::field::PrimeField;
 use picus_core::poly::{FfPolyRing, IrPoly};
 use picus_smt::poly_ir::PolyIR;
 
+use crate::uniqueness::UniquenessQuery;
 use crate::propagation::lemma::{PropagationCtx, PropagationLemma};
 use crate::propagation::tecomplete::TecompleteLemma;
 use crate::propagation::range::RangeValue;
 
 const PRIME: u64 = 7;
 
-fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<IrPoly>) -> PolyIR {
+fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<IrPoly>) -> UniquenessQuery {
     let field = PrimeField::new(BigUint::from(PRIME));
     let mut names = Vec::with_capacity(2 * n_wires);
     for i in 0..n_wires {
@@ -30,7 +31,7 @@ fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<IrPoly>) 
     }
     let ring = Arc::new(FfPolyRing::new(field, names));
     let equalities = build(&ring);
-    PolyIR {
+    let ir = PolyIR {
         ring,
         n_wires,
         input_indices: HashSet::new(),
@@ -42,6 +43,13 @@ fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<IrPoly>) 
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys: false,
+    };
+    UniquenessQuery {
+        n_wires,
+        input_indices: HashSet::new(),
+        known_signals: HashSet::new(),
+        target_signal: 0,
+        ir,
     }
 }
 
@@ -75,7 +83,7 @@ impl CtxOwned {
 }
 
 /// Wire layout: 1=xout, 2=yout, 3=x1, 4=y1, 5=x2, 6=y2, 7=β, 8=γ, 9=δ, 10=τ.
-fn babyadd_gf7(a: i64, d: i64) -> PolyIR {
+fn babyadd_gf7(a: i64, d: i64) -> UniquenessQuery {
     make_ir(11, |ring| {
         let f = ring.field();
         let c = |n: i64| ring.constant(f.from_int(n));

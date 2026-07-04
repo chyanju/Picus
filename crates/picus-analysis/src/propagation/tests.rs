@@ -18,6 +18,7 @@ use picus_core::ff::field::PrimeField;
 use picus_core::poly::FfPolyRing;
 use picus_smt::poly_ir::PolyIR;
 
+use crate::uniqueness::UniquenessQuery;
 use super::{mod_inverse, wire_connectivity_score};
 
 // ───── mod_inverse ───────────────────────────────────────────────
@@ -86,7 +87,7 @@ fn prop_mod_inverse_self_inverse_for_p_minus_one() {
 ///
 /// Uses `n_wires` wires (so the ring carries `2 * n_wires` variables).
 /// `equalities` is built by the caller before this is called.
-fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::IrPoly>) -> PolyIR {
+fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::IrPoly>) -> UniquenessQuery {
     let p = BigUint::from(prime);
     let field = PrimeField::new(p);
     let mut names = Vec::with_capacity(2 * n_wires);
@@ -98,7 +99,7 @@ fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc
     }
     let ring = Arc::new(FfPolyRing::new(field, names));
     let equalities = equalities_builder(&ring);
-    PolyIR {
+    let ir = PolyIR {
         ring,
         n_wires,
         input_indices: HashSet::new(),
@@ -110,6 +111,13 @@ fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys: false,
+    };
+    UniquenessQuery {
+        n_wires,
+        input_indices: HashSet::new(),
+        known_signals: HashSet::new(),
+        target_signal: 0,
+        ir,
     }
 }
 

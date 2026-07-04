@@ -25,10 +25,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use picus_smt::poly_ir::PolyIR;
 use picus_core::poly::IrPoly as Poly;
 
 use crate::propagation::range::RangeValue;
+use crate::uniqueness::UniquenessQuery;
 
 /// Per-iteration mutable state visible to every lemma.
 ///
@@ -55,7 +55,7 @@ pub trait PropagationLemma: Send {
     fn name(&self) -> &'static str;
 
     /// Run one pass. Returns `true` iff it made progress this call.
-    fn run(&mut self, ir: &PolyIR, ctx: &mut PropagationCtx) -> bool;
+    fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool;
 }
 
 /// Factory closure that builds a fresh lemma instance.

@@ -22,6 +22,7 @@ use picus_core::ff::field::PrimeField;
 use picus_core::poly::FfPolyRing;
 use picus_smt::poly_ir::PolyIR;
 
+use crate::uniqueness::UniquenessQuery;
 use crate::propagation::lemma::{PropagationCtx, PropagationLemma};
 use crate::propagation::linear::LinearLemma;
 use crate::propagation::range::RangeValue;
@@ -31,7 +32,7 @@ const PRIME: u64 = 7;
 fn make_ir(
     n_wires: usize,
     build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::IrPoly>,
-) -> PolyIR {
+) -> UniquenessQuery {
     let p = BigUint::from(PRIME);
     let field = PrimeField::new(p);
     let mut names = Vec::with_capacity(2 * n_wires);
@@ -43,7 +44,7 @@ fn make_ir(
     }
     let ring = Arc::new(FfPolyRing::new(field, names));
     let equalities = build(&ring);
-    PolyIR {
+    let ir = PolyIR {
         ring,
         n_wires,
         input_indices: HashSet::new(),
@@ -55,6 +56,13 @@ fn make_ir(
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys: false,
+    };
+    UniquenessQuery {
+        n_wires,
+        input_indices: HashSet::new(),
+        known_signals: HashSet::new(),
+        target_signal: 0,
+        ir,
     }
 }
 
@@ -254,8 +262,8 @@ fn prop_linear_cache_rebuilds_when_equalities_grow() {
     assert!(!owned.known.contains(&2));
 
     // Append a new constraint.
-    let new_eq = ir.ring.var(2);
-    ir.equalities.push(new_eq);
+    let new_eq = ir.ir.ring.var(2);
+    ir.ir.equalities.push(new_eq);
 
     {
         let mut ctx = owned.ctx();

@@ -15,11 +15,11 @@
 use std::collections::HashSet;
 
 use num_traits::Zero;
-use picus_smt::poly_ir::PolyIR;
 use picus_core::config;
 use picus_core::poly::IrPoly as Poly;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
+use crate::uniqueness::UniquenessQuery;
 
 #[derive(Default)]
 pub struct AbozLemma {
@@ -34,12 +34,12 @@ impl PropagationLemma for AbozLemma {
         "aboz"
     }
 
-    fn run(&mut self, ir: &PolyIR, ctx: &mut PropagationCtx) -> bool {
-        let products = collect_bilinear_zero(ir);
+    fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
+        let products = collect_bilinear_zero(q);
         if products.len() < 2 {
             return false;
         }
-        let linear_sums = collect_linear_sums(ir);
+        let linear_sums = collect_linear_sums(q);
         if linear_sums.is_empty() {
             return false;
         }
@@ -103,10 +103,10 @@ impl PropagationLemma for AbozLemma {
                         // by default (verdict-neutral, exercises the
                         // disjunction path).
                         if config::with(|c| c.aboz_emit_disjunctions) {
-                            if self.emit_zero_product(ir, ctx, x, y0) {
+                            if self.emit_zero_product(q, ctx, x, y0) {
                                 progress = true;
                             }
-                            if self.emit_zero_product(ir, ctx, x, y1) {
+                            if self.emit_zero_product(q, ctx, x, y1) {
                                 progress = true;
                             }
                         }
@@ -146,7 +146,7 @@ impl AbozLemma {
     /// free.
     fn emit_zero_product(
         &mut self,
-        ir: &PolyIR,
+        q: &UniquenessQuery,
         ctx: &mut PropagationCtx,
         s: usize,
         o: usize,
@@ -155,16 +155,16 @@ impl AbozLemma {
             return false;
         }
         let alt_copy_var = |w: usize| {
-            if ir.input_indices.contains(&w) {
-                ir.orig_var(w)
+            if q.input_indices.contains(&w) {
+                q.orig_var(w)
             } else {
-                ir.alt_var(w)
+                q.alt_var(w)
             }
         };
         ctx.learned_disjunctions
-            .push(vec![ir.ring.var(ir.orig_var(s)), ir.ring.var(ir.orig_var(o))]);
+            .push(vec![q.ir.ring.var(q.orig_var(s)), q.ir.ring.var(q.orig_var(o))]);
         ctx.learned_disjunctions
-            .push(vec![ir.ring.var(alt_copy_var(s)), ir.ring.var(alt_copy_var(o))]);
+            .push(vec![q.ir.ring.var(alt_copy_var(s)), q.ir.ring.var(alt_copy_var(o))]);
         true
     }
 }
@@ -172,22 +172,22 @@ impl AbozLemma {
 /// Wire indices `(a, b)` for every equality of the form `c * x_a * x_b
 /// = 0`. Skips constraints that have any other terms beyond the
 /// single bilinear monomial.
-fn collect_bilinear_zero(ir: &PolyIR) -> Vec<(usize, usize)> {
+fn collect_bilinear_zero(q: &UniquenessQuery) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
-    for poly in &ir.equalities {
-        if let Some((a, b)) = match_bilinear(ir, poly) {
+    for poly in &q.ir.equalities {
+        if let Some((a, b)) = match_bilinear(q, poly) {
             out.push((a, b));
         }
     }
     out
 }
 
-fn match_bilinear(ir: &PolyIR, poly: &Poly) -> Option<(usize, usize)> {
+fn match_bilinear(q: &UniquenessQuery, poly: &Poly) -> Option<(usize, usize)> {
     let mut bilinear: Option<(usize, usize)> = None;
     // Sparse-native: each term as nonzero (var, exp) pairs. After the
     // (e > 1) reject, the nonzero count IS the total degree, so a term is
     // the zero constant, or exactly the bilinear `x_a·x_b` monomial.
-    for (coeff, vars) in ir.poly_terms_idx(poly) {
+    for (coeff, vars) in q.ir.poly_terms_idx(poly) {
         if vars.iter().any(|&(_, e)| e > 1) {
             return None;
         }
@@ -201,8 +201,8 @@ fn match_bilinear(ir: &PolyIR, poly: &Poly) -> Option<(usize, usize)> {
                 if bilinear.is_some() {
                     return None;
                 }
-                let a = ir.var_to_wire(vars[0].0);
-                let b = ir.var_to_wire(vars[1].0);
+                let a = q.var_to_wire(vars[0].0);
+                let b = q.var_to_wire(vars[1].0);
                 bilinear = Some((a.min(b), a.max(b)));
             }
             _ => return None,
@@ -213,20 +213,20 @@ fn match_bilinear(ir: &PolyIR, poly: &Poly) -> Option<(usize, usize)> {
 
 /// Wire-index sets for every equality whose terms are all linear
 /// monomials (no quadratic terms). Constants are ignored.
-fn collect_linear_sums(ir: &PolyIR) -> Vec<HashSet<usize>> {
+fn collect_linear_sums(q: &UniquenessQuery) -> Vec<HashSet<usize>> {
     let mut out = Vec::new();
     // Sparse-native: accept a poly only if every term is a constant or a
     // single linear variable (one nonzero entry with exponent 1).
-    'poly: for poly in &ir.equalities {
+    'poly: for poly in &q.ir.equalities {
         let mut wires: HashSet<usize> = HashSet::new();
-        for (_coeff, vars) in ir.poly_terms_idx(poly) {
+        for (_coeff, vars) in q.ir.poly_terms_idx(poly) {
             if vars.is_empty() {
                 continue; // constant term
             }
             if vars.len() != 1 || vars[0].1 != 1 {
                 continue 'poly; // nonlinear / product term
             }
-            wires.insert(ir.var_to_wire(vars[0].0));
+            wires.insert(q.var_to_wire(vars[0].0));
         }
         if !wires.is_empty() {
             out.push(wires);

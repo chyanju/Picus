@@ -50,10 +50,10 @@ use std::collections::HashMap;
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use picus_smt::poly_ir::PolyIR;
 use picus_core::poly::IrPoly as Poly;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
+use crate::uniqueness::UniquenessQuery;
 
 mod compconstant;
 use compconstant::companion_proves_below_prime;
@@ -66,14 +66,14 @@ impl PropagationLemma for Basis2Lemma {
         "basis2"
     }
 
-    fn run(&mut self, ir: &PolyIR, ctx: &mut PropagationCtx) -> bool {
-        let p = ir.ring.field().prime();
+    fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
+        let p = q.ir.ring.field().prime();
         let mut progress = false;
-        for poly in &ir.equalities {
-            let Some(decomp) = match_decomp(ir, poly) else {
+        for poly in &q.ir.equalities {
+            let Some(decomp) = match_decomp(q, poly) else {
                 continue;
             };
-            let bit_wires: Vec<usize> = decomp.bits.iter().map(|&v| ir.var_to_wire(v)).collect();
+            let bit_wires: Vec<usize> = decomp.bits.iter().map(|&v| q.var_to_wire(v)).collect();
             // Every bit must already be pinned to {0, 1}.
             let all_binary = bit_wires
                 .iter()
@@ -85,10 +85,10 @@ impl PropagationLemma for Basis2Lemma {
             // under mod-p reduction. Relax only when a recognised
             // companion proves the bit-vector value `< p`.
             let two_pow_n: BigUint = BigUint::one() << decomp.bits.len();
-            if &two_pow_n > p && !companion_proves_below_prime(ir, &decomp.bits, ctx.ranges) {
+            if &two_pow_n > p && !companion_proves_below_prime(q, &decomp.bits, ctx.ranges) {
                 continue;
             }
-            let target_wire = ir.var_to_wire(decomp.target_var);
+            let target_wire = q.var_to_wire(decomp.target_var);
             if ctx.known.contains(&target_wire) {
                 for &bit in &bit_wires {
                     if ctx.unknown.remove(&bit) {
@@ -114,14 +114,14 @@ struct Decomp {
 /// p) and the remaining coefficients (after sign normalisation) are a
 /// power-of-2 sequence covering `2^0 .. 2^{n-1}` exactly once. Returns
 /// the target and the bit variables indexed by weight.
-fn match_decomp(ir: &PolyIR, poly: &Poly) -> Option<Decomp> {
-    let p = ir.ring.field().prime();
+fn match_decomp(q: &UniquenessQuery, poly: &Poly) -> Option<Decomp> {
+    let p = q.ir.ring.field().prime();
     let one = BigUint::one();
 
     // Collect linear-only terms; reject any non-linear monomial; any
     // constant term must be zero.
     let mut terms: Vec<(BigUint, usize)> = Vec::new();
-    for (coeff, vars) in ir.poly_terms_idx(poly) {
+    for (coeff, vars) in q.ir.poly_terms_idx(poly) {
         if vars.is_empty() {
             if !coeff.is_zero() {
                 return None;

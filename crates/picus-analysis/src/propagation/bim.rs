@@ -14,9 +14,9 @@ use std::collections::{HashMap, HashSet};
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use picus_smt::poly_ir::PolyIR;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
+use crate::uniqueness::UniquenessQuery;
 
 #[derive(Default)]
 pub struct BimLemma;
@@ -26,9 +26,9 @@ impl PropagationLemma for BimLemma {
         "bim"
     }
 
-    fn run(&mut self, ir: &PolyIR, ctx: &mut PropagationCtx) -> bool {
-        let p = ir.ring.field().prime();
-        let equations = collect_linear_homogeneous(ir);
+    fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
+        let p = q.ir.ring.field().prime();
+        let equations = collect_linear_homogeneous(q);
         if equations.is_empty() {
             return false;
         }
@@ -97,20 +97,20 @@ impl PropagationLemma for BimLemma {
 /// Pick out every polynomial whose only terms are linear monomials with
 /// a non-zero coefficient. Returns `Vec<(wire, coeff)>` per equation.
 /// Constant terms are tolerated if and only if they are exactly zero.
-fn collect_linear_homogeneous(ir: &PolyIR) -> Vec<Vec<(usize, BigUint)>> {
+fn collect_linear_homogeneous(q: &UniquenessQuery) -> Vec<Vec<(usize, BigUint)>> {
     let mut out = Vec::new();
     // Sparse-native: a term is admissible iff it is the zero constant, or a
     // single linear variable (one nonzero entry with exponent 1).
-    'poly: for poly in &ir.equalities {
+    'poly: for poly in &q.ir.equalities {
         let mut row: Vec<(usize, BigUint)> = Vec::new();
-        for (coeff, vars) in ir.poly_terms_idx(poly) {
+        for (coeff, vars) in q.ir.poly_terms_idx(poly) {
             if vars.is_empty() {
                 // constant term: tolerated only if exactly zero
                 if !coeff.is_zero() {
                     continue 'poly;
                 }
             } else if vars.len() == 1 && vars[0].1 == 1 {
-                row.push((ir.var_to_wire(vars[0].0), coeff));
+                row.push((q.var_to_wire(vars[0].0), coeff));
             } else {
                 // nonlinear (deg ≥ 2, or a product of variables)
                 continue 'poly;

@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use picus_r1cs::grammar::*;
 use picus_smt::backends::{SolverBackend, SolverResult};
-use picus_smt::poly_ir::{r1cs_to_poly_ir, LowerError, PolyIR};
+use crate::uniqueness::{r1cs_to_uniqueness_query, LowerError, UniquenessQuery};
 use picus_smt::{SolverKind, Theory};
 use picus_core::poly::IrPoly as Poly;
 use std::collections::{HashMap, HashSet};
@@ -251,7 +251,7 @@ pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, Dpvl
     // Lower R1CS → PolyIR once per DPVL run. The target signal stored in
     // the IR is a placeholder; propagation only consumes the constraint
     // set and metadata, not `target_signal`.
-    let mut ir = r1cs_to_poly_ir(r1cs, &ks, 0)?;
+    let mut q = r1cs_to_uniqueness_query(r1cs, &ks, 0)?;
 
     // Instantiate enabled lemma plugins.
     let mut lemma_instances: Vec<Box<dyn PropagationLemma>> = all_descriptors()
@@ -261,7 +261,7 @@ pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, Dpvl
         .collect();
 
     // Per-wire connectivity score for the counter selector.
-    let connectivity = wire_connectivity_score(&ir);
+    let connectivity = wire_connectivity_score(&q);
 
     let backend =
         picus_smt::create_backend(config.solver, config.theory).map_err(DpvlError::Backend)?;
@@ -272,7 +272,7 @@ pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, Dpvl
         timeout_ms: config.timeout_ms,
         dump_smt: config.dump_smt.clone(),
     };
-    Ok(ctx.iterate(&mut ir, &mut lemma_instances, &mut ks, &mut us, &mut ranges))
+    Ok(ctx.iterate(&mut q, &mut lemma_instances, &mut ks, &mut us, &mut ranges))
 }
 
 struct DpvlContext {
@@ -286,7 +286,7 @@ struct DpvlContext {
 impl DpvlContext {
     fn iterate(
         &mut self,
-        ir: &mut PolyIR,
+        q: &mut UniquenessQuery,
         lemmas: &mut [Box<dyn PropagationLemma>],
         ks: &mut HashSet<usize>,
         us: &mut HashSet<usize>,
@@ -294,13 +294,13 @@ impl DpvlContext {
     ) -> DpvlResult {
         loop {
             if !lemmas.is_empty() {
-                self.propagate(ir, lemmas, ks, us, ranges);
+                self.propagate(q, lemmas, ks, us, ranges);
             }
 
             // Sync newly-known wires from propagation into the IR so
             // the next backend call sees `x_w - y_w = 0` for them.
             for &w in ks.iter() {
-                ir.add_known_wire(w);
+                q.add_known_wire(w);
             }
 
             if self.target_set.iter().all(|t| ks.contains(t)) {
@@ -329,14 +329,14 @@ impl DpvlContext {
                     sid,
                     self.target_set.contains(&sid)
                 );
-                let result = self.solve(ir, sid);
+                let result = self.solve(q, sid);
 
                 match result {
                     SolveResult::Verified => {
                         self.selector.feedback(sid, SolverFeedback::Verified);
                         ks.insert(sid);
                         us.remove(&sid);
-                        ir.add_known_wire(sid);
+                        q.add_known_wire(sid);
                         made_progress = true;
                         break;
                     }
@@ -381,7 +381,7 @@ impl DpvlContext {
     /// `debug!` for ablation work.
     fn propagate(
         &mut self,
-        ir: &mut PolyIR,
+        q: &mut UniquenessQuery,
         lemmas: &mut [Box<dyn PropagationLemma>],
         ks: &mut HashSet<usize>,
         us: &mut HashSet<usize>,
@@ -405,7 +405,7 @@ impl DpvlContext {
                     let ranges_pre = ctx.ranges.len();
                     let eqs_pre = ctx.learned.len();
                     let disjs_pre = ctx.learned_disjunctions.len();
-                    let p = lemma.run(ir, &mut ctx);
+                    let p = lemma.run(q, &mut ctx);
                     log::debug!(
                         "lemma {} fired={} ks+={} ranges+={} eqs+={} disjs+={}",
                         lemma.name(),
@@ -419,8 +419,8 @@ impl DpvlContext {
                 }
             }
             let learned_any = !learned_eqs.is_empty() || !learned_disjs.is_empty();
-            ir.equalities.extend(learned_eqs);
-            ir.disjunctions.extend(learned_disjs);
+            q.ir.equalities.extend(learned_eqs);
+            q.ir.disjunctions.extend(learned_disjs);
 
             let made_progress = any_run_progress || learned_any || ks.len() != ks_before;
             if !made_progress {
@@ -430,15 +430,15 @@ impl DpvlContext {
         }
     }
 
-    fn solve(&mut self, ir: &mut PolyIR, sid: usize) -> SolveResult {
+    fn solve(&mut self, q: &mut UniquenessQuery, sid: usize) -> SolveResult {
         let backend = match self.backend.as_mut() {
             Some(b) => b,
             None => return SolveResult::Skip,
         };
-        ir.set_target(sid);
+        q.set_target(sid);
 
         if let Some(ref dir) = self.dump_smt {
-            let smt_str = backend.dump_smt(ir);
+            let smt_str = backend.dump_smt(&q.ir);
             let ts = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -456,7 +456,7 @@ impl DpvlContext {
         // budget. Callers wanting interruptible analysis would plumb
         // their own token through `DpvlConfig`.
         let cancel = picus_core::timeout::CancelToken::none();
-        match backend.solve(ir, self.timeout_ms, &cancel) {
+        match backend.solve(&q.ir, self.timeout_ms, &cancel) {
             Ok(SolverResult::Unsat) => SolveResult::Verified,
             Ok(SolverResult::Sat(model)) => {
                 // A SAT model on a target wire is a genuine two-witness

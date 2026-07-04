@@ -13,10 +13,10 @@ use std::collections::HashSet;
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use picus_smt::poly_ir::PolyIR;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
 use super::range::RangeValue;
+use crate::uniqueness::UniquenessQuery;
 
 #[derive(Default)]
 pub struct Binary01Lemma {
@@ -30,13 +30,13 @@ impl PropagationLemma for Binary01Lemma {
         "binary01"
     }
 
-    fn run(&mut self, ir: &PolyIR, ctx: &mut PropagationCtx) -> bool {
+    fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let binary_set: HashSet<BigUint> =
             [BigUint::zero(), BigUint::one()].into_iter().collect();
 
         let mut progress = false;
-        for poly in &ir.equalities {
-            if let Some(wire) = match_x_squared_minus_x(ir, poly)
+        for poly in &q.ir.equalities {
+            if let Some(wire) = match_x_squared_minus_x(q, poly)
                 && self.binary_wires.insert(wire)
             {
                 let entry = ctx.ranges.entry(wire).or_insert(RangeValue::Bottom);
@@ -65,13 +65,14 @@ impl PropagationLemma for Binary01Lemma {
 /// mod p — i.e. the equation `c1 * (x^2 - x) = 0`. Returns the wire
 /// index. Variables `y_i` (alt-copy) map back to wire `i`.
 fn match_x_squared_minus_x(
-    ir: &PolyIR,
+    q: &UniquenessQuery,
     poly: &picus_core::poly::IrPoly,
 ) -> Option<usize> {
     // Two-term degree-2 polynomial: gather terms sparse-natively as
     // (coeff, nonzero (var, exp) pairs) — no `0..n_vars` scan, no dense
     // monomial materialisation (matters on wide rings).
-    let terms: Vec<(BigUint, Vec<(usize, usize)>)> = ir
+    let terms: Vec<(BigUint, Vec<(usize, usize)>)> = q
+        .ir
         .poly_terms_idx(poly)
         .map(|(coeff, vars)| {
             let exps: Vec<(usize, usize)> = vars.into_iter().map(|(v, e)| (v, e as usize)).collect();
@@ -104,14 +105,14 @@ fn match_x_squared_minus_x(
 
     // x^2 - x has c1 = 1, c2 = p-1 (so c1 + c2 = 0 mod p). More
     // generally any non-zero c1 with c2 = -c1 works.
-    let p = ir.ring.field().prime();
+    let p = q.ir.ring.field().prime();
     let neg_sq_coeff = if sq_coeff.is_zero() {
         BigUint::zero()
     } else {
         p - sq_coeff
     };
     if lin_coeff == &neg_sq_coeff {
-        return Some(ir.var_to_wire(var));
+        return Some(q.var_to_wire(var));
     }
     None
 }

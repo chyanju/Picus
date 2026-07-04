@@ -16,8 +16,9 @@
 use std::collections::{HashMap, HashSet};
 
 use inventory;
-use picus_smt::poly_ir::PolyIR;
 use picus_core::poly::IrPoly as Poly;
+
+use crate::uniqueness::UniquenessQuery;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
 
@@ -39,14 +40,14 @@ impl PropagationLemma for LinearLemma {
         "linear"
     }
 
-    fn run(&mut self, ir: &PolyIR, ctx: &mut PropagationCtx) -> bool {
+    fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         // Rebuild the implication map when either it doesn't exist yet
         // or the IR's equality vector has grown since the last build —
         // either case means new constraints are visible that the cache
         // doesn't reflect.
-        let cur_len = ir.equalities.len();
+        let cur_len = q.ir.equalities.len();
         if self.cdmap.is_none() || self.cdmap_len != Some(cur_len) {
-            self.cdmap = Some(build_cdmap(ir));
+            self.cdmap = Some(build_cdmap(q));
             self.cdmap_len = Some(cur_len);
         }
         let cdmap = self.cdmap.as_ref().unwrap();
@@ -79,17 +80,17 @@ impl PropagationLemma for LinearLemma {
 /// Build the constraint-dependency map. Each polynomial yields zero or
 /// more `(wire → deps)` entries: for every wire `w` that occurs only
 /// linearly in `p`, `deps = wires(p) \ {w}` is one way to deduce `w`.
-fn build_cdmap(ir: &PolyIR) -> HashMap<usize, Vec<HashSet<usize>>> {
+fn build_cdmap(q: &UniquenessQuery) -> HashMap<usize, Vec<HashSet<usize>>> {
     let mut cdmap: HashMap<usize, Vec<HashSet<usize>>> = HashMap::new();
-    for poly in &ir.equalities {
-        let (linear, nonlinear, all) = classify_poly_vars(ir, poly);
+    for poly in &q.ir.equalities {
+        let (linear, nonlinear, all) = classify_poly_vars(q, poly);
         let linear_only: Vec<usize> = linear.difference(&nonlinear).copied().collect();
         for v in linear_only {
-            let wire = ir.var_to_wire(v);
+            let wire = q.var_to_wire(v);
             let deps: HashSet<usize> = all
                 .iter()
                 .filter(|&&u| u != v)
-                .map(|&u| ir.var_to_wire(u))
+                .map(|&u| q.var_to_wire(u))
                 .filter(|&w| w != wire)
                 .collect();
             // An empty dep set promotes `wire` unconditionally (the
@@ -114,7 +115,7 @@ fn build_cdmap(ir: &PolyIR) -> HashMap<usize, Vec<HashSet<usize>>> {
 /// The two sets can overlap (e.g. `x + x*y`); the caller takes the
 /// set difference to find purely-linear variables.
 fn classify_poly_vars(
-    ir: &PolyIR,
+    q: &UniquenessQuery,
     poly: &Poly,
 ) -> (HashSet<usize>, HashSet<usize>, HashSet<usize>) {
     let mut linear = HashSet::new();
@@ -123,7 +124,7 @@ fn classify_poly_vars(
 
     // Sparse-native: iterate each term's nonzero (var, exp) pairs (no
     // `0..n_vars` scan, no dense monomial materialisation on wide rings).
-    for (_coeff, vars) in ir.poly_terms_idx(poly) {
+    for (_coeff, vars) in q.ir.poly_terms_idx(poly) {
         let mut deg_total = 0usize;
         let mut term_vars: Vec<usize> = Vec::with_capacity(vars.len());
         for (v, e) in vars {

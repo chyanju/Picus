@@ -11,7 +11,7 @@ use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
 use picus_core::poly::IrPoly as Poly;
-use picus_smt::poly_ir::PolyIR;
+use crate::uniqueness::UniquenessQuery;
 
 use super::match_decomp;
 use crate::propagation::range::RangeValue;
@@ -33,17 +33,17 @@ const COMPCONSTANT_OUT_BIT: usize = 127;
 /// may propagate even when `2^n > p`. Conservative: any unmatched link
 /// returns `false`.
 pub(super) fn companion_proves_below_prime(
-    ir: &PolyIR,
+    q: &UniquenessQuery,
     bits: &[usize],
     ranges: &HashMap<usize, RangeValue>,
 ) -> bool {
     if bits.len() != COMPCONSTANT_BITS {
         return false;
     }
-    let p = ir.ring.field().prime();
+    let p = q.ir.ring.field().prime();
 
-    let canon = build_canon(ir);
-    let part_map = build_part_map(ir, &canon);
+    let canon = build_canon(q);
+    let part_map = build_part_map(q, &canon);
 
     // 1. Match the 127 parts over weight-aligned bit pairs, decode the
     //    base-4 digits into `ct`, and collect the part output wires.
@@ -60,7 +60,7 @@ pub(super) fn companion_proves_below_prime(
         };
         let mut matched = None;
         for poly in polys {
-            if let Some(found) = match_part(ir, &canon, poly, sl, sm, &a_i, &b_i) {
+            if let Some(found) = match_part(q, &canon, poly, sl, sm, &a_i, &b_i) {
                 matched = Some(found);
                 break;
             }
@@ -79,17 +79,17 @@ pub(super) fn companion_proves_below_prime(
     }
 
     // 3. The parts sum into a single signal `S`.
-    let Some(s_var) = find_sum_var(ir, &canon, &part_outs) else {
+    let Some(s_var) = find_sum_var(q, &canon, &part_outs) else {
         return false;
     };
 
     // 4. `S` is faithfully bit-decomposed; locate its weight-127 bit.
-    let Some(out_bit_var) = find_inner_bit(ir, &canon, s_var, COMPCONSTANT_OUT_BIT, ranges) else {
+    let Some(out_bit_var) = find_inner_bit(q, &canon, s_var, COMPCONSTANT_OUT_BIT, ranges) else {
         return false;
     };
 
     // 5. That output bit (= `[X > ct]`) is forced to zero.
-    find_pinned_zero(ir, &canon, canon[out_bit_var])
+    find_pinned_zero(q, &canon, canon[out_bit_var])
 }
 
 /// Canonical-variable map: union-find over pure two-term linear
@@ -99,14 +99,14 @@ pub(super) fn companion_proves_below_prime(
 /// `linear` lemma propagates); following them lets the matcher relate
 /// the decomposition bits to the comparator inputs regardless of how
 /// the compiler renumbered wires.
-fn build_canon(ir: &PolyIR) -> Vec<usize> {
-    let p = ir.ring.field().prime();
-    let n = ir.ring.n_vars();
+fn build_canon(q: &UniquenessQuery) -> Vec<usize> {
+    let p = q.ir.ring.field().prime();
+    let n = q.ir.ring.n_vars();
     let mut parent: Vec<usize> = (0..n).collect();
-    for poly in &ir.equalities {
+    for poly in &q.ir.equalities {
         let mut lin: Vec<(BigUint, usize)> = Vec::with_capacity(2);
         let mut ok = true;
-        for (c, vars) in ir.poly_terms_idx(poly) {
+        for (c, vars) in q.ir.poly_terms_idx(poly) {
             if vars.is_empty() {
                 if !c.is_zero() {
                     ok = false;
@@ -146,12 +146,12 @@ fn uf_find(parent: &mut [usize], mut x: usize) -> usize {
 /// over two distinct variables, no higher degree, no square) by the
 /// canonical pair of its product variables.
 fn build_part_map<'a>(
-    ir: &'a PolyIR,
+    q: &'a UniquenessQuery,
     canon: &[usize],
 ) -> HashMap<(usize, usize), Vec<&'a Poly>> {
     let mut map: HashMap<(usize, usize), Vec<&Poly>> = HashMap::new();
-    for poly in &ir.equalities {
-        if let Some((va, vb)) = product_pair(ir, poly) {
+    for poly in &q.ir.equalities {
+        if let Some((va, vb)) = product_pair(q, poly) {
             map.entry(pair_key(canon[va], canon[vb]))
                 .or_default()
                 .push(poly);
@@ -163,9 +163,9 @@ fn build_part_map<'a>(
 /// If `poly` has exactly one product monomial and it is a product of
 /// two distinct degree-1 variables (no squares, no higher degree),
 /// return that variable pair; otherwise `None`.
-fn product_pair(ir: &PolyIR, poly: &Poly) -> Option<(usize, usize)> {
+fn product_pair(q: &UniquenessQuery, poly: &Poly) -> Option<(usize, usize)> {
     let mut found = None;
-    for (_c, vars) in ir.poly_terms_idx(poly) {
+    for (_c, vars) in q.ir.poly_terms_idx(poly) {
         match vars.len() {
             0 | 1 if vars.first().map(|t| t.1).unwrap_or(1) == 1 => {}
             2 if vars[0].1 == 1 && vars[1].1 == 1 => {
@@ -192,7 +192,7 @@ fn product_pair(ir: &PolyIR, poly: &Poly) -> Option<(usize, usize)> {
 ///   c=2: prod=−b,  sl=0,  sm=a,  const=−a
 ///   c=3: prod=a,   sl=0,  sm=0,  const=−a
 fn match_part(
-    ir: &PolyIR,
+    q: &UniquenessQuery,
     canon: &[usize],
     poly: &Poly,
     sl: usize,
@@ -200,7 +200,7 @@ fn match_part(
     a: &BigUint,
     b: &BigUint,
 ) -> Option<(u8, usize)> {
-    let p = ir.ring.field().prime();
+    let p = q.ir.ring.field().prime();
     let mut prod: Option<BigUint> = None;
     let mut konst = BigUint::zero();
     let mut sl_c = BigUint::zero();
@@ -209,7 +209,7 @@ fn match_part(
     let mut sm_seen = false;
     let mut wire: Option<(BigUint, usize)> = None;
 
-    for (c, vars) in ir.poly_terms_idx(poly) {
+    for (c, vars) in q.ir.poly_terms_idx(poly) {
         match vars.len() {
             0 => konst = c,
             1 => {
@@ -285,13 +285,13 @@ fn match_part(
 /// Find the signal `S` defined by `S = Σ part_outs` (each part output
 /// appears with one shared coefficient `−k`, `S` with `+k`, no other
 /// terms). Returns the canonical variable of `S`.
-fn find_sum_var(ir: &PolyIR, canon: &[usize], part_outs: &[usize]) -> Option<usize> {
-    let p = ir.ring.field().prime();
+fn find_sum_var(q: &UniquenessQuery, canon: &[usize], part_outs: &[usize]) -> Option<usize> {
+    let p = q.ir.ring.field().prime();
     let targets: HashSet<usize> = part_outs.iter().copied().collect();
-    for poly in &ir.equalities {
+    for poly in &q.ir.equalities {
         let mut coeffs: HashMap<usize, BigUint> = HashMap::new();
         let mut ok = true;
-        for (c, vars) in ir.poly_terms_idx(poly) {
+        for (c, vars) in q.ir.poly_terms_idx(poly) {
             if vars.is_empty() {
                 if !c.is_zero() {
                     ok = false;
@@ -339,15 +339,15 @@ fn find_sum_var(ir: &PolyIR, canon: &[usize], part_outs: &[usize]) -> Option<usi
 /// every bit pinned to `{0, 1}`, so the weight-`bit` variable really is
 /// bit `bit` of `S`.
 fn find_inner_bit(
-    ir: &PolyIR,
+    q: &UniquenessQuery,
     canon: &[usize],
     s_var: usize,
     bit: usize,
     ranges: &HashMap<usize, RangeValue>,
 ) -> Option<usize> {
-    let p = ir.ring.field().prime();
-    for poly in &ir.equalities {
-        let Some(decomp) = match_decomp(ir, poly) else {
+    let p = q.ir.ring.field().prime();
+    for poly in &q.ir.equalities {
+        let Some(decomp) = match_decomp(q, poly) else {
             continue;
         };
         if canon[decomp.target_var] != s_var || decomp.bits.len() <= bit {
@@ -359,7 +359,7 @@ fn find_inner_bit(
         let all_binary = decomp
             .bits
             .iter()
-            .all(|&v| matches!(ranges.get(&ir.var_to_wire(v)), Some(r) if r.is_binary()));
+            .all(|&v| matches!(ranges.get(&q.var_to_wire(v)), Some(r) if r.is_binary()));
         if all_binary {
             return Some(decomp.bits[bit]);
         }
@@ -369,11 +369,11 @@ fn find_inner_bit(
 
 /// True if some equality pins the variable to zero: a single linear
 /// term `c·w = 0` (`c ≠ 0`) with `canon[w] == var`.
-fn find_pinned_zero(ir: &PolyIR, canon: &[usize], var: usize) -> bool {
-    for poly in &ir.equalities {
+fn find_pinned_zero(q: &UniquenessQuery, canon: &[usize], var: usize) -> bool {
+    for poly in &q.ir.equalities {
         let mut lin: Option<(BigUint, usize)> = None;
         let mut ok = true;
-        for (c, vars) in ir.poly_terms_idx(poly) {
+        for (c, vars) in q.ir.poly_terms_idx(poly) {
             if vars.is_empty() {
                 if !c.is_zero() {
                     ok = false;

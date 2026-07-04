@@ -13,8 +13,9 @@ pub use range::{initial_ranges, RangeValue};
 use num_bigint::{BigInt, BigUint};
 use num_integer::Integer;
 use num_traits::One;
-use picus_smt::poly_ir::PolyIR;
 use std::collections::HashMap;
+
+use crate::uniqueness::UniquenessQuery;
 
 /// Modular inverse of `a` mod `p` via the extended Euclidean algorithm,
 /// or `None` when `a` is not invertible (not coprime to `p`). Shared by the
@@ -42,14 +43,14 @@ pub(crate) fn mod_inverse(a: &BigUint, p: &BigUint) -> Option<BigUint> {
 /// than scanning all `2 * n_wires` ring variables per monomial. On a
 /// 100k-wire IR with a few terms per constraint this is the
 /// difference between O(n^2) and O(constraints * support).
-pub fn wire_connectivity_score(ir: &PolyIR) -> HashMap<usize, usize> {
+pub fn wire_connectivity_score(q: &UniquenessQuery) -> HashMap<usize, usize> {
     use std::collections::HashSet;
     let mut counter: HashMap<usize, usize> = HashMap::new();
-    for poly in &ir.equalities {
+    for poly in &q.ir.equalities {
         let mut wires_seen: HashSet<usize> = HashSet::new();
-        let vars = ir.ring.appearing_indeterminates(poly);
+        let vars = q.ir.ring.appearing_indeterminates(poly);
         for v in vars.iter() {
-            wires_seen.insert(ir.var_to_wire(v));
+            wires_seen.insert(q.var_to_wire(v));
         }
         for w in wires_seen {
             *counter.entry(w).or_insert(0) += 1;

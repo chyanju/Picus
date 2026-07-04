@@ -18,7 +18,7 @@ use num_bigint::BigUint;
 use picus_r1cs::grammar::{
     Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
-use picus_smt::poly_ir::r1cs_to_poly_ir;
+use crate::uniqueness::r1cs_to_uniqueness_query;
 
 use super::*;
 use crate::propagation::lemma::{PropagationCtx, PropagationLemma};
@@ -85,8 +85,8 @@ fn prop_bim_no_progress_on_empty_equalities() {
         outputs: vec![2],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
-    ir.equalities.clear();
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
+    ir.ir.equalities.clear();
 
     let mut lemma = BimLemma::default();
     let mut known_set: HashSet<usize> = HashSet::new();
@@ -151,7 +151,7 @@ fn prop_bim_inert_on_r1cs_lowered_input() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -217,7 +217,7 @@ fn prop_bim_rejects_nonzero_constant_term() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -274,7 +274,7 @@ fn prop_bim_rejects_nonlinear_equality() {
         outputs: vec![2],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
+    let ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -335,14 +335,14 @@ fn prop_bim_declines_when_some_var_already_known() {
         outputs: vec![2],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 2).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).expect("lowering should succeed");
 
     // Construct a 1x1 invertible system: just `x_1 = 0` (the polynomial
     // `x_1`). collect_linear_homogeneous accepts it; n=1 and det=1; BUT
     // we mark wire 1 as already KNOWN, so the gate `unknown.contains` fails.
-    ir.equalities.clear();
-    let x1 = ir.ring.var(1); // x_1 polynomial
-    ir.equalities.push(x1);
+    ir.ir.equalities.clear();
+    let x1 = ir.ir.ring.var(1); // x_1 polynomial
+    ir.ir.equalities.push(x1);
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -405,13 +405,13 @@ fn prop_bim_promotes_invertible_singleton_system() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     // Replace lowered equalities with a single `x_1 = 0` polynomial so
     // the R1CS duplicate-rows issue does not apply.
-    ir.equalities.clear();
-    let x1 = ir.ring.var(1);
-    ir.equalities.push(x1);
+    ir.ir.equalities.clear();
+    let x1 = ir.ir.ring.var(1);
+    ir.ir.equalities.push(x1);
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -470,15 +470,15 @@ fn prop_bim_promotes_2x2_invertible_system() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     // Replace with x_1 + x_2 = 0 and x_1 + 2 x_2 = 0.
-    ir.equalities.clear();
-    let two = ir.constant(&BigUint::from(2u32));
-    let eq1 = ir.ring.add(ir.ring.var(1), ir.ring.var(2));
-    let eq2 = ir.ring.add(ir.ring.var(1), ir.ring.mul(two, ir.ring.var(2)));
-    ir.equalities.push(eq1);
-    ir.equalities.push(eq2);
+    ir.ir.equalities.clear();
+    let two = ir.ir.constant(&BigUint::from(2u32));
+    let eq1 = ir.ir.ring.add(ir.ir.ring.var(1), ir.ir.ring.var(2));
+    let eq2 = ir.ir.ring.add(ir.ir.ring.var(1), ir.ir.ring.mul(two, ir.ir.ring.var(2)));
+    ir.ir.equalities.push(eq1);
+    ir.ir.equalities.push(eq2);
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -539,15 +539,15 @@ fn prop_bim_declines_when_not_square() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     // One equation `x_1 + x_2 + x_3 = 0`, three unknown wires ⇒ n=3,
     // eqs=1, not square.
-    ir.equalities.clear();
-    let mut eq = ir.ring.var(1);
-    eq = ir.ring.add(eq, ir.ring.var(2));
-    eq = ir.ring.add(eq, ir.ring.var(3));
-    ir.equalities.push(eq);
+    ir.ir.equalities.clear();
+    let mut eq = ir.ir.ring.var(1);
+    eq = ir.ir.ring.add(eq, ir.ir.ring.var(2));
+    eq = ir.ir.ring.add(eq, ir.ir.ring.var(3));
+    ir.ir.equalities.push(eq);
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -572,7 +572,7 @@ fn prop_bim_declines_when_not_square() {
     assert!(
         !progress,
         "non-square (eqs={}, vars=3) must NOT fire",
-        ir.equalities.len()
+        ir.ir.equalities.len()
     );
 }
 
@@ -609,17 +609,17 @@ fn prop_bim_declines_on_singular_square_system() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
-    ir.equalities.clear();
-    let two = ir.constant(&BigUint::from(2u32));
-    let eq1 = ir.ring.add(ir.ring.var(1), ir.ring.var(2));
-    let eq2 = ir.ring.add(
-        ir.ring.mul(ir.constant(&BigUint::from(2u32)), ir.ring.var(1)),
-        ir.ring.mul(two, ir.ring.var(2)),
+    ir.ir.equalities.clear();
+    let two = ir.ir.constant(&BigUint::from(2u32));
+    let eq1 = ir.ir.ring.add(ir.ir.ring.var(1), ir.ir.ring.var(2));
+    let eq2 = ir.ir.ring.add(
+        ir.ir.ring.mul(ir.ir.constant(&BigUint::from(2u32)), ir.ir.ring.var(1)),
+        ir.ir.ring.mul(two, ir.ir.ring.var(2)),
     );
-    ir.equalities.push(eq1);
-    ir.equalities.push(eq2);
+    ir.ir.equalities.push(eq1);
+    ir.ir.equalities.push(eq2);
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -679,10 +679,10 @@ fn prop_bim_invertible_singleton_sweeps_small_primes() {
             outputs: vec![],
         };
         let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-        let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
-        ir.equalities.clear();
-        let x1 = ir.ring.var(1);
-        ir.equalities.push(x1);
+        let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
+        ir.ir.equalities.clear();
+        let x1 = ir.ir.ring.var(1);
+        ir.ir.equalities.push(x1);
 
         let mut known_set: HashSet<usize> = HashSet::new();
         known_set.insert(0);
@@ -744,7 +744,7 @@ fn test_bim_promotes_with_pivot_swap_sign_flip() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
     // The matrix-row order depends on hash iteration of `all_sigs`, so
     // build a system where the relative ordering forces a non-trivial
@@ -752,11 +752,11 @@ fn test_bim_promotes_with_pivot_swap_sign_flip() {
     // references only x_1). For whichever ordering of (wire 1, wire 2)
     // ends up as columns 0/1, ONE of the two rows has a zero in col 0
     // and the matrix algorithm must scan for the nonzero pivot.
-    ir.equalities.clear();
-    let x1 = ir.ring.var(1);
-    let x2 = ir.ring.var(2);
-    ir.equalities.push(x2); // x_2 = 0
-    ir.equalities.push(x1); // x_1 = 0
+    ir.ir.equalities.clear();
+    let x1 = ir.ir.ring.var(1);
+    let x2 = ir.ir.ring.var(2);
+    ir.ir.equalities.push(x2); // x_2 = 0
+    ir.ir.equalities.push(x1); // x_1 = 0
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -818,14 +818,14 @@ fn test_bim_promotes_via_wrap_subtraction_branch() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
-    ir.equalities.clear();
-    let three = ir.constant(&BigUint::from(3u32));
-    let eq1 = ir.ring.add(ir.ring.var(1), ir.ring.var(2));
-    let eq2 = ir.ring.add(ir.ring.mul(three, ir.ring.var(1)), ir.ring.var(2));
-    ir.equalities.push(eq1);
-    ir.equalities.push(eq2);
+    ir.ir.equalities.clear();
+    let three = ir.ir.constant(&BigUint::from(3u32));
+    let eq1 = ir.ir.ring.add(ir.ir.ring.var(1), ir.ir.ring.var(2));
+    let eq2 = ir.ir.ring.add(ir.ir.ring.mul(three, ir.ir.ring.var(1)), ir.ir.ring.var(2));
+    ir.ir.equalities.push(eq1);
+    ir.ir.equalities.push(eq2);
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
@@ -885,15 +885,15 @@ fn test_bim_promotes_3x3_skips_zero_pivot_rows() {
         outputs: vec![],
     };
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let mut ir = r1cs_to_poly_ir(&r1cs, &known, 1).expect("lowering should succeed");
+    let mut ir = r1cs_to_uniqueness_query(&r1cs, &known, 1).expect("lowering should succeed");
 
-    ir.equalities.clear();
-    let e1 = ir.ring.add(ir.ring.var(1), ir.ring.var(2));
-    let e2 = ir.ring.add(ir.ring.var(1), ir.ring.var(3));
-    let e3 = ir.ring.add(ir.ring.var(2), ir.ring.var(3));
-    ir.equalities.push(e1);
-    ir.equalities.push(e2);
-    ir.equalities.push(e3);
+    ir.ir.equalities.clear();
+    let e1 = ir.ir.ring.add(ir.ir.ring.var(1), ir.ir.ring.var(2));
+    let e2 = ir.ir.ring.add(ir.ir.ring.var(1), ir.ir.ring.var(3));
+    let e3 = ir.ir.ring.add(ir.ir.ring.var(2), ir.ir.ring.var(3));
+    ir.ir.equalities.push(e1);
+    ir.ir.equalities.push(e2);
+    ir.ir.equalities.push(e3);
 
     let mut known_set: HashSet<usize> = HashSet::new();
     known_set.insert(0);
