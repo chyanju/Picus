@@ -35,9 +35,9 @@ use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
 
 /// A monomial: sorted `(wire, exponent)` pairs. The empty vector is the
 /// constant monomial `1`.
-type Mono = Vec<(usize, u16)>;
+type ExpVec = Vec<(usize, u16)>;
 /// A polynomial as `monomial → coefficient`, zero coefficients dropped.
-type TermMap = BTreeMap<Mono, BigUint>;
+type TermMap = BTreeMap<ExpVec, BigUint>;
 
 #[derive(Default)]
 pub struct TecompleteLemma {
@@ -84,7 +84,7 @@ fn orig_term_map(q: &UniquenessQuery, poly: &Poly) -> Option<TermMap> {
     let nw = q.n_wires;
     let mut map = TermMap::new();
     for (c, vars) in q.ir.poly_terms_idx(poly) {
-        let mut mono: Mono = Vec::with_capacity(vars.len());
+        let mut mono: ExpVec = Vec::with_capacity(vars.len());
         for (v, e) in vars {
             if v >= nw {
                 return None;
@@ -179,7 +179,7 @@ fn as_denominator(tm: &TermMap, p: &BigUint) -> Option<(usize, BigUint, usize, T
 }
 
 /// Accumulate `c · monomial(k)` into `m`, reduced mod `p`.
-fn add_term(m: &mut TermMap, mut k: Mono, c: &BigUint, p: &BigUint) {
+fn add_term(m: &mut TermMap, mut k: ExpVec, c: &BigUint, p: &BigUint) {
     k.sort_unstable();
     let e = m.entry(k).or_insert_with(|| BigUint::from(0u32));
     *e = (&*e + c) % p;
