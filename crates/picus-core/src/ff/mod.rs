@@ -28,6 +28,31 @@ pub(crate) mod geobucket_params {
     pub(crate) const RATIO: usize = 4;
     /// Hard cap on the number of buckets. `128 * 4^19 ≈ 10^13` terms.
     pub(crate) const MAX_BUCKETS: usize = 20;
+
+    /// Capacity of bucket `idx`: `BASE_CAPACITY · RATIO^idx`, saturating to
+    /// `usize::MAX`. Shared by the dense and sparse geobuckets.
+    pub(crate) fn capacity(idx: usize) -> usize {
+        let mut cap = BASE_CAPACITY;
+        for _ in 0..idx {
+            cap = match cap.checked_mul(RATIO) {
+                Some(v) => v,
+                None => return usize::MAX,
+            };
+        }
+        cap
+    }
+
+    /// Smallest bucket index whose capacity is `>= len`, capped at
+    /// `MAX_BUCKETS - 1`. Shared by the dense and sparse geobuckets.
+    pub(crate) fn fitting_bucket(len: usize) -> usize {
+        let mut idx = 0usize;
+        let mut cap = BASE_CAPACITY;
+        while cap < len && idx + 1 < MAX_BUCKETS {
+            idx += 1;
+            cap = cap.saturating_mul(RATIO);
+        }
+        idx
+    }
 }
 
 pub use divmask::{DivMask, DivMaskScheme};

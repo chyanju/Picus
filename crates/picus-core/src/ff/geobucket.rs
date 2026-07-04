@@ -15,7 +15,8 @@
 use std::cmp::Ordering;
 
 use super::field::FieldElem;
-use super::geobucket_params::{BASE_CAPACITY, MAX_BUCKETS, RATIO};
+use super::geobucket_params;
+use super::geobucket_params::MAX_BUCKETS;
 use super::polynomial::{PolyRing, DensePoly};
 use crate::metric;
 
@@ -52,28 +53,7 @@ impl<'r> Geobucket<'r> {
         gb
     }
 
-    /// Capacity of bucket `idx`: BASE_CAPACITY * RATIO^idx, saturating to usize::MAX.
-    fn capacity(idx: usize) -> usize {
-        let mut cap = BASE_CAPACITY;
-        for _ in 0..idx {
-            cap = match cap.checked_mul(RATIO) {
-                Some(v) => v,
-                None => return usize::MAX,
-            };
-        }
-        cap
-    }
 
-    /// Smallest bucket index whose capacity is >= `len`. Capped at MAX_BUCKETS - 1.
-    fn fitting_bucket(len: usize) -> usize {
-        let mut idx = 0usize;
-        let mut cap = BASE_CAPACITY;
-        while cap < len && idx + 1 < MAX_BUCKETS {
-            idx += 1;
-            cap = cap.saturating_mul(RATIO);
-        }
-        idx
-    }
 
     fn ensure_bucket(&mut self, idx: usize) {
         while self.buckets.len() <= idx {
@@ -113,11 +93,11 @@ impl<'r> Geobucket<'r> {
             return;
         }
         let mut cur = p;
-        let mut idx = Self::fitting_bucket(cur.num_terms());
+        let mut idx = geobucket_params::fitting_bucket(cur.num_terms());
         loop {
             self.ensure_bucket(idx);
             if self.bucket_is_empty(idx) {
-                let cap_here = Self::capacity(idx);
+                let cap_here = geobucket_params::capacity(idx);
                 if cur.num_terms() <= cap_here || idx + 1 >= MAX_BUCKETS {
                     self.buckets[idx] = cur;
                     self.heads[idx] = 0;
@@ -136,7 +116,7 @@ impl<'r> Geobucket<'r> {
             if merged_len == 0 {
                 return;
             }
-            let cap_here = Self::capacity(idx);
+            let cap_here = geobucket_params::capacity(idx);
             if merged_len <= cap_here || idx + 1 >= MAX_BUCKETS {
                 self.buckets[idx] = merged;
                 return;
