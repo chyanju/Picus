@@ -31,7 +31,7 @@ use num_bigint::BigUint;
 use picus_core::poly::Poly;
 use crate::uniqueness::UniquenessQuery;
 
-use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
+use super::lemma::{LemmaDescriptor, LenGatedCache, PropagationCtx, PropagationLemma};
 
 /// A monomial: sorted `(wire, exponent)` pairs. The empty vector is the
 /// constant monomial `1`.
@@ -41,8 +41,7 @@ type TermMap = BTreeMap<ExpVec, BigUint>;
 
 #[derive(Default)]
 pub struct TecompleteLemma {
-    gadgets: Option<Vec<Gadget>>,
-    cached_len: Option<usize>,
+    gadgets: LenGatedCache<Vec<Gadget>>,
 }
 
 struct Gadget {
@@ -57,18 +56,14 @@ impl PropagationLemma for TecompleteLemma {
 
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let cur = q.ir.equalities.len();
-        if self.gadgets.is_none() || self.cached_len != Some(cur) {
-            self.gadgets = Some(find_gadgets(q));
-            self.cached_len = Some(cur);
-        }
+        let gadgets = self.gadgets.get_or_build(cur, || find_gadgets(q));
         let mut progress = false;
-        for g in self.gadgets.as_ref().unwrap() {
+        for g in gadgets {
             if !g.inputs.iter().all(|w| ctx.known.contains(w)) {
                 continue;
             }
             for &out in &g.outputs {
-                if !ctx.known.contains(&out) && ctx.unknown.remove(&out) {
-                    ctx.known.insert(out);
+                if !ctx.known.contains(&out) && ctx.mark_known(out) {
                     progress = true;
                 }
             }
@@ -201,19 +196,6 @@ fn expected_delta(wd: usize, x1: usize, y1: usize, x2: usize, y2: usize, a: &Big
     m
 }
 
-fn legendre(field: &picus_core::ff::field::PrimeField, x: &BigUint, p: &BigUint) -> i32 {
-    if x % p == BigUint::from(0u32) {
-        return 0;
-    }
-    let e = field.pow(&field.from_biguint(x), &((p - 1u32) / 2u32));
-    let b = field.to_biguint(&e);
-    if b == BigUint::from(1u32) {
-        1
-    } else {
-        -1
-    }
-}
-
 fn find_gadgets(q: &UniquenessQuery) -> Vec<Gadget> {
     let field = q.ir.ring.field();
     let p = field.prime().clone();
@@ -305,7 +287,7 @@ fn find_gadgets(q: &UniquenessQuery) -> Vec<Gadget> {
                     None => continue,
                 };
                 // Certificate: a square, d non-square (⇒ a·d non-square too).
-                if legendre(field, &a, &p) == 1 && legendre(field, d, &p) == -1 {
+                if field.legendre(&a) == 1 && field.legendre(d) == -1 {
                     gadgets.push(Gadget {
                         inputs,
                         outputs: [*xout, *yout],

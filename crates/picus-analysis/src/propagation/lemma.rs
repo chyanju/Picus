@@ -49,6 +49,50 @@ pub struct PropagationCtx<'a> {
     pub learned_disjunctions: &'a mut Vec<Vec<Poly>>,
 }
 
+impl PropagationCtx<'_> {
+    /// Promote `wire` from `unknown` to `known`, preserving the partition
+    /// invariant (every wire is in exactly one of the two sets). Returns
+    /// `true` iff this changed state (the wire was previously unknown) — use it
+    /// directly as a lemma's progress flag: `progress |= ctx.mark_known(w)`.
+    pub fn mark_known(&mut self, wire: usize) -> bool {
+        if self.unknown.remove(&wire) {
+            self.known.insert(wire);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+/// A cache keyed by `ir.equalities.len()`: rebuilds its payload whenever the
+/// equality vector has grown since the last build. Centralizes the
+/// position-indexed-cache invalidation contract used by lemmas that memoize
+/// structures derived from the equality constraints (the DPVL driver appends
+/// learned equalities between iterations, so a grown length means new
+/// constraints the cache does not yet reflect).
+pub struct LenGatedCache<T> {
+    value: Option<T>,
+    len: Option<usize>,
+}
+
+impl<T> Default for LenGatedCache<T> {
+    fn default() -> Self {
+        Self { value: None, len: None }
+    }
+}
+
+impl<T> LenGatedCache<T> {
+    /// Return the cached payload, rebuilding via `build` iff it is absent or
+    /// `cur_len` differs from the length recorded at the last build.
+    pub fn get_or_build(&mut self, cur_len: usize, build: impl FnOnce() -> T) -> &T {
+        if self.value.is_none() || self.len != Some(cur_len) {
+            self.value = Some(build());
+            self.len = Some(cur_len);
+        }
+        self.value.as_ref().unwrap()
+    }
+}
+
 /// Plugin interface for a single propagation lemma.
 pub trait PropagationLemma: Send {
     /// Stable name used by the CLI `--lemmas` flag and by tests.

@@ -20,19 +20,15 @@ use picus_core::poly::Poly;
 
 use crate::uniqueness::UniquenessQuery;
 
-use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
+use super::lemma::{LemmaDescriptor, LenGatedCache, PropagationCtx, PropagationLemma};
 
 #[derive(Default)]
 pub struct LinearLemma {
-    /// `wire_index → list-of-dependency-sets`. Built lazily on the
-    /// first `run` from the equality constraints and cached; the DPVL
-    /// driver appends learned equalities to `ir.equalities` between
-    /// iterations, so the cache invalidates whenever the equality
-    /// vector grows and is rebuilt on the next call.
-    cdmap: Option<HashMap<usize, Vec<HashSet<usize>>>>,
-    /// `ir.equalities.len()` at the moment `cdmap` was last built.
-    /// `None` whenever `cdmap` is `None`.
-    cdmap_len: Option<usize>,
+    /// `wire_index → list-of-dependency-sets`. Built lazily on the first `run`
+    /// from the equality constraints and cached, keyed by `ir.equalities.len()`
+    /// (the DPVL driver appends learned equalities between iterations, so a
+    /// grown length rebuilds).
+    cdmap: LenGatedCache<HashMap<usize, Vec<HashSet<usize>>>>,
 }
 
 impl PropagationLemma for LinearLemma {
@@ -41,16 +37,8 @@ impl PropagationLemma for LinearLemma {
     }
 
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
-        // Rebuild the implication map when either it doesn't exist yet
-        // or the IR's equality vector has grown since the last build —
-        // either case means new constraints are visible that the cache
-        // doesn't reflect.
         let cur_len = q.ir.equalities.len();
-        if self.cdmap.is_none() || self.cdmap_len != Some(cur_len) {
-            self.cdmap = Some(build_cdmap(q));
-            self.cdmap_len = Some(cur_len);
-        }
-        let cdmap = self.cdmap.as_ref().unwrap();
+        let cdmap = self.cdmap.get_or_build(cur_len, || build_cdmap(q));
 
         let mut progress = false;
         loop {
@@ -62,9 +50,8 @@ impl PropagationLemma for LinearLemma {
                 if dep_sets
                     .iter()
                     .any(|deps| deps.iter().all(|d| ctx.known.contains(d)))
-                    && ctx.unknown.remove(&wire)
+                    && ctx.mark_known(wire)
                 {
-                    ctx.known.insert(wire);
                     local_progress = true;
                     progress = true;
                 }

@@ -20,17 +20,18 @@ impl std::str::FromStr for SelectorKind {
     }
 }
 
-/// Per-DPVL-run selector state.
+/// Per-DPVL-run selector state. Driven only through `new` / `select` /
+/// `feedback`; internal state is private.
 pub struct SelectorState {
-    pub kind: SelectorKind,
+    kind: SelectorKind,
     /// Negative weights for signals we've skipped this run; used to
     /// deprioritise them on the next pick.
-    pub weights: HashMap<usize, i64>,
+    weights: HashMap<usize, i64>,
     /// Constraint-connectivity counter for each wire. Higher count ⇒
     /// the wire participates in more constraints and is likelier to
     /// have a fast deduction path. Built once by the DPVL driver from
     /// the PolySystem and passed to [`SelectorState::select`].
-    pub connectivity: HashMap<usize, usize>,
+    connectivity: HashMap<usize, usize>,
 }
 
 impl SelectorState {

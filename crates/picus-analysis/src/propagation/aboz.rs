@@ -112,12 +112,10 @@ impl PropagationLemma for AbozLemma {
                         continue;
                     }
                     // Promote y0, y1 to known if they were unknown.
-                    if ctx.unknown.remove(&y0) {
-                        ctx.known.insert(y0);
+                    if ctx.mark_known(y0) {
                         progress = true;
                     }
-                    if ctx.unknown.remove(&y1) {
-                        ctx.known.insert(y1);
+                    if ctx.mark_known(y1) {
                         progress = true;
                     }
                 }

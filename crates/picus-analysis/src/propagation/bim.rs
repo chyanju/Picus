@@ -85,8 +85,7 @@ impl PropagationLemma for BimLemma {
 
         let mut progress = false;
         for &sig in &all_sigs {
-            if ctx.unknown.remove(&sig) {
-                ctx.known.insert(sig);
+            if ctx.mark_known(sig) {
                 progress = true;
             }
         }

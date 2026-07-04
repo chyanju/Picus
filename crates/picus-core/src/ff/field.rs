@@ -604,6 +604,18 @@ impl PrimeField {
     }
 
     /// Modular exponentiation `a^exp mod p`.
+    /// Legendre symbol of `x` modulo this field's (odd prime) modulus:
+    /// `0` if `x ≡ 0`, `1` if `x` is a nonzero quadratic residue, `-1`
+    /// otherwise. Computed via Euler's criterion `x^((p-1)/2)`.
+    pub fn legendre(&self, x: &BigUint) -> i32 {
+        let p = self.prime();
+        if x % p == BigUint::from(0u32) {
+            return 0;
+        }
+        let e = self.pow(&self.from_biguint(x), &((p - 1u32) / 2u32));
+        if self.to_biguint(&e) == BigUint::from(1u32) { 1 } else { -1 }
+    }
+
     pub fn pow(&self, a: &FieldElem, exp: &BigUint) -> FieldElem {
         if exp == &BigUint::from(0u32) {
             return self.one();

@@ -90,8 +90,7 @@ impl PropagationLemma for Basis2Lemma {
             let target_wire = q.var_to_wire(decomp.target_var);
             if ctx.known.contains(&target_wire) {
                 for &bit in &bit_wires {
-                    if ctx.unknown.remove(&bit) {
-                        ctx.known.insert(bit);
+                    if ctx.mark_known(bit) {
                         progress = true;
                     }
                 }

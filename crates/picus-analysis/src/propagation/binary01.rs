@@ -52,8 +52,7 @@ impl PropagationLemma for Binary01Lemma {
             }
         }
         for wire in newly_known {
-            if ctx.unknown.remove(&wire) {
-                ctx.known.insert(wire);
+            if ctx.mark_known(wire) {
                 progress = true;
             }
         }
