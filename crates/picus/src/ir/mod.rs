@@ -27,7 +27,8 @@
 mod expr;
 mod lower;
 
-pub use expr::{Constraint, Expr, SystemId, Value, Var};
+pub use expr::{Constraint, Expr, Value, Var};
+pub(crate) use expr::SystemId;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -139,8 +140,10 @@ impl PolyIR {
     }
 
     /// Mint a fresh auxiliary variable with a unique reserved name
-    /// (`"__aux{n}"`). Used internally for Rabinowitsch witnesses.
-    pub fn fresh_var(&mut self) -> Var {
+    /// (`"__aux{n}"`). Internal: used for Rabinowitsch witnesses. Not part of
+    /// the public builder surface (would otherwise let callers bypass the
+    /// reserved-`__`-name guard that `var`/`try_var` enforce).
+    pub(crate) fn fresh_var(&mut self) -> Var {
         let name = format!("__aux{}", self.aux_ctr);
         self.aux_ctr += 1;
         self.intern(name)
@@ -185,14 +188,6 @@ impl PolyIR {
     /// Assert `lhs == rhs`.
     pub fn eq(&mut self, lhs: impl Into<Expr>, rhs: impl Into<Expr>) -> &mut Self {
         let e = lhs.into() - rhs.into();
-        self.check_sys(e.sys);
-        self.eqs.push(e);
-        self
-    }
-
-    /// Assert `e == 0`.
-    pub fn assert_zero(&mut self, e: impl Into<Expr>) -> &mut Self {
-        let e = e.into();
         self.check_sys(e.sys);
         self.eqs.push(e);
         self

@@ -156,8 +156,8 @@ match pir.solve().unwrap() {
 without `&`; constants are plain integers. All of these build the same
 `Expr`: `x * x`, `2 * x + 3`, `x.pow(3)`, `-x`, `2*x + 3*y - 5`, `x - 1`.
 Because Rust's `==` / `!=` must return `bool`, (dis)equality is expressed with
-the **methods** `pir.eq(lhs, rhs)` / `pir.ne(lhs, rhs)` (and `pir.assert_zero(e)`,
-`x.equals(rhs)`), not the operators.
+the **methods** `pir.eq(lhs, rhs)` / `pir.ne(lhs, rhs)` (and `x.equals(rhs)`),
+not the operators.
 
 **Constraints.** `eq(l, r)` / `ne(l, r)` (any expressions — `ne(x*x, 2)` works),
 `assign(var, value)` (pin a variable), `or([c1, c2, …])` (disjunction of

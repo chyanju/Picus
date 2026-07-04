@@ -23,9 +23,10 @@ static NEXT_SYSTEM_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Opaque per-`PolyIR` identity. Every [`PolyIR`](crate::ir::PolyIR) gets a
 /// fresh one at construction; [`Var`] and [`Expr`] carry it so cross-system
-/// mixing is caught.
+/// mixing is caught. Crate-internal: it is unconstructable and unusable from
+/// outside, so it is not part of the public surface.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct SystemId(NonZeroU64);
+pub(crate) struct SystemId(NonZeroU64);
 
 impl SystemId {
     /// Allocate the next process-wide-unique id.

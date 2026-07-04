@@ -407,7 +407,7 @@ Public library facade.
   uniqueness. `PolyIR::new(prime)` mints `Copy` `Var` handles
   (`var` / `vars`); a ring-free symbolic `Expr` is built with `std::ops`
   operator overloading (`x*x - x`, `2*x + 3*y - 5`, `x.pow(3)`), constants
-  via `Into`. Constraints: `eq` / `ne` / `assert_zero` / `assert` /
+  via `Into`. Constraints: `eq` / `ne` / `assert` /
   `assign` / `or` / `bitsum` / `field_polys` (`==` / `!=` are methods
   because `PartialEq` must return `bool`; `ne` routes bare-var pairs to the
   native disequality primitive, else a Rabinowitsch witness). `solve` /
