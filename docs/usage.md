@@ -121,6 +121,68 @@ terminate, they should agree on safe/unsafe.
 > inconsistent models for `or` disjunctions in QF_FF. The PolyIR lowering
 > avoids emitting `or`-shaped queries, so this does not affect normal usage.
 
+## Library API: build and solve a `PolyIR` directly
+
+Beyond the R1CS uniqueness pipeline (`check_circuit` / `check_r1cs`), the
+`picus` crate exposes a lower-level entry point for callers who want to decide
+an arbitrary polynomial constraint system over GF(p): build a `PolyIR` and hand
+it to `picus::solve`. There is **no** R1CS parsing and **no** uniqueness /
+two-copy semantics — the query means exactly what its constraints say, and the
+result is a raw `Unsat` / `Sat(model)` / `Unknown(reason)`.
+
+A `PolyIR` is a ring plus a set of constraints: equalities (`p = 0`),
+disjunctions (`p_1 = 0 ∨ …`), disequalities (`x_a ≠ x_b`), assignments
+(`x_i = v`), and bitsum chains. Assemble one with `PolyIR::new` and the builder
+mutators, then solve it:
+
+```rust
+use std::sync::Arc;
+use picus::{solve, PolyIR, FfPolyRing, PrimeField, PicusConfig, SolverResult, BigUint};
+
+// A ring over GF(7) with two variables, x (index 0) and y (index 1).
+let field = PrimeField::new(BigUint::from(7u32));
+let ring = Arc::new(FfPolyRing::new(field, vec!["x".into(), "y".into()]));
+
+let mut ir = PolyIR::new(Arc::clone(&ring));
+
+// x * x - x = 0   (pins x ∈ {0, 1})
+let x = ir.linear_term(&BigUint::from(1u32), 0);
+ir.push_equality(ring.sub(ring.mul(ring.var(0), ring.var(0)), x));
+
+// y - 1 = 0
+let one = ir.constant(&BigUint::from(1u32));
+ir.push_equality(ring.sub(ring.var(1), one));
+
+// x ≠ y  ⇒ forces x = 0
+ir.add_disequality(0, 1);
+
+// Restrict the variety to GF(7) (needed for exact reasoning on small primes).
+ir.set_add_field_polys(true);
+
+match solve(&ir, PicusConfig::default()).unwrap() {
+    SolverResult::Unsat            => println!("unsatisfiable"),
+    SolverResult::Sat(model)       => println!("x = {}", model["x"]), // 0
+    SolverResult::Unknown(reason)  => println!("undecided: {:?}", reason),
+}
+```
+
+`config.analysis.solver` / `.theory` pick the backend (default `native` +
+`ff`), `.timeout_ms` bounds each call, and `config.engine` tunes the native FF
+engine — the same knobs the CLI/TOML expose. `solver = none` is rejected here
+(there is nothing to solve with).
+
+**Builder mutators** (each returns `&mut PolyIR` for chaining): `push_equality`,
+`push_disjunction`, `add_disequality`, `add_assignment`, `add_bitsum`,
+`set_add_field_polys`. Indices in disequalities / assignments / bitsums are into
+`ring.var_names()`.
+
+**Soundness / completeness.** The native FF backend is sound. Its completeness
+depends on the field polynomials `x^p - x = 0`: call `set_add_field_polys(true)`
+for exact reasoning over small primes (the encoder materialises them only for
+`prime <= 1000`). Over cryptographic primes it is sound-but-incomplete —
+`Unsat` is trustworthy, a returned `Sat` model is re-validated before it is
+handed back, and queries it cannot decide come back `Unknown`.
+
 ## Troubleshooting
 
 **Killed / out of memory.** Large circuits can consume significant memory
