@@ -25,7 +25,7 @@ use picus_r1cs::grammar::*;
 use picus_smt::backends::{SolverBackend, SolverResult};
 use crate::uniqueness::{r1cs_to_uniqueness_query, LowerError, UniquenessQuery};
 use picus_smt::{SolverKind, Theory};
-use picus_core::poly::IrPoly as Poly;
+use picus_core::poly::Poly;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 

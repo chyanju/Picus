@@ -139,7 +139,7 @@ fn bigint(val: &BigUint) -> Int {
         .expect("BigUint should produce valid z3 Int")
 }
 
-fn build_poly_z3(vars: &HashMap<String, Int>, ir: &PolySystem, poly: &picus_core::poly::IrPoly) -> Int {
+fn build_poly_z3(vars: &HashMap<String, Int>, ir: &PolySystem, poly: &picus_core::poly::Poly) -> Int {
     let mut sum = Int::from_u64(0);
     for (coeff, var_names) in ir.poly_terms(poly) {
         let c = bigint(&coeff);

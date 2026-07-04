@@ -2,7 +2,7 @@
 //!
 //! - [`ff`]: finite-field arithmetic over GF(p), dense and sparse
 //!   multivariate polynomials, divisibility masks, and geobucket reduction.
-//! - [`poly`]: the polynomial ring facade ([`poly::FfPolyRing`], [`poly::IrPoly`]).
+//! - [`poly`]: the polynomial ring facade ([`poly::FfPolyRing`], [`poly::Poly`]).
 //! - [`config`]: thread-local runtime configuration ([`config::RuntimeConfig`],
 //!   [`config::ReprKind`], [`config::GbStrategy`]).
 //! - [`timeout`]: cooperative cancellation ([`timeout::CancelToken`]).

@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use num_bigint::{BigInt, BigUint};
 
-use picus_core::poly::{FfPolyRing, IrPoly};
+use picus_core::poly::{FfPolyRing, Poly};
 use picus_smt::poly_system::PolySystem;
 
 use super::expr::Expr;
@@ -24,7 +24,7 @@ pub(crate) fn lower(builder: &PolyIR) -> PolySystem {
         ps.push_equality(lower_expr(e, &ring, &builder.prime, n));
     }
     for clause in &builder.ors {
-        let polys: Vec<IrPoly> = clause
+        let polys: Vec<Poly> = clause
             .iter()
             .map(|e| lower_expr(e, &ring, &builder.prime, n))
             .collect();
@@ -43,9 +43,9 @@ pub(crate) fn lower(builder: &PolyIR) -> PolySystem {
     ps
 }
 
-/// Lower one ring-free [`Expr`] into a ring [`IrPoly`], reducing each signed
+/// Lower one ring-free [`Expr`] into a ring [`Poly`], reducing each signed
 /// coefficient into `[0, prime)`.
-fn lower_expr(e: &Expr, ring: &FfPolyRing, prime: &BigUint, n: usize) -> IrPoly {
+fn lower_expr(e: &Expr, ring: &FfPolyRing, prime: &BigUint, n: usize) -> Poly {
     let terms = e.terms.iter().map(|(mono, coeff)| {
         let mut exps = vec![0usize; n];
         for &(v, k) in mono {

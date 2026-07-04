@@ -120,8 +120,8 @@ fn prop_aboz_no_progress_on_empty_ir() {
     let mut known_set: HashSet<usize> = known.clone();
     let mut unknown: HashSet<usize> = HashSet::new();
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut ctx = PropagationCtx {
         known: &mut known_set,
         unknown: &mut unknown,
@@ -153,8 +153,8 @@ fn prop_aboz_promotes_when_selector_excludes_zero() {
     unknown.insert(4);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(2, vals(&[1, 2, 3]));
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -198,8 +198,8 @@ fn prop_aboz_does_not_promote_when_selector_can_be_zero() {
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     // sel ∈ {0, 1} — includes zero, so the gate must REMAIN closed.
     ranges.insert(2, vals(&[0, 1]));
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -240,8 +240,8 @@ fn prop_aboz_does_not_promote_when_selector_range_is_bottom() {
     unknown.insert(4);
     // No range entry for wire 2 = Bottom (excludes_zero ⇒ false).
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -286,8 +286,8 @@ fn prop_aboz_requires_known_linear_partner() {
     unknown.insert(4);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(2, vals(&[1, 2, 3]));
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -328,8 +328,8 @@ fn prop_aboz_emits_disjunctions_when_gate_closed() {
     unknown.insert(4);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(2, vals(&[0, 1])); // includes zero ⇒ gate closed
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -380,8 +380,8 @@ fn prop_aboz_dedup_across_repeat_runs() {
     unknown.insert(4);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(2, vals(&[0, 1]));
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
 
     let _ = {
@@ -467,8 +467,8 @@ fn test_aboz_no_progress_without_linear_sum() {
     unknown.insert(4);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(2, vals(&[1, 2, 3]));
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -528,8 +528,8 @@ fn prop_aboz_bilinear_rejects_squared_term() {
     unknown.insert(2);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(1, vals(&[1, 2, 3]));
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -593,8 +593,8 @@ fn test_aboz_shared_arm_a0_eq_a1() {
     unknown.insert(4);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(1, vals(&[1, 2, 3])); // sel ≠ 0
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -658,8 +658,8 @@ fn test_aboz_shared_arm_none_no_overlap() {
     }
     let mut unknown: HashSet<usize> = HashSet::new();
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -697,8 +697,8 @@ fn test_aboz_skips_when_selector_not_known() {
     unknown.insert(4);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(2, vals(&[1, 2, 3])); // sel range excludes zero
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -754,8 +754,8 @@ fn test_aboz_match_bilinear_rejects_two_bilinear_terms() {
     }
     let mut unknown: HashSet<usize> = HashSet::new();
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -796,8 +796,8 @@ fn test_aboz_no_progress_when_linear_sums_empty() {
     }
     let mut unknown: HashSet<usize> = HashSet::new();
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -864,8 +864,8 @@ fn test_aboz_shared_arm_b0_eq_b1() {
     unknown.insert(2);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     ranges.insert(4, vals(&[1, 2, 3])); // sel ≠ 0
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -937,8 +937,8 @@ fn test_aboz_match_bilinear_rejects_bilinear_plus_nonzero_constant() {
     known_set.insert(2);
     let mut unknown: HashSet<usize> = HashSet::new();
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {

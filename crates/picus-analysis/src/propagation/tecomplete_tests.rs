@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use num_bigint::BigUint;
 use picus_core::ff::field::PrimeField;
-use picus_core::poly::{FfPolyRing, IrPoly};
+use picus_core::poly::{FfPolyRing, Poly};
 use picus_smt::poly_system::PolySystem;
 
 use crate::uniqueness::UniquenessQuery;
@@ -20,7 +20,7 @@ use crate::propagation::range::RangeValue;
 
 const PRIME: u64 = 7;
 
-fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<IrPoly>) -> UniquenessQuery {
+fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<Poly>) -> UniquenessQuery {
     let field = PrimeField::new(BigUint::from(PRIME));
     let mut names = Vec::with_capacity(2 * n_wires);
     for i in 0..n_wires {
@@ -53,8 +53,8 @@ struct CtxOwned {
     known: HashSet<usize>,
     unknown: HashSet<usize>,
     ranges: HashMap<usize, RangeValue>,
-    learned: Vec<IrPoly>,
-    learned_disjunctions: Vec<Vec<IrPoly>>,
+    learned: Vec<Poly>,
+    learned_disjunctions: Vec<Vec<Poly>>,
 }
 
 impl CtxOwned {

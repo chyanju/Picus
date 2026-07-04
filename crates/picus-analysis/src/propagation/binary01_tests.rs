@@ -32,7 +32,7 @@ const PRIME: u64 = 7;
 
 /// Build a `PolySystem` with `n_wires` wires and an explicit `equalities`
 /// list built via the supplied closure.
-fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::IrPoly>) -> UniquenessQuery {
+fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::Poly>) -> UniquenessQuery {
     let p = BigUint::from(PRIME);
     let field = PrimeField::new(p);
     let mut names = Vec::with_capacity(2 * n_wires);
@@ -68,8 +68,8 @@ struct CtxOwned {
     known: HashSet<usize>,
     unknown: HashSet<usize>,
     ranges: HashMap<usize, RangeValue>,
-    learned: Vec<picus_core::poly::IrPoly>,
-    learned_disjunctions: Vec<Vec<picus_core::poly::IrPoly>>,
+    learned: Vec<picus_core::poly::Poly>,
+    learned_disjunctions: Vec<Vec<picus_core::poly::Poly>>,
 }
 
 impl CtxOwned {

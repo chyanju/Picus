@@ -27,7 +27,7 @@ use thiserror::Error;
 use picus_r1cs::field_reduce;
 use picus_r1cs::grammar::{ConstraintBlock, R1csFile};
 use picus_core::ff::field::PrimeField;
-use picus_core::poly::{FfPolyRing, IrPoly as Poly};
+use picus_core::poly::{FfPolyRing, Poly};
 use picus_smt::poly_system::PolySystem;
 
 /// Reasons the R1CS-to-`UniquenessQuery` lowering can fail. Surfacing these as

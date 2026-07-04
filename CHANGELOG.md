@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
+## [Unreleased]
+
+### Maintainability refactor (per `chat/plan2.md`)
+- Refactor: removed the redundant `picus_core::poly::IrPoly` alias — it was a second public name for `Polynomial`, identical to `Poly`, and 11 of 13 use sites re-imported it as `IrPoly as Poly`. All sites now use `Poly`; also removes the `PolyIR`/`IrPoly` word-reversal collision.
+
 ## [1.8.24] - 2026-07-04
 - API: `picus::PolyIR` (module `picus::ir`) is now the ergonomic public constraint-system builder over GF(p) — `Copy` `Var` handles + a ring-free symbolic `Expr` with `std::ops` operator overloading (`x*x - x`, `2*x + 3*y - 5`, `x.pow(3)`), constants via `Into`; `eq`/`ne`/`assert_zero`/`assert`/`assign`/`or`/`bitsum`/`field_polys`; `solve`/`solve_with` → `Solution { Unsat, Sat(Model), Unknown }` with `Model` indexable by handle (`m[x]`) or name (`m["x"]`). `Arc`/`FfPolyRing`/`Poly` hidden (lowered in `ir::lower`); solver unchanged. `ne` uses the native disequality primitive for bare-var pairs, else a Rabinowitsch witness.
 - The former low-level `PolyIR` (ring + `Vec<Poly>`) is renamed `PolySystem` (module `picus_smt::poly_system`) and is no longer a top-level public builder; `PolyIR::lower()` is the power-user bridge and the internal `solve_system` decides it. Removed the top-level `picus::{solve, FfPolyRing, PrimeField, IrPoly}` re-exports; `solve_api` test replaced by `ir_api` + a runnable `PolyIR` doctest.

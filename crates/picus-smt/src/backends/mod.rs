@@ -150,7 +150,7 @@ pub fn create_backend_by_name(
 /// `(* coeff v1 v2 ...)`; the sum is wrapped in `(+ ...)` when it has
 /// more than one term, and an empty polynomial reduces to literal `0`.
 #[cfg(any(feature = "cvc5", feature = "z3"))]
-pub fn poly_to_smtlib_nia(ir: &PolySystem, poly: &picus_core::poly::IrPoly) -> String {
+pub fn poly_to_smtlib_nia(ir: &PolySystem, poly: &picus_core::poly::Poly) -> String {
     let parts: Vec<String> = ir
         .poly_terms(poly)
         .map(|(coeff, vars)| {
@@ -174,7 +174,7 @@ pub fn poly_to_smtlib_nia(ir: &PolySystem, poly: &picus_core::poly::IrPoly) -> S
 /// `ff.add` / `ff.mul` and `#fNmP` literals over the field defined
 /// by the ring's prime.
 #[cfg(feature = "cvc5")]
-pub fn poly_to_smtlib_ff(ir: &PolySystem, poly: &picus_core::poly::IrPoly) -> String {
+pub fn poly_to_smtlib_ff(ir: &PolySystem, poly: &picus_core::poly::Poly) -> String {
     let p = ir.ring.field().prime();
     let parts: Vec<String> = ir
         .poly_terms(poly)

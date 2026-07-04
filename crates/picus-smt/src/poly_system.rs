@@ -23,7 +23,7 @@
 use std::sync::Arc;
 
 use num_bigint::BigUint;
-use picus_core::poly::{FfPolyRing, IrPoly as Poly};
+use picus_core::poly::{FfPolyRing, Poly};
 
 /// A use-agnostic polynomial constraint system over GF(p).
 pub struct PolySystem {

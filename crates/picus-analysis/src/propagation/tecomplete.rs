@@ -28,7 +28,7 @@ use std::collections::BTreeMap;
 
 use inventory;
 use num_bigint::BigUint;
-use picus_core::poly::IrPoly as Poly;
+use picus_core::poly::Poly;
 use crate::uniqueness::UniquenessQuery;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};

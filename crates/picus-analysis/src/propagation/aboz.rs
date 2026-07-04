@@ -16,7 +16,7 @@ use std::collections::HashSet;
 
 use num_traits::Zero;
 use picus_core::config;
-use picus_core::poly::IrPoly as Poly;
+use picus_core::poly::Poly;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
 use crate::uniqueness::UniquenessQuery;

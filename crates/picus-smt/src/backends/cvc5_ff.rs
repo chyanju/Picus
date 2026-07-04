@@ -181,7 +181,7 @@ fn build_poly_term<'a>(
     tm: &'a cvc5_ff::TermManager,
     vars: &HashMap<String, cvc5_ff::Term<'a>>,
     ir: &PolySystem,
-    poly: &picus_core::poly::IrPoly,
+    poly: &picus_core::poly::Poly,
     ff: cvc5_ff::Sort<'a>,
 ) -> cvc5_ff::Term<'a> {
     let mut sum_parts: Vec<cvc5_ff::Term<'a>> = Vec::new();

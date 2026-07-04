@@ -22,7 +22,7 @@ use std::sync::Arc;
 use num_bigint::BigUint;
 
 use picus_core::ff::field::PrimeField;
-use picus_core::poly::{FfPolyRing, IrPoly as Poly};
+use picus_core::poly::{FfPolyRing, Poly};
 use picus_r1cs::field_reduce;
 use picus_r1cs::grammar::{ConstraintBlock, R1csFile};
 

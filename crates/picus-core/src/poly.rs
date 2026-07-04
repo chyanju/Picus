@@ -265,17 +265,6 @@ impl<'a> IntoIterator for &'a AppearingVars {
     fn into_iter(self) -> Self::IntoIter { self.vars.iter() }
 }
 
-// ─── IR-layer polynomial ────────────────────────────────────────────
-//
-// The IR layer and the engine share one dense/sparse polynomial type, so
-// the IR ring is just [`FfPolyRing`] (its method surface already covers
-// everything `picus-smt`'s `PolySystem` needs) and the IR polynomial is
-// `IrPoly`, an alias for [`Polynomial`]. Keeping the alias documents intent
-// at the `picus-smt` / `picus-analysis` use sites without a second facade.
-
-/// IR polynomial — the dense/sparse `Polynomial` enum.
-pub type IrPoly = Polynomial;
-
 #[cfg(test)]
 #[path = "poly_tests.rs"]
 mod tests;

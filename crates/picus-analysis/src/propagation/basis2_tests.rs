@@ -255,7 +255,7 @@ fn ctx_state(
     n_wires: usize,
     binary_wires: &[usize],
     known: &[usize],
-) -> (HashSet<usize>, HashSet<usize>, HashMap<usize, RangeValue>, Vec<picus_core::poly::IrPoly>, Vec<Vec<picus_core::poly::IrPoly>>)
+) -> (HashSet<usize>, HashSet<usize>, HashMap<usize, RangeValue>, Vec<picus_core::poly::Poly>, Vec<Vec<picus_core::poly::Poly>>)
 {
     let known_set: HashSet<usize> = known.iter().copied().collect();
     let unknown_set: HashSet<usize> = (0..n_wires).filter(|w| !known_set.contains(w)).collect();

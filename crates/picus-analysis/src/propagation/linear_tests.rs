@@ -31,7 +31,7 @@ const PRIME: u64 = 7;
 
 fn make_ir(
     n_wires: usize,
-    build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::IrPoly>,
+    build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::Poly>,
 ) -> UniquenessQuery {
     let p = BigUint::from(PRIME);
     let field = PrimeField::new(p);
@@ -66,8 +66,8 @@ struct CtxOwned {
     known: HashSet<usize>,
     unknown: HashSet<usize>,
     ranges: HashMap<usize, RangeValue>,
-    learned: Vec<picus_core::poly::IrPoly>,
-    learned_disjunctions: Vec<Vec<picus_core::poly::IrPoly>>,
+    learned: Vec<picus_core::poly::Poly>,
+    learned_disjunctions: Vec<Vec<picus_core::poly::Poly>>,
 }
 
 impl CtxOwned {

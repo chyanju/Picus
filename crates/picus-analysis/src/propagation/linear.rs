@@ -16,7 +16,7 @@
 use std::collections::{HashMap, HashSet};
 
 use inventory;
-use picus_core::poly::IrPoly as Poly;
+use picus_core::poly::Poly;
 
 use crate::uniqueness::UniquenessQuery;
 

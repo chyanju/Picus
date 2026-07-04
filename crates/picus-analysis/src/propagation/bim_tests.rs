@@ -92,8 +92,8 @@ fn prop_bim_no_progress_on_empty_equalities() {
     let mut known_set: HashSet<usize> = HashSet::new();
     let mut unknown: HashSet<usize> = HashSet::new();
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut ctx = PropagationCtx {
         known: &mut known_set,
         unknown: &mut unknown,
@@ -159,8 +159,8 @@ fn prop_bim_inert_on_r1cs_lowered_input() {
     unknown.insert(1);
     unknown.insert(2);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -224,8 +224,8 @@ fn prop_bim_rejects_nonzero_constant_term() {
     let mut unknown: HashSet<usize> = HashSet::new();
     unknown.insert(1);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -282,8 +282,8 @@ fn prop_bim_rejects_nonlinear_equality() {
     let mut unknown: HashSet<usize> = HashSet::new();
     unknown.insert(2);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -349,8 +349,8 @@ fn prop_bim_declines_when_some_var_already_known() {
     known_set.insert(1); // wire 1 already known
     let mut unknown: HashSet<usize> = HashSet::new();
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -418,8 +418,8 @@ fn prop_bim_promotes_invertible_singleton_system() {
     let mut unknown: HashSet<usize> = HashSet::new();
     unknown.insert(1);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -486,8 +486,8 @@ fn prop_bim_promotes_2x2_invertible_system() {
     unknown.insert(1);
     unknown.insert(2);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -556,8 +556,8 @@ fn prop_bim_declines_when_not_square() {
     unknown.insert(2);
     unknown.insert(3);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -627,8 +627,8 @@ fn prop_bim_declines_on_singular_square_system() {
     unknown.insert(1);
     unknown.insert(2);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -689,8 +689,8 @@ fn prop_bim_invertible_singleton_sweeps_small_primes() {
         let mut unknown: HashSet<usize> = HashSet::new();
         unknown.insert(1);
         let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-        let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-        let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+        let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+        let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
         let mut lemma = BimLemma::default();
         let progress = {
             let mut ctx = PropagationCtx {
@@ -764,8 +764,8 @@ fn test_bim_promotes_with_pivot_swap_sign_flip() {
     unknown.insert(1);
     unknown.insert(2);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -833,8 +833,8 @@ fn test_bim_promotes_via_wrap_subtraction_branch() {
     unknown.insert(1);
     unknown.insert(2);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {
@@ -902,8 +902,8 @@ fn test_bim_promotes_3x3_skips_zero_pivot_rows() {
     unknown.insert(2);
     unknown.insert(3);
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
-    let mut learned: Vec<picus_core::poly::IrPoly> = Vec::new();
-    let mut learned_disj: Vec<Vec<picus_core::poly::IrPoly>> = Vec::new();
+    let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
+    let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = BimLemma::default();
     let progress = {
         let mut ctx = PropagationCtx {

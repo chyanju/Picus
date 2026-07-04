@@ -49,7 +49,7 @@ use std::collections::HashMap;
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use picus_core::poly::IrPoly as Poly;
+use picus_core::poly::Poly;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
 use crate::uniqueness::UniquenessQuery;

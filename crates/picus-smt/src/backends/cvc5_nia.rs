@@ -144,7 +144,7 @@ fn build_poly_nia<'a>(
     tm: &'a cvc5_ff::TermManager,
     vars: &HashMap<String, cvc5_ff::Term<'a>>,
     ir: &PolySystem,
-    poly: &picus_core::poly::IrPoly,
+    poly: &picus_core::poly::Poly,
 ) -> cvc5_ff::Term<'a> {
     let mut sum_parts: Vec<cvc5_ff::Term<'a>> = Vec::new();
     for (coeff, var_names) in ir.poly_terms(poly) {

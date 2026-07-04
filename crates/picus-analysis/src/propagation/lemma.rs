@@ -25,7 +25,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use picus_core::poly::IrPoly as Poly;
+use picus_core::poly::Poly;
 
 use crate::propagation::range::RangeValue;
 use crate::uniqueness::UniquenessQuery;

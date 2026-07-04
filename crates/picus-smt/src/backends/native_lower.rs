@@ -12,7 +12,7 @@ use std::sync::Arc;
 use num_bigint::BigUint;
 use num_traits::Zero;
 
-use picus_core::poly::IrPoly as Poly;
+use picus_core::poly::Poly;
 use picus_core::timeout::CancelToken;
 use picus_solver::boolean::{BooleanQuery, Formula, Literal};
 use picus_solver::frontend::encoder::{

@@ -87,7 +87,7 @@ fn prop_mod_inverse_self_inverse_for_p_minus_one() {
 ///
 /// Uses `n_wires` wires (so the ring carries `2 * n_wires` variables).
 /// `equalities` is built by the caller before this is called.
-fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::IrPoly>) -> UniquenessQuery {
+fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_core::poly::Poly>) -> UniquenessQuery {
     let p = BigUint::from(prime);
     let field = PrimeField::new(p);
     let mut names = Vec::with_capacity(2 * n_wires);

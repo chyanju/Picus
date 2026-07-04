@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
-use picus_core::poly::IrPoly as Poly;
+use picus_core::poly::Poly;
 use crate::uniqueness::UniquenessQuery;
 
 use super::match_decomp;
