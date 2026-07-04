@@ -1,5 +1,7 @@
 use super::*;
 use crate::config::ConfigGuard;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 // `metric::*!` take the typed counter path and lower to a gated direct
 // atomic update. Per-test gating is the thread-local gb_stats flag; each
