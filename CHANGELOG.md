@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/). Entries are telegraphic: one line per change — what changed plus the key term/API — with no narrative, mechanism explanations, or "no verdict change" boilerplate.
 
+## [Unreleased]
+- Refactor: `picus_smt::poly_ir::PolyIR` slimmed to a use-agnostic GF(p) constraint system (`ring` + `equalities`/`disjunctions`/`disequalities`/`assignments`/`bitsums`/`add_field_polys`; methods `poly_terms`/`poly_terms_idx`/`linear_term`/`constant`). The uniqueness overlay — two-copy wire layout, `n_wires`/`input_indices`/`known_signals`/`target_signal`, wire methods (`orig_var`/`alt_var`/`var_to_wire`/`x_name`/`y_name`/`set_target`/`add_known_wire`), the R1CS lowering, and `LowerError` — moves to the new `picus_analysis::uniqueness::{UniquenessQuery, r1cs_to_uniqueness_query, LowerError}`. Propagation lemmas + DPVL now take `&UniquenessQuery` (polynomials via `q.ir`). Pure refactor; verdicts unchanged.
+- `cvc5_ff`/`cvc5_nia`/`z3_nia` backends emit their disequality from the generic `PolyIR::disequalities` list (was `target_signal`/`x_name`/`y_name`), matching `native_ff`.
+- Test layout: picus-smt unit tests lower R1CS locally via `src/test_lowering.rs` (self-contained, no picus-analysis in unit tests); lowering-correctness + wire-method tests moved to `picus_analysis::uniqueness_tests`; integration tests use a `picus-analysis` dev-dependency for `r1cs_to_uniqueness_query`.
+
 ## [1.8.22] - 2026-05-31
 - `tecomplete` propagation lemma (in `all`): marks both outputs of the twisted-Edwards complete-addition gadget known once its inputs are; certified by the twisted-Edwards completeness theorem (`legendre(a) = +1`, `legendre(d) = −1`; Bernstein–Lange, ASIACRYPT 2007), checked per curve at runtime.
 

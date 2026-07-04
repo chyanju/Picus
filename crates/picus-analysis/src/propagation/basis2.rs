@@ -9,7 +9,7 @@
 //!
 //! Wire-keyed: promoting the bit/target wires to known relies on the
 //! decomposition being mirrored in both copies (the copy-symmetry
-//! invariant documented in `picus_smt::poly_ir::r1cs_to_poly_ir`).
+//! invariant documented in `picus_analysis::uniqueness::r1cs_to_uniqueness_query`).
 //!
 //! Soundness depends on `2^n <= p`, where `n` is the number of bits.
 //! When `2^n > p` two distinct bit assignments can sum to the same

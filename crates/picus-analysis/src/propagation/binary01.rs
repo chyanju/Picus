@@ -7,7 +7,7 @@
 //!
 //! Wire-keyed: promoting a wire to known relies on the `x^2-x=0` match
 //! being mirrored in both copies (the copy-symmetry invariant documented
-//! in `picus_smt::poly_ir::r1cs_to_poly_ir`).
+//! in `picus_analysis::uniqueness::r1cs_to_uniqueness_query`).
 
 use std::collections::HashSet;
 

@@ -129,7 +129,7 @@ pub fn read_r1cs(data: &[u8]) -> Result<R1csFile, R1csParseError> {
     // constant wire are a subset of all wires. Reject violations here, so
     // an adversarial header (e.g. `n_pub_in = u32::MAX`) cannot drive the
     // unbounded input-list build below or the `2 * n_wires` ring
-    // allocation in `r1cs_to_poly_ir`. `io_sum` is computed in `u64` to
+    // allocation in `r1cs_to_uniqueness_query`. `io_sum` is computed in `u64` to
     // avoid overflow when the three counts are near `u32::MAX`.
     let io_sum = 1 + header.n_pub_out as u64 + header.n_pub_in as u64 + header.n_prv_in as u64;
     if io_sum > header.n_wires as u64 {

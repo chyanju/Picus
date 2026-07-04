@@ -7,7 +7,7 @@
 //!
 //! Wire-keyed: marking a wire known relies on the collected equations
 //! being mirrored in both copies (the copy-symmetry invariant documented
-//! in `picus_smt::poly_ir::r1cs_to_poly_ir`).
+//! in `picus_analysis::uniqueness::r1cs_to_uniqueness_query`).
 #![allow(clippy::needless_range_loop)]
 
 use std::collections::{HashMap, HashSet};
@@ -42,7 +42,7 @@ impl PropagationLemma for BimLemma {
         // and all variables are currently unknown.
         //
         // Note on R1CS-lowered input: this lemma is effectively inert there.
-        // `r1cs_to_poly_ir` emits each linear constraint in both copies
+        // `r1cs_to_uniqueness_query` emits each linear constraint in both copies
         // (`Σ a_i x_{w_i}` and `Σ a_i y_{w_i}`), and `collect_linear_homogeneous`
         // maps both through `var_to_wire` (which collapses x_i and y_i to the
         // same wire) — so the two copies become identical matrix rows. A square

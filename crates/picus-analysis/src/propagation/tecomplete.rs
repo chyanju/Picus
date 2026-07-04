@@ -21,7 +21,7 @@
 //! A wire is marked known only on a full structural match with the certificate
 //! discharged; any deviation falls through (a sound miss costs only speed).
 //! Wire-keyed: promotion relies on the matched constraints being mirrored in
-//! both copies (the copy-symmetry invariant in `r1cs_to_poly_ir`); the matcher
+//! both copies (the copy-symmetry invariant in `r1cs_to_uniqueness_query`); the matcher
 //! runs on the `x_i` copy (all variables below `n_wires`).
 
 use std::collections::BTreeMap;
