@@ -880,8 +880,8 @@ impl<'tm> Solver<'tm> {
         unsafe { is_output_on(self.inner, c.as_ptr()) }
     }
 
-    /// Get the solver statistics.
-    pub fn get_statistics(&self) -> Statistics {
+    /// Get the solver statistics. The returned view borrows from this `Solver`.
+    pub fn get_statistics(&self) -> Statistics<'_> {
         Statistics::from_raw(unsafe { get_statistics(self.inner) })
     }
 

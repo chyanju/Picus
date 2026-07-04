@@ -1,22 +1,30 @@
 use cvc5_ff_sys::*;
 use std::ffi::CString;
 use std::fmt;
+use std::marker::PhantomData;
 
 /// Solver statistics collected during solving.
-pub struct Statistics {
+///
+/// The raw `cvc5_ff_sys::Statistics` is a borrowed view into the owning
+/// `Solver` / `TermManager` (cvc5 exposes no copy/release for it), so this
+/// wrapper carries a `'tm` lifetime tying it to that owner — the borrow checker
+/// then rejects using a `Statistics` past the owner's drop (a use-after-free).
+pub struct Statistics<'tm> {
     pub(crate) inner: cvc5_ff_sys::Statistics,
+    pub(crate) _phantom: PhantomData<&'tm ()>,
 }
 
-impl Statistics {
+impl<'tm> Statistics<'tm> {
     pub(crate) fn from_raw(raw: cvc5_ff_sys::Statistics) -> Self {
-        Self { inner: raw }
+        Self { inner: raw, _phantom: PhantomData }
     }
 
     /// Look up a statistic by name.
-    pub fn get(&self, name: &str) -> Stat {
+    pub fn get(&self, name: &str) -> Stat<'tm> {
         let c = CString::new(name).unwrap();
         Stat {
             inner: unsafe { stats_get(self.inner, c.as_ptr()) },
+            _phantom: PhantomData,
         }
     }
 
@@ -34,7 +42,7 @@ impl Statistics {
     }
 
     /// Advance the iterator and return the next `(name, stat)` pair.
-    pub fn iter_next(&self) -> (String, Stat) {
+    pub fn iter_next(&self) -> (String, Stat<'tm>) {
         let mut name: *const std::os::raw::c_char = std::ptr::null();
         let s = unsafe { stats_iter_next(self.inner, &mut name) };
         let n = unsafe {
@@ -42,22 +50,22 @@ impl Statistics {
                 .to_string_lossy()
                 .into_owned()
         };
-        (n, Stat { inner: s })
+        (n, Stat { inner: s, _phantom: PhantomData })
     }
 
     /// Advance the iterator and return only the next [`Stat`], ignoring the name.
-    pub fn iter_next_stat(&self) -> Stat {
+    pub fn iter_next_stat(&self) -> Stat<'tm> {
         self.iter_next().1
     }
 }
 
-impl fmt::Debug for Statistics {
+impl fmt::Debug for Statistics<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Statistics({self})")
     }
 }
 
-impl fmt::Display for Statistics {
+impl fmt::Display for Statistics<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = unsafe { stats_to_string(self.inner) };
         write!(f, "{}", unsafe {
@@ -66,12 +74,14 @@ impl fmt::Display for Statistics {
     }
 }
 
-/// A single statistic value.
-pub struct Stat {
+/// A single statistic value. Borrowed from the owning [`Statistics`] (and thus
+/// the `Solver` / `TermManager`); the `'tm` lifetime prevents use-after-free.
+pub struct Stat<'tm> {
     pub(crate) inner: cvc5_ff_sys::Stat,
+    pub(crate) _phantom: PhantomData<&'tm ()>,
 }
 
-impl Stat {
+impl Stat<'_> {
     /// Return `true` if this is an internal (non-public) statistic.
     pub fn is_internal(&self) -> bool {
         unsafe { stat_is_internal(self.inner) }
@@ -139,13 +149,13 @@ impl Stat {
     }
 }
 
-impl fmt::Debug for Stat {
+impl fmt::Debug for Stat<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Stat({self})")
     }
 }
 
-impl fmt::Display for Stat {
+impl fmt::Display for Stat<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = unsafe { stat_to_string(self.inner) };
         write!(f, "{}", unsafe {

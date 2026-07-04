@@ -489,8 +489,8 @@ impl TermManager {
         Term::from_raw(unsafe { mk_string_from_char32(self.ptr(), s.as_ptr()) })
     }
 
-    /// Get the term manager statistics.
-    pub fn get_statistics(&self) -> Statistics {
+    /// Get the term manager statistics. The view borrows from this `TermManager`.
+    pub fn get_statistics(&self) -> Statistics<'_> {
         Statistics::from_raw(unsafe { term_manager_get_statistics(self.ptr()) })
     }
 
