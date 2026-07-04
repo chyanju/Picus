@@ -4,7 +4,7 @@ use owo_colors::OwoColorize;
 use picus::{
     check_r1cs, dump_gb_stats, dump_profile, read_r1cs_file, resolve_config, AnalysisOverlay,
     BigUint, CheckResult, EngineOverlay, GbStrategy, PicusConfig, PicusConfigOverlay, ReprKind,
-    SolverKind, Theory,
+    SolverKind,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -507,10 +507,7 @@ fn cmd_check(r1cs_path: PathBuf, config: PicusConfig, format: OutputFormat) {
     let theory = config.analysis.theory;
     let timeout = config.analysis.timeout_ms;
     let lemmas_display = config.analysis.lemmas.to_string();
-    let theory_str = match theory {
-        Theory::Ff => "ff",
-        Theory::Nia => "nia",
-    };
+    let theory_str = theory.as_str();
 
     // Validate up front for a clean message (check_r1cs validates too).
     if let Err(e) = picus::advanced::validate_combination(solver, theory) {
@@ -523,13 +520,12 @@ fn cmd_check(r1cs_path: PathBuf, config: PicusConfig, format: OutputFormat) {
 
     let result = check_r1cs(&r1cs, config).unwrap_or_else(|e| exit_error(&e.to_string()));
 
-    let solver_display = match (solver, theory) {
-        (SolverKind::Cvc5, Theory::Ff) => "cvc5 (QF_FF)",
-        (SolverKind::Cvc5, Theory::Nia) => "cvc5 (QF_NIA)",
-        (SolverKind::Z3, Theory::Nia) => "z3 (QF_NIA)",
-        (SolverKind::Native, Theory::Ff) => "native (QF_FF)",
-        (SolverKind::None, _) => "none",
-        _ => "unknown",
+    // Derived from the enums so any future solver+theory pair reads correctly
+    // (no hand-maintained match, no `"unknown"` fall-through).
+    let solver_display = if solver == SolverKind::None {
+        "none".to_string()
+    } else {
+        format!("{} ({})", solver.as_str(), theory.smtlib_name())
     };
 
     match format {
@@ -551,7 +547,7 @@ fn cmd_check(r1cs_path: PathBuf, config: PicusConfig, format: OutputFormat) {
             print_field("Prv In", &r1cs.header.n_prv_in.to_string());
             aprintln!();
             print_section("Analysis");
-            print_field("Solver", solver_display);
+            print_field("Solver", &solver_display);
             print_field("Lemmas", &lemmas_display);
             print_field("Timeout", &format!("{}ms", timeout));
             aprintln!();

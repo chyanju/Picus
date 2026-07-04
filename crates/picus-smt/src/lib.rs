@@ -24,8 +24,10 @@ pub const SUBP_CONSTANT_NAMES: &[&str] =
 ///   2. a `SolverKind::from_str` arm (this file) mapping the name;
 ///   3. `validate_combination` (this file) for any rejected theory pairing;
 ///   4. an `inventory::submit!` of a `backends::SolverBackendDescriptor`
-///      in the backend module, so `create_backend_by_name` can build it;
-///   5. the `solver_display` match in `picus-cli` for the human-readable header.
+///      in the backend module, so `create_backend_by_name` can build it.
+///
+/// (The `picus-cli` human-readable header is derived from `SolverKind::as_str`
+/// + `Theory::smtlib_name`, so it needs no per-backend edit.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolverKind {
     Z3,
@@ -43,6 +45,24 @@ pub enum Theory {
     Ff,
     /// QF_NIA: nonlinear integer arithmetic with mod p.
     Nia,
+}
+
+impl Theory {
+    /// Canonical lowercase name, matching `--theory <name>`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Theory::Ff => "ff",
+            Theory::Nia => "nia",
+        }
+    }
+
+    /// SMT-LIB logic name (`QF_FF` / `QF_NIA`).
+    pub fn smtlib_name(self) -> &'static str {
+        match self {
+            Theory::Ff => "QF_FF",
+            Theory::Nia => "QF_NIA",
+        }
+    }
 }
 
 impl SolverKind {
