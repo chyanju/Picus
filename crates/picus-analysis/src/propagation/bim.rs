@@ -98,23 +98,19 @@ impl PropagationLemma for BimLemma {
 /// Constant terms are tolerated if and only if they are exactly zero.
 fn collect_linear_homogeneous(q: &UniquenessQuery) -> Vec<Vec<(usize, BigUint)>> {
     let mut out = Vec::new();
-    // Sparse-native: a term is admissible iff it is the zero constant, or a
-    // single linear variable (one nonzero entry with exponent 1).
-    'poly: for poly in &q.ir.equalities {
-        let mut row: Vec<(usize, BigUint)> = Vec::new();
-        for (coeff, vars) in q.ir.poly_terms_idx(poly) {
-            if vars.is_empty() {
-                // constant term: tolerated only if exactly zero
-                if !coeff.is_zero() {
-                    continue 'poly;
-                }
-            } else if vars.len() == 1 && vars[0].1 == 1 {
-                row.push((q.var_to_wire(vars[0].0), coeff));
-            } else {
-                // nonlinear (deg ≥ 2, or a product of variables)
-                continue 'poly;
-            }
+    // A poly is admissible iff every term is the zero constant or a single
+    // linear variable; a nonzero constant rejects the whole poly.
+    for poly in &q.ir.equalities {
+        let Some((terms, constant)) = super::shape::linear_form(q, poly) else {
+            continue; // nonlinear (deg ≥ 2, or a product of variables)
+        };
+        if !constant.is_zero() {
+            continue; // constant term tolerated only if exactly zero
         }
+        let row: Vec<(usize, BigUint)> = terms
+            .into_iter()
+            .map(|(v, coeff)| (q.var_to_wire(v), coeff))
+            .collect();
         if !row.is_empty() {
             out.push(row);
         }

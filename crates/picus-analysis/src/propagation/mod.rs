@@ -6,6 +6,7 @@ pub mod lemma;
 pub mod linear;
 pub mod tecomplete;
 pub mod range;
+pub(crate) mod shape;
 
 pub use lemma::{all_descriptors, all_names, LemmaDescriptor, PropagationCtx, PropagationLemma};
 pub use range::{initial_ranges, RangeValue};

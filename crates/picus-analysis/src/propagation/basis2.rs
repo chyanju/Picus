@@ -116,21 +116,13 @@ fn match_decomp(q: &UniquenessQuery, poly: &Poly) -> Option<Decomp> {
     let p = q.ir.ring.field().prime();
     let one = BigUint::one();
 
-    // Collect linear-only terms; reject any non-linear monomial; any
-    // constant term must be zero.
-    let mut terms: Vec<(BigUint, usize)> = Vec::new();
-    for (coeff, vars) in q.ir.poly_terms_idx(poly) {
-        if vars.is_empty() {
-            if !coeff.is_zero() {
-                return None;
-            }
-            continue;
-        }
-        if vars.len() != 1 || vars[0].1 != 1 {
-            return None;
-        }
-        terms.push((coeff, vars[0].0));
+    // Collect linear-only terms (as `(coeff, var)`); reject any non-linear
+    // monomial or nonzero constant term.
+    let (raw, constant) = super::shape::linear_form(q, poly)?;
+    if !constant.is_zero() {
+        return None;
     }
+    let terms: Vec<(BigUint, usize)> = raw.into_iter().map(|(v, c)| (c, v)).collect();
     if terms.len() < 2 {
         return None;
     }

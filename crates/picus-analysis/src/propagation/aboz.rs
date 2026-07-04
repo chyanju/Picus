@@ -212,19 +212,13 @@ fn match_bilinear(q: &UniquenessQuery, poly: &Poly) -> Option<(usize, usize)> {
 /// monomials (no quadratic terms). Constants are ignored.
 fn collect_linear_sums(q: &UniquenessQuery) -> Vec<HashSet<usize>> {
     let mut out = Vec::new();
-    // Sparse-native: accept a poly only if every term is a constant or a
-    // single linear variable (one nonzero entry with exponent 1).
-    'poly: for poly in &q.ir.equalities {
-        let mut wires: HashSet<usize> = HashSet::new();
-        for (_coeff, vars) in q.ir.poly_terms_idx(poly) {
-            if vars.is_empty() {
-                continue; // constant term
-            }
-            if vars.len() != 1 || vars[0].1 != 1 {
-                continue 'poly; // nonlinear / product term
-            }
-            wires.insert(q.var_to_wire(vars[0].0));
-        }
+    // Accept a poly only if every term is a constant or a single linear
+    // variable; the constant, if any, is ignored here.
+    for poly in &q.ir.equalities {
+        let Some((terms, _constant)) = super::shape::linear_form(q, poly) else {
+            continue; // nonlinear / product term
+        };
+        let wires: HashSet<usize> = terms.iter().map(|(v, _)| q.var_to_wire(*v)).collect();
         if !wires.is_empty() {
             out.push(wires);
         }

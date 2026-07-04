@@ -104,25 +104,14 @@ fn build_canon(q: &UniquenessQuery) -> Vec<usize> {
     let n = q.ir.ring.n_vars();
     let mut parent: Vec<usize> = (0..n).collect();
     for poly in &q.ir.equalities {
-        let mut lin: Vec<(BigUint, usize)> = Vec::with_capacity(2);
-        let mut ok = true;
-        for (c, vars) in q.ir.poly_terms_idx(poly) {
-            if vars.is_empty() {
-                if !c.is_zero() {
-                    ok = false;
-                    break;
-                }
-                continue;
-            }
-            if vars.len() != 1 || vars[0].1 != 1 || lin.len() == 2 {
-                ok = false;
-                break;
-            }
-            lin.push((c, vars[0].0));
-        }
-        if !ok || lin.len() != 2 {
+        // Exactly two linear terms `(coeff, var)`, no nonzero constant.
+        let Some((raw, constant)) = crate::propagation::shape::linear_form(q, poly) else {
+            continue;
+        };
+        if !constant.is_zero() || raw.len() != 2 {
             continue;
         }
+        let lin: Vec<(BigUint, usize)> = raw.into_iter().map(|(v, c)| (c, v)).collect();
         if (&lin[0].0 + &lin[1].0) % p == BigUint::zero() {
             let ra = uf_find(&mut parent, lin[0].1);
             let rb = uf_find(&mut parent, lin[1].1);
@@ -289,25 +278,17 @@ fn find_sum_var(q: &UniquenessQuery, canon: &[usize], part_outs: &[usize]) -> Op
     let p = q.ir.ring.field().prime();
     let targets: HashSet<usize> = part_outs.iter().copied().collect();
     for poly in &q.ir.equalities {
-        let mut coeffs: HashMap<usize, BigUint> = HashMap::new();
-        let mut ok = true;
-        for (c, vars) in q.ir.poly_terms_idx(poly) {
-            if vars.is_empty() {
-                if !c.is_zero() {
-                    ok = false;
-                    break;
-                }
-                continue;
-            }
-            if vars.len() != 1 || vars[0].1 != 1 {
-                ok = false;
-                break;
-            }
-            let e = coeffs.entry(canon[vars[0].0]).or_insert_with(BigUint::zero);
-            *e = (&*e + &c) % p;
-        }
-        if !ok {
+        // Linear-only, zero constant; accumulate coeffs by canonical variable.
+        let Some((raw, constant)) = crate::propagation::shape::linear_form(q, poly) else {
             continue;
+        };
+        if !constant.is_zero() {
+            continue;
+        }
+        let mut coeffs: HashMap<usize, BigUint> = HashMap::new();
+        for (v, c) in raw {
+            let e = coeffs.entry(canon[v]).or_insert_with(BigUint::zero);
+            *e = (&*e + &c) % p;
         }
         // Exactly one variable outside `targets` (the candidate `S`).
         let extras: Vec<usize> = coeffs
@@ -371,27 +352,15 @@ fn find_inner_bit(
 /// term `c·w = 0` (`c ≠ 0`) with `canon[w] == var`.
 fn find_pinned_zero(q: &UniquenessQuery, canon: &[usize], var: usize) -> bool {
     for poly in &q.ir.equalities {
-        let mut lin: Option<(BigUint, usize)> = None;
-        let mut ok = true;
-        for (c, vars) in q.ir.poly_terms_idx(poly) {
-            if vars.is_empty() {
-                if !c.is_zero() {
-                    ok = false;
-                    break;
-                }
-                continue;
-            }
-            if vars.len() != 1 || vars[0].1 != 1 || lin.is_some() {
-                ok = false;
-                break;
-            }
-            lin = Some((c, canon[vars[0].0]));
-        }
-        if !ok {
+        // At most one linear term, zero constant.
+        let Some((raw, constant)) = crate::propagation::shape::linear_form(q, poly) else {
+            continue;
+        };
+        if !constant.is_zero() || raw.len() > 1 {
             continue;
         }
-        if let Some((c, v)) = lin {
-            if !c.is_zero() && v == var {
+        if let Some((v, c)) = raw.into_iter().next() {
+            if !c.is_zero() && canon[v] == var {
                 return true;
             }
         }
