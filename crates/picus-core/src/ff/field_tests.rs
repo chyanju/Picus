@@ -816,24 +816,6 @@ fn prop_neg_owned_matches_neg_small_primes() {
     }
 }
 
-#[test]
-fn prop_add_assign_owned_matches_add_small_primes() {
-    // add_assign_owned forwards to add_assign — same semantic.
-    for &p in &small_primes() {
-        let f = PrimeField::new(BigUint::from(p));
-        for x in 0..p {
-            for y in 0..p {
-                let a = f.from_u64(x);
-                let b = f.from_u64(y);
-                let expected = f.add(&a, &b);
-                let mut a_mut = a.clone();
-                f.add_assign_owned(&mut a_mut, b);
-                assert_eq!(a_mut, expected, "GF({p}) add_assign_owned({x},{y})");
-            }
-        }
-    }
-}
-
 // ──────────────────────────── feanor-style aliases ─────────────────────
 
 #[test]
@@ -846,8 +828,6 @@ fn prop_feanor_aliases_forward() {
                 let a = f.from_u64(x);
                 let b = f.from_u64(y);
                 assert_eq!(f.eq_el(&a, &b), a == b, "eq_el forwards");
-                assert_eq!(f.add_ref(&a, &b), f.add(&a, &b));
-                assert_eq!(f.sub_ref(&a, &b), f.sub(&a, &b));
                 assert_eq!(f.mul_ref(&a, &b), f.mul(&a, &b));
                 // by-value negate
                 assert_eq!(f.negate(a.clone()), f.neg(&a));
@@ -899,16 +879,6 @@ fn prop_primefield_eq_by_prime() {
     assert!(f1 == f1c);
 }
 
-// ──────────────────────────── characteristic == prime ──────────────────
-
-#[test]
-fn prop_characteristic_equals_prime() {
-    for &p in &small_primes() {
-        let f = PrimeField::new(BigUint::from(p));
-        assert_eq!(f.characteristic(), f.prime());
-        assert_eq!(*f.characteristic(), BigUint::from(p));
-    }
-}
 
 // ──────────────────────────── is_zero / is_one semantics ───────────────
 

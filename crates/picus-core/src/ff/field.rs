@@ -296,11 +296,6 @@ impl PrimeField {
     }
 
     #[inline]
-    pub fn characteristic(&self) -> &BigUint {
-        &self.prime_bu
-    }
-
-    #[inline]
     pub fn zero(&self) -> FieldElem {
         match &self.kind {
             FieldKind::Gmp { .. } => FieldElem::from_integer_unchecked(Integer::new()),
@@ -405,11 +400,6 @@ impl PrimeField {
                 *av = small_add(*av, b_ref.as_small(), *prime);
             }
         }
-    }
-
-    /// By-value `b` variant of [`Self::add_assign`].
-    pub fn add_assign_owned(&self, a: &mut FieldElem, b: FieldElem) {
-        self.add_assign(a, &b)
     }
 
     pub fn sub(&self, a: &FieldElem, b: &FieldElem) -> FieldElem {
@@ -711,16 +701,6 @@ impl PrimeField {
     #[inline]
     pub fn mul_ref(&self, a: &FieldElem, b: &FieldElem) -> FieldElem {
         self.mul(a, b)
-    }
-
-    #[inline]
-    pub fn add_ref(&self, a: &FieldElem, b: &FieldElem) -> FieldElem {
-        self.add(a, b)
-    }
-
-    #[inline]
-    pub fn sub_ref(&self, a: &FieldElem, b: &FieldElem) -> FieldElem {
-        self.sub(a, b)
     }
 
     #[inline]

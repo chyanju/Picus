@@ -41,35 +41,13 @@ pub struct MatrixOrder {
 }
 
 impl MatrixOrder {
-    /// Build from explicit dense rows. Every row must have length
-    /// `n_vars`; zero entries are dropped into the sparse representation.
-    pub fn from_rows(rows: Vec<Vec<i64>>, n_vars: usize) -> Self {
-        debug_assert!(
-            rows.iter().all(|r| r.len() == n_vars),
-            "every matrix-order row must have length n_vars"
-        );
-        let sparse = rows
-            .into_iter()
-            .map(|r| {
-                r.into_iter()
-                    .enumerate()
-                    .filter(|&(_, v)| v != 0)
-                    .collect::<Vec<(usize, i64)>>()
-            })
-            .collect();
-        MatrixOrder { rows: sparse, n_vars }
-    }
-
     pub fn n_vars(&self) -> usize {
         self.n_vars
     }
 
-    pub fn n_rows(&self) -> usize {
-        self.rows.len()
-    }
-
     /// Pure lexicographic order: rows are the unit vectors `e_0..e_{n-1}`.
-    /// Reproduces `MonomialOrder::Lex`.
+    /// Reproduces `MonomialOrder::Lex`. Test-only.
+    #[cfg(test)]
     pub fn lex(n_vars: usize) -> Self {
         let rows = (0..n_vars).map(|i| vec![(i, 1i64)]).collect();
         MatrixOrder { rows, n_vars }
@@ -133,7 +111,8 @@ impl MatrixOrder {
 
     /// Necessary admissibility condition: every single variable orders
     /// strictly above the constant monomial `1`. Built-in constructors
-    /// satisfy this by construction; `from_rows` callers should check.
+    /// satisfy this by construction. Test-only.
+    #[cfg(test)]
     pub fn is_admissible(&self) -> bool {
         let zero = vec![0u16; self.n_vars];
         for i in 0..self.n_vars {
