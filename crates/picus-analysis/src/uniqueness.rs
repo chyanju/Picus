@@ -24,7 +24,6 @@ use std::sync::Arc;
 use num_bigint::BigUint;
 use thiserror::Error;
 
-use picus_r1cs::field_reduce;
 use picus_r1cs::grammar::{ConstraintBlock, R1csFile};
 use picus_core::ff::field::PrimeField;
 use picus_core::poly::{FfPolyRing, Poly};
@@ -184,13 +183,13 @@ pub fn r1cs_to_uniqueness_query(
 
     // Original-copy constraints.
     for c in &r1cs.constraints.constraints {
-        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, /*is_alt=*/ false, prime)? {
+        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, /*is_alt=*/ false)? {
             equalities.push(eq);
         }
     }
     // Alt-copy constraints.
     for c in &r1cs.constraints.constraints {
-        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, /*is_alt=*/ true, prime)? {
+        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, /*is_alt=*/ true)? {
             equalities.push(eq);
         }
     }
@@ -234,11 +233,10 @@ fn constraint_to_poly(
     c: &ConstraintBlock,
     input_indices: &HashSet<usize>,
     is_alt: bool,
-    prime: &BigUint,
 ) -> Result<Option<Poly>, LowerError> {
-    let sum_a = block_to_linear(ring, a, input_indices, is_alt, prime, "A")?;
-    let sum_b = block_to_linear(ring, b, input_indices, is_alt, prime, "B")?;
-    let sum_c = block_to_linear(ring, c, input_indices, is_alt, prime, "C")?;
+    let sum_a = block_to_linear(ring, a, input_indices, is_alt, "A")?;
+    let sum_b = block_to_linear(ring, b, input_indices, is_alt, "B")?;
+    let sum_c = block_to_linear(ring, c, input_indices, is_alt, "C")?;
     let ab = ring.mul(sum_a, sum_b);
     let eq = ring.sub(ab, sum_c);
     if ring.is_zero(&eq) {
@@ -258,7 +256,6 @@ fn block_to_linear(
     block: &ConstraintBlock,
     input_indices: &HashSet<usize>,
     is_alt: bool,
-    prime: &BigUint,
     ctx: &'static str,
 ) -> Result<Poly, LowerError> {
     let n_wires = ring.n_vars() / 2;
@@ -272,8 +269,7 @@ fn block_to_linear(
                 ctx,
             });
         }
-        let coeff = field_reduce(factor, prime);
-        let coeff_el = ring.field().from_biguint(&coeff);
+        let coeff_el = ring.field().from_biguint(factor);
         let term = if wid == 0 {
             // x_0 = y_0 = 1 (R1CS one-wire); fold the coefficient directly
             // into the constant term.

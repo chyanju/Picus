@@ -18,50 +18,6 @@ fn prop_bn128_prime_is_idempotent() {
     assert!(std::ptr::eq(bn128_prime(), bn128_prime()));
 }
 
-// ---- field_reduce() ----
-
-#[test]
-fn prop_field_reduce_small_primes() {
-    for &p in &[2u32, 7, 101] {
-        let prime = BigUint::from(p);
-        // 0 mod p = 0
-        assert_eq!(field_reduce(&BigUint::from(0u32), &prime), BigUint::from(0u32));
-        // p mod p = 0
-        assert_eq!(field_reduce(&prime, &prime), BigUint::from(0u32));
-        // (p - 1) mod p = p - 1 (since p >= 2)
-        let pm1 = &prime - 1u32;
-        assert_eq!(field_reduce(&pm1, &prime), pm1.clone());
-    }
-}
-
-#[test]
-fn prop_field_reduce_idempotent() {
-    // (x mod p) mod p = x mod p.
-    let p = BigUint::from(7u32);
-    let x = BigUint::from(123u32);
-    let once = field_reduce(&x, &p);
-    let twice = field_reduce(&once, &p);
-    assert_eq!(once, twice);
-}
-
-#[test]
-fn prop_field_reduce_bound() {
-    // Result is strictly less than p for any non-trivial prime.
-    let p = BigUint::from(7u32);
-    for v in 0u32..50 {
-        let r = field_reduce(&BigUint::from(v), &p);
-        assert!(r < p);
-    }
-}
-
-#[test]
-fn prop_field_reduce_bn128_passthrough() {
-    // BN128 prime divides itself; a value less than p stays itself.
-    let p = bn128_prime();
-    let small = BigUint::from(42u32);
-    assert_eq!(&field_reduce(&small, p), &small);
-}
-
 // ---- parse_var_index() ----
 
 #[test]

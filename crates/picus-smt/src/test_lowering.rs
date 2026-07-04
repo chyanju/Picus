@@ -23,7 +23,6 @@ use num_bigint::BigUint;
 
 use picus_core::ff::field::PrimeField;
 use picus_core::poly::{FfPolyRing, Poly};
-use picus_r1cs::field_reduce;
 use picus_r1cs::grammar::{ConstraintBlock, R1csFile};
 
 use crate::poly_system::PolySystem;
@@ -55,12 +54,12 @@ pub(crate) fn lower_two_copy(r1cs: &R1csFile, target: usize) -> PolySystem {
 
     // Original-copy constraints, then alt-copy constraints.
     for c in &r1cs.constraints.constraints {
-        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, false, prime) {
+        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, false) {
             equalities.push(eq);
         }
     }
     for c in &r1cs.constraints.constraints {
-        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, true, prime) {
+        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, true) {
             equalities.push(eq);
         }
     }
@@ -93,11 +92,10 @@ fn constraint_to_poly(
     c: &ConstraintBlock,
     input_indices: &HashSet<usize>,
     is_alt: bool,
-    prime: &BigUint,
 ) -> Option<Poly> {
-    let sum_a = block_to_linear(ring, a, input_indices, is_alt, prime);
-    let sum_b = block_to_linear(ring, b, input_indices, is_alt, prime);
-    let sum_c = block_to_linear(ring, c, input_indices, is_alt, prime);
+    let sum_a = block_to_linear(ring, a, input_indices, is_alt);
+    let sum_b = block_to_linear(ring, b, input_indices, is_alt);
+    let sum_c = block_to_linear(ring, c, input_indices, is_alt);
     let ab = ring.mul(sum_a, sum_b);
     let eq = ring.sub(ab, sum_c);
     if ring.is_zero(&eq) {
@@ -115,14 +113,12 @@ fn block_to_linear(
     block: &ConstraintBlock,
     input_indices: &HashSet<usize>,
     is_alt: bool,
-    prime: &BigUint,
 ) -> Poly {
     let n_wires = ring.n_vars() / 2;
     let mut acc = ring.zero();
     for (&wire_id, factor) in block.wire_ids.iter().zip(block.factors.iter()) {
         let wid = wire_id as usize;
-        let coeff = field_reduce(factor, prime);
-        let coeff_el = ring.field().from_biguint(&coeff);
+        let coeff_el = ring.field().from_biguint(factor);
         let term = if wid == 0 {
             ring.constant(coeff_el)
         } else {
