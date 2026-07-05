@@ -288,7 +288,8 @@ The `PolySystem` constraint system and the solver-backend trait.
   bookkeeping (`n_wires` / `input_indices` / `known_signals` /
   `target_signal`), the wire methods (`orig_var` / `alt_var` /
   `var_to_wire` / `x_name` / `y_name` / `set_target` /
-  `add_known_wire`), and the R1CS lowering `r1cs_to_uniqueness_query`
+  `add_known_wire`), and the two-copy lowerings
+  `polysystem_to_uniqueness_query` / `r1cs_to_uniqueness_query`
   — lives one layer up in
   [`picus_analysis::uniqueness::UniquenessQuery`](#picus-analysis)
   (see below), which owns a `PolySystem` and adds those. `picus-smt`
@@ -359,23 +360,28 @@ DPVL algorithm, the uniqueness overlay, and propagation lemma plugins.
   two-copy wire bookkeeping (`n_wires` / `input_indices` /
   `known_signals` / `target_signal`) and the wire methods
   (`orig_var` / `alt_var` / `var_to_wire` / `x_name` / `y_name` /
-  `set_target` / `add_known_wire`). `set_target(w)` writes the single
-  disequality `(x_w, y_w)` onto the underlying `PolySystem`;
-  `add_known_wire(w)` appends `x_w - y_w = 0`.
-  `r1cs_to_uniqueness_query(r1cs, &known, target) -> Result<UniquenessQuery, LowerError>`
-  performs the two-copy R1CS lowering in one pass: for `n_wires`
-  wires the ring carries `2 * n_wires` variables (`x_i` at index `i`,
-  `y_i` at `n_wires + i`), each `A * B = C` becomes
-  `expand(A)·expand(B) - expand(C) = 0` emitted in both copies, input
-  wires reuse `x_i` in both copies (no `x_i - y_i = 0` needed), and
-  wire 0 folds into a constant with one explicit `x_0 = 1` pin. The
-  prime comes from `r1cs.header.prime_number` (no hard-coded curve);
-  an out-of-bounds wire id surfaces as `LowerError::WireOutOfBounds`.
-  The propagation lemmas read `&UniquenessQuery` (polynomials via
-  `q.ir`, wire mapping via `q.var_to_wire`).
-- **`dpvl.rs`** — The DPVL outer loop. Lowers `R1csFile` →
-  `UniquenessQuery` once, instantiates the lemma plugins selected by
-  `LemmaSet`, and iterates:
+  `set_target` / `add_known_wire`). `set_target(w)` rebuilds the
+  underlying `PolySystem`'s disequalities as `base_disequalities` (the
+  source circuit's own, if any) plus the target pair `(x_w, y_w)`;
+  `add_known_wire(w)` appends `x_w - y_w = 0`. Two lowerings build a query:
+  `polysystem_to_uniqueness_query(single, &inputs, &known) -> Result<UniquenessQuery, LowerError>`
+  doubles an arbitrary single-copy `PolySystem` — for `n` variables the
+  result ring carries `2n` (`x_i` at index `i`, `y_i` at `n + i`), with
+  every constraint (equality, disjunction, assignment, bitsum, disequality)
+  emitted in both copies and input wires reusing `x_i` (no `x_i - y_i = 0`).
+  `r1cs_to_uniqueness_query(r1cs, &known, target)` wraps it: it builds the
+  single-copy system from each `A * B = C` (`expand(A)·expand(B) -
+  expand(C) = 0`, wire 0 folded into a constant), doubles that, then pins
+  `x_0 = 1` and records the target. The prime comes from
+  `r1cs.header.prime_number` (no hard-coded curve); an out-of-bounds wire
+  id surfaces as `LowerError::WireOutOfBounds`. The propagation lemmas read
+  `&UniquenessQuery` (polynomials via `q.ir`, wire mapping via
+  `q.var_to_wire`).
+- **`dpvl.rs`** — The DPVL outer loop. `run_dpvl(r1cs, config)` lowers
+  `R1csFile` → `UniquenessQuery`, then delegates to
+  `run_dpvl_on_query(q, &targets, config)` — the entry point for callers
+  holding a pre-built query (e.g. from `polysystem_to_uniqueness_query`).
+  It instantiates the lemma plugins selected by `LemmaSet` and iterates:
   1. Propagation: each registered `PropagationLemma` runs once
      per outer iteration; `ctx.learned` polynomials are folded
      into `q.ir.equalities` between iterations.
@@ -417,8 +423,12 @@ Public library facade.
   indexable by handle (`m[x]`) or name (`m["x"]`). Lowering to a
   `PolySystem` (the `ir::lower` module) is the only place `Arc` /
   `FfPolyRing` / `Poly` appear; the solver is unchanged.
-  `PolyIR::lower()` is the power-user bridge to the low-level `PolySystem`;
-  the internal `solve_system(&PolySystem, config)` decides it. Soundness:
+  `PolyIR::lower()` is the bridge to the low-level `PolySystem`;
+  the internal `solve_system(&PolySystem, config)` decides it.
+  `PolyIR::check_uniqueness(inputs, outputs, known, cfg)` instead runs the
+  full DPVL uniqueness analysis on the IR (doubling via
+  `polysystem_to_uniqueness_query`, then `run_dpvl_on_query`), returning a
+  `CheckResult` with witnesses keyed by variable name. Soundness:
   the native FF backend is sound; completeness over small primes needs
   `field_polys(true)` (encoder gate `prime <= 1000`), else
   sound-but-incomplete.

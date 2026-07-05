@@ -5,7 +5,7 @@
 //! natural Rust operators — `x*x - x`, `2*x + 3*y - 5`, `x.pow(3)` — then
 //! [`assert`](PolyIR::assert) / [`eq`](PolyIR::eq) / [`ne`](PolyIR::ne) / … and
 //! [`solve`](PolyIR::solve). The low-level `Arc`/ring/`Poly` machinery stays
-//! hidden; the only bridge to it is [`PolyIR::lower`], for power users.
+//! hidden; the only bridge to it is [`PolyIR::lower`].
 //!
 //! ```
 //! use picus::ir::PolyIR;
@@ -276,10 +276,57 @@ impl PolyIR {
         })
     }
 
-    /// Lower to a raw [`PolySystem`] — the power-user bridge to the low-level
-    /// machinery.
+    /// Lower to a raw [`PolySystem`] — the bridge to the low-level machinery.
     pub fn lower(&self) -> picus_smt::poly_system::PolySystem {
         lower::lower(self)
+    }
+
+    /// Check whether `outputs` are uniquely determined by `inputs` under this
+    /// system's constraints, using the full DPVL uniqueness analysis (two-copy
+    /// lowering + propagation lemmas) rather than the bare solver
+    /// [`Self::solve`] runs.
+    ///
+    /// `inputs` are shared across the two witnesses; `outputs` are the signals
+    /// whose determinism is tested; `known` optionally seeds wires already
+    /// believed unique (pass `&[]` if none). All handles must come from this
+    /// system. Returns [`Safe`](crate::CheckResult::Safe) when every output is
+    /// forced equal across both copies, [`Unsafe`](crate::CheckResult::Unsafe)
+    /// with the two witnesses (keyed by variable name) when a counter-example
+    /// exists, or [`Unknown`](crate::CheckResult::Unknown).
+    pub fn check_uniqueness(
+        &self,
+        inputs: &[Var],
+        outputs: &[Var],
+        known: &[Var],
+        cfg: PicusConfig,
+    ) -> Result<crate::CheckResult, crate::PicusError> {
+        crate::check_polyir_uniqueness(self, inputs, outputs, known, cfg)
+    }
+
+    /// Validate that `var` belongs to this system and return its ring index.
+    pub(crate) fn var_index(&self, var: Var) -> usize {
+        self.check_var(var);
+        var.idx as usize
+    }
+
+    /// Rename a witness map keyed by the doubled ring's `x{i}` / `y{i}` names
+    /// back to this system's user-facing names (both copies of wire `i` map to
+    /// `names[i]`), dropping auxiliary `__`-prefixed variables.
+    pub(crate) fn rename_witness(
+        &self,
+        m: HashMap<String, BigUint>,
+    ) -> HashMap<String, BigUint> {
+        let mut out = HashMap::new();
+        for (k, v) in m {
+            if let Some(i) = picus_r1cs::parse_var_index(&k) {
+                if let Some(name) = self.names.get(i) {
+                    if !name.starts_with("__") {
+                        out.insert(name.clone(), v);
+                    }
+                }
+            }
+        }
+        out
     }
 }
 

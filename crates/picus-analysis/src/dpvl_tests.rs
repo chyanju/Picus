@@ -383,7 +383,7 @@ fn r1cs_with_oob_wire() -> R1csFile {
         n_labels: n_wires as u64,
         m_constraints: 1,
     };
-    // Wire id 9 is way past `n_wires=2`. `block_to_linear` should reject.
+    // Wire id 9 is way past `n_wires=2`. `block_to_linear_single` should reject.
     let constraints = vec![Constraint {
         a: block(&[(9, 1)]),
         b: block(&[(0, 1)]),

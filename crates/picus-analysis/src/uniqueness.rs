@@ -1,6 +1,8 @@
 //! Uniqueness (determinism) query — the analysis-layer overlay on top of a
-//! plain [`PolySystem`] constraint system, plus the R1CS two-copy lowering that
-//! produces it.
+//! plain [`PolySystem`] constraint system, plus the two-copy lowering that
+//! produces it. [`polysystem_to_uniqueness_query`] doubles an arbitrary
+//! single-copy `PolySystem`; [`r1cs_to_uniqueness_query`] is the R1CS-specific
+//! wrapper over it.
 //!
 //! [`PolySystem`] is a use-agnostic GF(p) polynomial constraint system: a ring, a
 //! list of `(poly = 0)` equalities, disjunctions, disequalities, assignments,
@@ -56,6 +58,12 @@ pub struct UniquenessQuery {
     /// Wires currently believed uniquely determined by the inputs. The DPVL
     /// loop seeds this with `input_indices`.
     pub known_signals: HashSet<usize>,
+    /// Disequalities carried by the source circuit itself (already doubled into
+    /// both copies), kept separate from the per-round target disequality that
+    /// [`Self::set_target`] appends. Empty for an R1CS lowering (R1CS is pure
+    /// equalities); non-empty only when the source `PolySystem` had its own
+    /// disequality constraints.
+    pub base_disequalities: Vec<(usize, usize)>,
     /// Wire whose uniqueness is being tested this round; a SAT verdict means a
     /// witness pair exists with `x_target != y_target`.
     pub target_signal: usize,
@@ -112,7 +120,13 @@ impl UniquenessQuery {
             "uniqueness target must not be an input wire (its copies are shared)"
         );
         self.target_signal = wire;
-        self.ir.disequalities = vec![(self.orig_var(wire), self.alt_var(wire))];
+        // Rebuild as the source circuit's own disequalities (if any) plus the
+        // single target disequality. For an R1CS lowering `base_disequalities`
+        // is empty, so this reduces to `vec![(x_target, y_target)]`.
+        self.ir.disequalities = self.base_disequalities.clone();
+        self.ir
+            .disequalities
+            .push((self.orig_var(wire), self.alt_var(wire)));
     }
 
     /// Record that `wire` has been proved uniquely determined. Appends
@@ -129,8 +143,150 @@ impl UniquenessQuery {
     }
 }
 
-/// Lower a parsed R1CS file into a [`UniquenessQuery`] in a single pass over
-/// the constraint blocks: each `A * B = C` constraint becomes one polynomial
+/// Rebuild `poly` — a polynomial over the single-copy `src` ring — into `dst`
+/// (the doubled `2 * n_wires`-variable ring) under the variable remap `f`,
+/// which sends each single-copy variable index to its index in `dst`.
+///
+/// Works purely from the sparse `(coeff, [(var, exp)])` term view, so it is
+/// representation-agnostic and needs no per-variable substitution support from
+/// the ring itself.
+fn remap_poly(
+    src: &PolySystem,
+    poly: &Poly,
+    dst: &Arc<FfPolyRing>,
+    f: impl Fn(usize) -> usize,
+) -> Poly {
+    let n_dst = dst.n_vars();
+    let terms = src.poly_terms_idx(poly).map(|(coeff, vars)| {
+        let mut exps = vec![0usize; n_dst];
+        for (v, e) in vars {
+            exps[f(v)] += e as usize;
+        }
+        let mono = dst.ring.create_monomial(exps);
+        (dst.field().from_biguint(&coeff), mono)
+    });
+    dst.ring.from_terms(terms)
+}
+
+/// Build a [`UniquenessQuery`] from an arbitrary single-copy [`PolySystem`] by
+/// duplicating it into two independent copies of the circuit — the original
+/// over `x_*` and the alt over `y_*` — sharing the `inputs` wires across both.
+///
+/// This is the ring-agnostic core of the two-copy uniqueness lowering:
+/// [`r1cs_to_uniqueness_query`] is a thin R1CS-specific wrapper over it, and
+/// callers holding a `PolySystem` (e.g. from `picus::ir::PolyIR::lower`) reach
+/// the DPVL uniqueness analysis through here directly.
+///
+/// `single` carries `n` variables `v_0..v_{n-1}`; the result carries `2n`
+/// variables `x_0..x_{n-1}, y_0..y_{n-1}`. Every constraint (equality,
+/// disjunction, assignment, bitsum, disequality) is emitted in BOTH copies —
+/// input wires reuse `x_i` in the alt copy so their value is shared — which is
+/// exactly the copy-symmetry invariant the wire-keyed propagation lemmas rely
+/// on. Unlike R1CS this injects no one-wire pin: a bare `PolySystem` has no
+/// reserved constant wire, so pin one via an `assignments` entry if needed.
+///
+/// `inputs` are the shared wires; `known` names wires already believed unique
+/// (the DPVL driver materialises their `x_w - y_w = 0` on entry). Every index
+/// in `inputs` and `known` must be `< n`, else [`LowerError::WireOutOfBounds`].
+pub fn polysystem_to_uniqueness_query(
+    single: &PolySystem,
+    inputs: &HashSet<usize>,
+    known: &HashSet<usize>,
+) -> Result<UniquenessQuery, LowerError> {
+    let n_wires = single.ring.n_vars();
+    for &w in inputs.iter().chain(known.iter()) {
+        if w >= n_wires {
+            return Err(LowerError::WireOutOfBounds {
+                wire: w,
+                n_wires,
+                ctx: "input/known wire",
+            });
+        }
+    }
+
+    // Doubled ring: x_0..x_{n-1}, y_0..y_{n-1}, same field as the source.
+    let mut var_names = Vec::with_capacity(2 * n_wires);
+    for i in 0..n_wires {
+        var_names.push(format!("x{}", i));
+    }
+    for i in 0..n_wires {
+        var_names.push(format!("y{}", i));
+    }
+    let ring = Arc::new(FfPolyRing::new(single.ring.field().clone(), var_names));
+
+    // Copy remaps. The original copy is identity; the alt copy shifts every
+    // non-input wire by `n_wires` (input wires stay shared). Both closures are
+    // `Copy` (they capture only `&inputs` and `n_wires`), so they can be reused
+    // across the equality / disjunction / assignment / bitsum passes.
+    let orig = |v: usize| v;
+    let alt = |v: usize| if inputs.contains(&v) { v } else { n_wires + v };
+
+    // Equalities: all original-copy constraints first, then all alt-copy.
+    let mut equalities = Vec::with_capacity(2 * single.equalities.len());
+    for eq in &single.equalities {
+        equalities.push(remap_poly(single, eq, &ring, orig));
+    }
+    for eq in &single.equalities {
+        equalities.push(remap_poly(single, eq, &ring, alt));
+    }
+
+    let mut disjunctions = Vec::with_capacity(2 * single.disjunctions.len());
+    for clause in &single.disjunctions {
+        disjunctions.push(clause.iter().map(|p| remap_poly(single, p, &ring, orig)).collect());
+    }
+    for clause in &single.disjunctions {
+        disjunctions.push(clause.iter().map(|p| remap_poly(single, p, &ring, alt)).collect());
+    }
+
+    let mut assignments = Vec::with_capacity(2 * single.assignments.len());
+    for (idx, val) in &single.assignments {
+        assignments.push((orig(*idx), val.clone()));
+    }
+    for (idx, val) in &single.assignments {
+        assignments.push((alt(*idx), val.clone()));
+    }
+
+    let mut bitsums = Vec::with_capacity(2 * single.bitsums.len());
+    for bits in &single.bitsums {
+        bitsums.push(bits.iter().map(|&b| orig(b)).collect());
+    }
+    for bits in &single.bitsums {
+        bitsums.push(bits.iter().map(|&b| alt(b)).collect());
+    }
+
+    // Source disequalities become `base_disequalities` (doubled). The per-round
+    // target disequality is added later by `set_target`, which preserves these.
+    let mut base_disequalities = Vec::with_capacity(2 * single.disequalities.len());
+    for &(a, b) in &single.disequalities {
+        base_disequalities.push((orig(a), orig(b)));
+    }
+    for &(a, b) in &single.disequalities {
+        base_disequalities.push((alt(a), alt(b)));
+    }
+
+    let ir = PolySystem {
+        ring,
+        equalities,
+        disjunctions,
+        // Target-only; `set_target` rebuilds this from `base_disequalities`.
+        disequalities: Vec::new(),
+        assignments,
+        bitsums,
+        add_field_polys: single.add_field_polys,
+    };
+
+    Ok(UniquenessQuery {
+        ir,
+        n_wires,
+        input_indices: inputs.clone(),
+        known_signals: known.clone(),
+        base_disequalities,
+        target_signal: 0,
+    })
+}
+
+/// Lower a parsed R1CS file into a [`UniquenessQuery`]: each `A * B = C`
+/// constraint becomes one polynomial
 /// equality `(sum_a)(sum_b) - sum_c = 0`, emitted in BOTH copies (`x_i`, `y_i`)
 /// side-by-side. Input wires reuse `x_i` in both copies (no `x_i = y_i`
 /// equality); wire 0 is pinned to `1` in both copies; the target-signal
@@ -158,85 +314,57 @@ pub fn r1cs_to_uniqueness_query(
     let input_indices: HashSet<usize> = r1cs.inputs.iter().copied().collect();
     let prime = &r1cs.header.prime_number;
 
-    // Build a ring with 2n variables: x_0..x_{n-1}, y_0..y_{n-1}.
-    let mut var_names = Vec::with_capacity(2 * n_wires);
+    // Build the SINGLE-copy constraint system first: one variable per wire
+    // (`x_0..x_{n-1}`), each R1CS `A * B = C` lowered to one polynomial
+    // `expand(A) * expand(B) - expand(C) = 0`. Wire 0 (the R1CS one-wire) folds
+    // into constants here, so no polynomial references it. The two-copy
+    // expansion — and the copy-symmetry invariant the wire-keyed lemmas depend
+    // on — is then applied uniformly by `polysystem_to_uniqueness_query`.
+    let mut single_names = Vec::with_capacity(n_wires);
     for i in 0..n_wires {
-        var_names.push(format!("x{}", i));
-    }
-    for i in 0..n_wires {
-        var_names.push(format!("y{}", i));
+        single_names.push(format!("x{}", i));
     }
     let field = PrimeField::new(prime.clone());
-    let ring = Arc::new(FfPolyRing::new(field, var_names));
+    let single_ring = Arc::new(FfPolyRing::new(field, single_names));
 
-    let mut equalities: Vec<Poly> = Vec::new();
-
-    // Copy-symmetry invariant (load-bearing for wire-keyed propagation):
-    // every R1CS constraint is lowered into BOTH copies below — the original
-    // over `x_*` and the alt over `y_*` (input wires share `x_*` in both; see
-    // `block_to_linear`). The wire-keyed propagation lemmas (linear, binary01,
-    // bim, basis2) match a structural pattern in one copy and promote a *wire*
-    // — both copies at once — to "known"; their soundness relies on the matched
-    // structure having an identical mirror in the other copy. Emitting a
-    // constraint for only one copy, or asymmetrically, breaks that assumption
-    // and can make those lemmas unsound.
-
-    // Original-copy constraints.
+    let mut single = PolySystem::new(Arc::clone(&single_ring));
     for c in &r1cs.constraints.constraints {
-        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, /*is_alt=*/ false)? {
-            equalities.push(eq);
+        if let Some(eq) = constraint_to_poly_single(&single_ring, &c.a, &c.b, &c.c)? {
+            single.equalities.push(eq);
         }
     }
-    // Alt-copy constraints.
-    for c in &r1cs.constraints.constraints {
-        if let Some(eq) = constraint_to_poly(&ring, &c.a, &c.b, &c.c, &input_indices, /*is_alt=*/ true)? {
-            equalities.push(eq);
-        }
-    }
-
-    // Wire 0 pinned to 1. `block_to_linear` already folds `c * x_0` straight
-    // into a constant, so the polynomials never reference wire 0 — but backends
-    // still observe `x_0` as a ring variable and need an equality to pin it.
-    let one_el = ring.field().one();
-    equalities.push(ring.sub(ring.var(0), ring.constant(one_el)));
-
     let small_prime_threshold = BigUint::from(1000u32);
-    let add_field_polys = prime <= &small_prime_threshold;
+    single.add_field_polys = prime <= &small_prime_threshold;
 
-    let ir = PolySystem {
-        ring,
-        equalities,
-        disjunctions: Vec::new(),
-        disequalities: Vec::new(),
-        assignments: Vec::new(),
-        bitsums: Vec::new(),
-        add_field_polys,
-    };
+    // Double into two copies (input wires shared) via the generic lowering,
+    // then re-attach the R1CS-specific policy the doubler stays agnostic to.
+    let mut q = polysystem_to_uniqueness_query(&single, &input_indices, known_signals)?;
 
-    Ok(UniquenessQuery {
-        ir,
-        n_wires,
-        input_indices,
-        known_signals: known_signals.clone(),
-        target_signal,
-    })
+    // Wire 0 pinned to 1. `constraint_to_poly_single` already folds `c * x_0`
+    // into a constant, so no polynomial references wire 0 — but the backend
+    // still observes `x_0` as a ring variable and needs an equality to pin it.
+    // Wire 0's value is shared, so a single `x_0 - 1 = 0` covers both copies.
+    let one_el = q.ir.ring.field().one();
+    let pin = q.ir.ring.sub(q.ir.ring.var(0), q.ir.ring.constant(one_el));
+    q.ir.equalities.push(pin);
+
+    q.target_signal = target_signal;
+    Ok(q)
 }
 
-/// Lower one R1CS constraint `A * B = C` into a polynomial equality
-/// `expand(A) * expand(B) - expand(C) = 0` in the given copy. Returns
-/// `Ok(None)` when the resulting polynomial is the zero polynomial, `Err`
-/// when any block references an out-of-bounds wire id.
-fn constraint_to_poly(
+/// Lower one R1CS constraint `A * B = C` into a single-copy polynomial equality
+/// `expand(A) * expand(B) - expand(C) = 0`. Returns `Ok(None)` when the result
+/// is the zero polynomial, `Err` on an out-of-bounds wire id. The two-copy
+/// expansion is applied afterwards by [`polysystem_to_uniqueness_query`].
+fn constraint_to_poly_single(
     ring: &Arc<FfPolyRing>,
     a: &ConstraintBlock,
     b: &ConstraintBlock,
     c: &ConstraintBlock,
-    input_indices: &HashSet<usize>,
-    is_alt: bool,
 ) -> Result<Option<Poly>, LowerError> {
-    let sum_a = block_to_linear(ring, a, input_indices, is_alt, "A")?;
-    let sum_b = block_to_linear(ring, b, input_indices, is_alt, "B")?;
-    let sum_c = block_to_linear(ring, c, input_indices, is_alt, "C")?;
+    let sum_a = block_to_linear_single(ring, a, "A")?;
+    let sum_b = block_to_linear_single(ring, b, "B")?;
+    let sum_c = block_to_linear_single(ring, c, "C")?;
     let ab = ring.mul(sum_a, sum_b);
     let eq = ring.sub(ab, sum_c);
     if ring.is_zero(&eq) {
@@ -246,19 +374,15 @@ fn constraint_to_poly(
     }
 }
 
-/// Build the linear polynomial `sum_i coeff_i * var_i` for one R1CS constraint
-/// block. Inputs use the original `x_i` index in both copies (they share the
-/// same value); non-inputs use `x_i` in the orig copy and `y_i` in the alt
-/// copy. Wire 0 (the R1CS one-wire) is `1` by definition, so every
-/// `coeff * x_0` term folds straight into the constant.
-fn block_to_linear(
+/// Build the single-copy linear polynomial `sum_i coeff_i * x_{wire_i}` for one
+/// R1CS constraint block. Wire 0 (the R1CS one-wire) is `1` by definition, so
+/// every `coeff * x_0` term folds straight into the constant.
+fn block_to_linear_single(
     ring: &Arc<FfPolyRing>,
     block: &ConstraintBlock,
-    input_indices: &HashSet<usize>,
-    is_alt: bool,
     ctx: &'static str,
 ) -> Result<Poly, LowerError> {
-    let n_wires = ring.n_vars() / 2;
+    let n_wires = ring.n_vars();
     let mut acc = ring.zero();
     for (&wire_id, factor) in block.wire_ids.iter().zip(block.factors.iter()) {
         let wid = wire_id as usize;
@@ -271,16 +395,10 @@ fn block_to_linear(
         }
         let coeff_el = ring.field().from_biguint(factor);
         let term = if wid == 0 {
-            // x_0 = y_0 = 1 (R1CS one-wire); fold the coefficient directly
-            // into the constant term.
+            // x_0 = 1 (R1CS one-wire); fold the coefficient into the constant.
             ring.constant(coeff_el)
         } else {
-            let var_idx = if is_alt && !input_indices.contains(&wid) {
-                n_wires + wid
-            } else {
-                wid
-            };
-            ring.scale(coeff_el, ring.var(var_idx))
+            ring.scale(coeff_el, ring.var(wid))
         };
         acc = ring.add(acc, term);
     }

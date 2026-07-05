@@ -45,6 +45,7 @@ fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<Poly>) ->
         input_indices: HashSet::new(),
         known_signals: HashSet::new(),
         target_signal: 0,
+        base_disequalities: Vec::new(),
         ir,
     }
 }

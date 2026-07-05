@@ -239,19 +239,35 @@ pub enum DpvlError {
 
 /// Run DPVL on a parsed R1CS file.
 pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, DpvlError> {
-    let nwires = r1cs.n_wires() as usize;
     let input_set: HashSet<usize> = r1cs.inputs.iter().copied().collect();
-    let output_set: HashSet<usize> = r1cs.outputs.iter().copied().collect();
-    let target_set = output_set;
+    let target_set: HashSet<usize> = r1cs.outputs.iter().copied().collect();
 
-    let mut ks: HashSet<usize> = input_set.clone();
+    // Lower R1CS → two-copy UniquenessQuery once per run. The target signal
+    // stored in the query is a placeholder; propagation consumes only the
+    // constraint set and metadata, and `run_dpvl_on_query` sets each real
+    // target via `set_target` before its solve.
+    let q = r1cs_to_uniqueness_query(r1cs, &input_set, 0)?;
+    run_dpvl_on_query(q, &target_set, config)
+}
+
+/// Run DPVL on an already-built [`UniquenessQuery`] — the entry point for
+/// callers that assembled the two-copy query from a `PolySystem` (via
+/// [`crate::uniqueness::polysystem_to_uniqueness_query`]) rather than from an
+/// R1CS file. `targets` is the set of wires whose uniqueness is required for a
+/// `Safe` verdict; a SAT counter-example on any of them yields `Unsafe`.
+///
+/// The initial known set seeds from the query's inputs (shared across copies,
+/// hence always known) together with any `known_signals` the caller pre-set;
+/// every other wire enters the unknown pool.
+pub fn run_dpvl_on_query(
+    mut q: UniquenessQuery,
+    targets: &HashSet<usize>,
+    config: &DpvlConfig,
+) -> Result<DpvlResult, DpvlError> {
+    let nwires = q.n_wires;
+    let mut ks: HashSet<usize> = q.input_indices.union(&q.known_signals).copied().collect();
     let mut us: HashSet<usize> = (0..nwires).filter(|i| !ks.contains(i)).collect();
     let mut ranges: HashMap<usize, RangeValue> = initial_ranges();
-
-    // Lower R1CS → PolySystem once per DPVL run. The target signal stored in
-    // the IR is a placeholder; propagation only consumes the constraint
-    // set and metadata, not `target_signal`.
-    let mut q = r1cs_to_uniqueness_query(r1cs, &ks, 0)?;
 
     // Instantiate enabled lemma plugins.
     let mut lemma_instances: Vec<(&'static str, Box<dyn PropagationLemma>)> = all_descriptors()
@@ -266,7 +282,7 @@ pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, Dpvl
     let backend =
         picus_smt::create_backend(config.solver, config.theory).map_err(DpvlError::Backend)?;
     let mut ctx = DpvlContext {
-        target_set,
+        target_set: targets.clone(),
         selector: SelectorState::new(config.selector, connectivity),
         backend,
         timeout_ms: config.timeout_ms,

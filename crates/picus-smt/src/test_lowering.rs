@@ -10,8 +10,8 @@
 //! construction locally, yielding the crate-LOCAL [`crate::poly_system::PolySystem`],
 //! so the unit tests need no re-homing and no picus-analysis dependency.
 //!
-//! It is a faithful port of `r1cs_to_uniqueness_query` (and its private
-//! `constraint_to_poly` / `block_to_linear`) with two differences: it produces
+//! It is a faithful port of `r1cs_to_uniqueness_query` (and its two-copy
+//! doubling) with two differences: it produces
 //! the slim `PolySystem` (no wire overlay metadata), and it materialises the
 //! target disequality directly as `disequalities = [(target, n_wires + target)]`
 //! — the fixtures that call this expect the target pair to be present.

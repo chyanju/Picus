@@ -113,6 +113,7 @@ fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc
         input_indices: HashSet::new(),
         known_signals: HashSet::new(),
         target_signal: 0,
+        base_disequalities: Vec::new(),
         ir,
     }
 }

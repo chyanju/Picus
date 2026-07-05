@@ -357,6 +357,54 @@ pub fn check_r1cs(
     }
 }
 
+/// Check whether the `outputs` of a [`ir::PolyIR`] system are uniquely
+/// determined by its `inputs`, running the full DPVL uniqueness analysis
+/// (two-copy lowering + propagation lemmas) rather than the bare solver
+/// [`ir::PolyIR::solve`] uses. The `PolySystem`/IR-native counterpart of
+/// [`check_r1cs`]: operates directly on `PolyIR` without converting to R1CS.
+///
+/// Reached through [`ir::PolyIR::check_uniqueness`]; see it for the argument
+/// semantics. Witnesses in an [`CheckResult::Unsafe`] are keyed by the user's
+/// variable names (auxiliary `__`-prefixed variables are omitted).
+pub(crate) fn check_polyir_uniqueness(
+    ir: &ir::PolyIR,
+    inputs: &[ir::Var],
+    outputs: &[ir::Var],
+    known: &[ir::Var],
+    config: PicusConfig,
+) -> Result<CheckResult, PicusError> {
+    picus_smt::validate_combination(config.analysis.solver, config.analysis.theory)
+        .map_err(PicusError::Config)?;
+
+    if let Some(ref dir) = config.analysis.dump_smt {
+        let _ = std::fs::create_dir_all(dir);
+    }
+
+    let _engine_guard = picus_core::config::ConfigGuard::install(config.engine.clone());
+
+    let ps = ir.lower();
+    let to_idx = |vs: &[ir::Var]| -> HashSet<usize> { vs.iter().map(|v| ir.var_index(*v)).collect() };
+    let input_idx = to_idx(inputs);
+    let known_idx = to_idx(known);
+    let target_idx = to_idx(outputs);
+
+    let q = picus_analysis::uniqueness::polysystem_to_uniqueness_query(&ps, &input_idx, &known_idx)
+        .map_err(|e| PicusError::Dpvl(e.into()))?;
+    let result = picus_analysis::dpvl::run_dpvl_on_query(q, &target_idx, &config.analysis)?;
+
+    match result {
+        picus_analysis::dpvl::DpvlResult::Safe => Ok(CheckResult::Safe),
+        picus_analysis::dpvl::DpvlResult::Unsafe(model) => {
+            let (w1, w2) = split_model(&model);
+            Ok(CheckResult::Unsafe {
+                witness_1: ir.rename_witness(w1),
+                witness_2: ir.rename_witness(w2),
+            })
+        }
+        picus_analysis::dpvl::DpvlResult::Unknown => Ok(CheckResult::Unknown),
+    }
+}
+
 /// Decide a lowered [`PolySystem`] directly, returning a raw
 /// `Unsat` / `Sat(model)` / `Unknown` verdict.
 ///

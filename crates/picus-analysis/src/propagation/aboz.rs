@@ -130,7 +130,7 @@ impl AbozLemma {
     /// new clause was emitted.
     ///
     /// Copy-awareness: an input wire reuses `x_w` in both copies (see
-    /// `block_to_linear`), so its alt-copy constraint is `x_s · y_o = 0`,
+    /// `polysystem_to_uniqueness_query`), so its alt-copy constraint is `x_s · y_o = 0`,
     /// not `y_s · y_o = 0`. Emitting `alt_var` (a fresh, unconstrained
     /// `y_s`) for an input would push a clause not entailed by any equality.
     /// `copy_var` therefore selects the variable that actually appears in

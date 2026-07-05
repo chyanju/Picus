@@ -10,7 +10,9 @@ use picus_r1cs::grammar::Constraint;
 use picus_r1cs::testkit::{blk, p7, r1cs, zero_blk};
 use picus_smt::poly_system::PolySystem;
 
-use crate::uniqueness::{r1cs_to_uniqueness_query, LowerError, UniquenessQuery};
+use crate::uniqueness::{
+    polysystem_to_uniqueness_query, r1cs_to_uniqueness_query, LowerError, UniquenessQuery,
+};
 
 /// Build a `UniquenessQuery` over GF(7) with `2 * n_wires` variables
 /// (`x0..`, `y0..`) and the given input wires.
@@ -39,6 +41,7 @@ fn query(n_wires: usize, inputs: &[usize]) -> UniquenessQuery {
         input_indices: input_indices.clone(),
         known_signals: input_indices,
         target_signal: 0,
+        base_disequalities: Vec::new(),
         ir,
     }
 }
@@ -241,7 +244,7 @@ fn r1cs_copy_symmetry_emits_two_constraints_per_block() {
 
 #[test]
 fn r1cs_zero_constraint_dropped() {
-    // 0 * 0 = 0 lowers to the zero polynomial; `constraint_to_poly`
+    // 0 * 0 = 0 lowers to the zero polynomial; `constraint_to_poly_single`
     // returns Ok(None) so it should NOT be appended.
     let cons = Constraint {
         a: zero_blk(),
@@ -260,7 +263,7 @@ fn r1cs_zero_constraint_dropped() {
 
 #[test]
 fn r1cs_out_of_bounds_wire_id_returns_err() {
-    // `block_to_linear` must reject `wid >= n_wires`. Build a
+    // `block_to_linear_single` must reject `wid >= n_wires`. Build a
     // constraint referencing wire 99 when only 3 wires exist.
     let cons = Constraint {
         a: blk(99, 1),
@@ -295,4 +298,82 @@ fn r1cs_target_signal_recorded() {
     let r1cs = r1cs(p7(), 5, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 3).unwrap();
     assert_eq!(ir.target_signal, 3);
+}
+
+// ─── Generic single-copy → two-copy doubling ─────────────────────
+//
+// `polysystem_to_uniqueness_query` doubles an arbitrary single-copy
+// `PolySystem`; `r1cs_to_uniqueness_query` (above) is one caller of it.
+
+/// A single-copy `PolySystem` over GF(7) with `n` variables `v0..v{n-1}`.
+fn single_gf7(n: usize) -> PolySystem {
+    let field = PrimeField::new(BigUint::from(7u32));
+    let names: Vec<String> = (0..n).map(|i| format!("v{}", i)).collect();
+    PolySystem::new(Arc::new(FfPolyRing::new(field, names)))
+}
+
+#[test]
+fn doubler_mirrors_constraints_and_shares_inputs() {
+    let mut single = single_gf7(3);
+    let ring = Arc::clone(&single.ring);
+    single.push_equality(ring.sub(ring.var(1), ring.var(2))); // v1 - v2 = 0
+
+    let inputs: HashSet<usize> = [0usize].into_iter().collect();
+    let q = polysystem_to_uniqueness_query(&single, &inputs, &HashSet::new()).unwrap();
+
+    assert_eq!(q.n_wires, 3);
+    assert_eq!(q.ir.ring.n_vars(), 6, "doubled ring has 2n variables");
+    assert_eq!(q.ir.equalities.len(), 2, "one constraint, emitted in both copies");
+    assert_eq!(q.input_indices, inputs);
+    assert_eq!(q.x_name(1), "x1");
+    assert_eq!(q.y_name(1), "y1");
+    assert_eq!(q.orig_var(1), 1);
+    assert_eq!(q.alt_var(1), 4);
+    assert!(q.base_disequalities.is_empty());
+}
+
+#[test]
+fn doubler_carries_field_polys_flag() {
+    let mut single = single_gf7(2);
+    single.set_add_field_polys(true);
+    let q = polysystem_to_uniqueness_query(&single, &HashSet::new(), &HashSet::new()).unwrap();
+    assert!(q.ir.add_field_polys);
+}
+
+#[test]
+fn doubler_seeds_known_signals() {
+    let single = single_gf7(4);
+    let known: HashSet<usize> = [2usize, 3].into_iter().collect();
+    let q = polysystem_to_uniqueness_query(&single, &HashSet::new(), &known).unwrap();
+    assert_eq!(q.known_signals, known);
+}
+
+#[test]
+fn doubler_preserves_source_disequalities_as_base() {
+    let mut single = single_gf7(3);
+    single.add_disequality(1, 2); // v1 != v2, both non-input wires
+    let mut q = polysystem_to_uniqueness_query(&single, &HashSet::new(), &HashSet::new()).unwrap();
+
+    // Both copies of the source disequality become `base_disequalities`; the
+    // doubled system carries no target disequality until `set_target`.
+    assert_eq!(q.base_disequalities, vec![(1, 2), (4, 5)]);
+    assert!(q.ir.disequalities.is_empty());
+
+    // set_target preserves the base and appends only the target pair.
+    q.set_target(1);
+    assert_eq!(q.ir.disequalities, vec![(1, 2), (4, 5), (1, 4)]);
+}
+
+#[test]
+fn doubler_rejects_out_of_range_input() {
+    let single = single_gf7(2);
+    let inputs: HashSet<usize> = [5usize].into_iter().collect();
+    assert!(matches!(
+        polysystem_to_uniqueness_query(&single, &inputs, &HashSet::new()),
+        Err(LowerError::WireOutOfBounds {
+            wire: 5,
+            n_wires: 2,
+            ..
+        })
+    ));
 }
