@@ -62,7 +62,7 @@ fn assert_fglm_matches(pr: &FfPolyRing, gens: Vec<Poly>) {
     let drl = Ideal::new(pr, gens.iter().map(|p| pr.ring.clone_el(p)).collect());
     assert!(drl.is_zero_dim(), "test ideal must be zero-dimensional");
     let fglm = fglm_to_lex(&drl).expect("zero-dim → Some");
-    let direct = compute_gb_with_order(pr, gens, &CancelToken::none(), MonomialOrder::Lex);
+    let direct = compute_gb_with_order(pr, gens, &CancelToken::none(), MonomialOrder::Lex).expect_basis("gb");
     assert_eq!(
         canon_set(pr, &fglm),
         canon_set(pr, &direct),
@@ -242,7 +242,7 @@ fn assert_fglm_ideal_eq_direct(pr: &FfPolyRing, gens: Vec<Poly>) {
     let drl = Ideal::new(pr, gens.iter().map(|p| pr.ring.clone_el(p)).collect());
     assert!(drl.is_zero_dim(), "test ideal must be zero-dimensional");
     let fglm = fglm_to_lex(&drl).expect("zero-dim ⇒ Some");
-    let direct = compute_gb_with_order(pr, gens, &CancelToken::none(), MonomialOrder::Lex);
+    let direct = compute_gb_with_order(pr, gens, &CancelToken::none(), MonomialOrder::Lex).expect_basis("gb");
     assert_same_ideal(pr, &direct, &fglm);
 }
 

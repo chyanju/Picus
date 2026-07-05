@@ -35,7 +35,7 @@ fn pr_xyz(p: u32) -> FfPolyRing {
 #[test]
 fn test_homog_empty() {
     let pr = pr_xy(17);
-    let gb = compute_gb_by_homog(&pr, vec![], &CancelToken::none());
+    let gb = compute_gb_by_homog(&pr, vec![], &CancelToken::none()).expect_basis("gb");
     assert!(gb.is_empty());
 }
 
@@ -50,8 +50,8 @@ fn test_homog_single_homog_input() {
         vec![pr.clone_poly(&f)],
         &CancelToken::none(),
         MonomialOrder::DegRevLex,
-    );
-    let gb_homog = compute_gb_by_homog(&pr, vec![f], &CancelToken::none());
+    ).expect_basis("gb");
+    let gb_homog = compute_gb_by_homog(&pr, vec![f], &CancelToken::none()).expect_basis("gb");
     assert_eq!(lm_set(&pr, &gb_direct), lm_set(&pr, &gb_homog));
 }
 
@@ -71,8 +71,8 @@ fn test_homog_bitcube_pair() {
         vec![pr.clone_poly(&f1), pr.clone_poly(&f2)],
         &CancelToken::none(),
         MonomialOrder::DegRevLex,
-    );
-    let gb_homog = compute_gb_by_homog(&pr, vec![f1, f2], &CancelToken::none());
+    ).expect_basis("gb");
+    let gb_homog = compute_gb_by_homog(&pr, vec![f1, f2], &CancelToken::none()).expect_basis("gb");
     assert_eq!(
         lm_set(&pr, &gb_direct),
         lm_set(&pr, &gb_homog),
@@ -102,8 +102,8 @@ fn test_homog_bitcube_plus_bitsum() {
         gens.iter().map(|p| pr.clone_poly(p)).collect(),
         &CancelToken::none(),
         MonomialOrder::DegRevLex,
-    );
-    let gb_homog = compute_gb_by_homog(&pr, gens, &CancelToken::none());
+    ).expect_basis("gb");
+    let gb_homog = compute_gb_by_homog(&pr, gens, &CancelToken::none()).expect_basis("gb");
     assert_eq!(
         lm_set(&pr, &gb_direct),
         lm_set(&pr, &gb_homog),
@@ -129,8 +129,8 @@ fn test_homog_rabinowitsch() {
         gens.iter().map(|p| pr.clone_poly(p)).collect(),
         &CancelToken::none(),
         MonomialOrder::DegRevLex,
-    );
-    let gb_homog = compute_gb_by_homog(&pr, gens, &CancelToken::none());
+    ).expect_basis("gb");
+    let gb_homog = compute_gb_by_homog(&pr, gens, &CancelToken::none()).expect_basis("gb");
     assert_eq!(
         lm_set(&pr, &gb_direct),
         lm_set(&pr, &gb_homog),
@@ -170,8 +170,8 @@ fn test_homog_chunked_add_small() {
         gens.iter().map(|p| pr.clone_poly(p)).collect(),
         &CancelToken::none(),
         MonomialOrder::DegRevLex,
-    );
-    let gb_homog = compute_gb_by_homog(&pr, gens, &CancelToken::none());
+    ).expect_basis("gb");
+    let gb_homog = compute_gb_by_homog(&pr, gens, &CancelToken::none()).expect_basis("gb");
     assert_eq!(
         lm_set(&pr, &gb_direct),
         lm_set(&pr, &gb_homog),
@@ -247,8 +247,8 @@ fn homog_reduced_gb_matches_direct_random() {
             gens.iter().map(|p| pr.clone_poly(p)).collect(),
             &CancelToken::none(),
             MonomialOrder::DegRevLex,
-        );
-        let gb_homog = compute_gb_by_homog(&pr, gens, &CancelToken::none());
+        ).expect_basis("gb");
+        let gb_homog = compute_gb_by_homog(&pr, gens, &CancelToken::none()).expect_basis("gb");
 
         assert_eq!(
             canon(gb_direct),

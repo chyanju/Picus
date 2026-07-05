@@ -15,7 +15,7 @@
 use std::time::Duration;
 
 use crate::ff::monomial::MonomialOrder;
-use crate::gb::ideal::{compute_gb_with_order, compute_gb_with_order_traced};
+use crate::gb::ideal::{compute_gb_with_order, compute_gb_with_order_traced, GbOutcome};
 use crate::poly::{FfPolyRing, Poly};
 use crate::timeout::CancelToken;
 use crate::gb::tracer::GbTracer;
@@ -66,7 +66,11 @@ pub fn compute_gb_with_timeout(
     };
 
     // Phase 1: DegRevLex GB
-    let gb_degrevlex = compute_gb_with_order(poly_ring, polynomials, &cancel, MonomialOrder::DegRevLex);
+    let gb_degrevlex = match compute_gb_with_order(poly_ring, polynomials, &cancel, MonomialOrder::DegRevLex) {
+        GbOutcome::Basis(b) => b,
+        GbOutcome::Cancelled => return GbResult::Timeout,
+        GbOutcome::Failed => Vec::new(),
+    };
 
     if cancel.is_cancelled() {
         return GbResult::Timeout;
@@ -111,9 +115,13 @@ pub fn compute_gb_with_timeout_traced(
 
     // Phase 1: DegRevLex GB with tracing
     let mut tracer = GbTracer::new(n_inputs);
-    let gb_degrevlex = compute_gb_with_order_traced(
+    let gb_degrevlex = match compute_gb_with_order_traced(
         poly_ring, polynomials, &cancel, MonomialOrder::DegRevLex, &mut tracer,
-    );
+    ) {
+        GbOutcome::Basis(b) => b,
+        GbOutcome::Cancelled => return GbResultTraced::Timeout,
+        GbOutcome::Failed => Vec::new(),
+    };
 
     if cancel.is_cancelled() {
         return GbResultTraced::Timeout;
@@ -166,7 +174,12 @@ fn degrevlex_to_lex(
         Some(lex) => lex,
         None => {
             let basis = ideal.basis;
-            compute_gb_with_order(poly_ring, basis, cancel, MonomialOrder::Lex)
+            match compute_gb_with_order(poly_ring, basis, cancel, MonomialOrder::Lex) {
+                GbOutcome::Basis(b) => b,
+                // The caller re-checks `cancel` right after this returns
+                // (→ Timeout); an empty basis here is never trusted.
+                GbOutcome::Cancelled | GbOutcome::Failed => Vec::new(),
+            }
         }
     }
 }

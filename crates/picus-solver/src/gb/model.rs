@@ -16,7 +16,7 @@ use crate::gb::brancher::{univariate_coeffs, Brancher};
 use crate::ff::field::{PrimeField, FieldElem};
 use crate::ff::monomial::MonomialOrder as FfOrder;
 use crate::gb::fglm::fglm_to_lex_cancel;
-use crate::gb::ideal::{compute_gb_incremental_with_order, Ideal};
+use crate::gb::ideal::{compute_gb_incremental_with_order, GbOutcome, Ideal};
 use crate::poly::{FfPolyRing, Poly};
 use crate::gb::roots::find_roots_checked_cancel;
 use crate::timeout::CancelToken;
@@ -121,13 +121,19 @@ pub fn find_zero_cancel(
                 // `(x_var − val)` constraint; only cross-pairs (prev × new)
                 // and intra-new pairs are processed, instead of a fresh
                 // Buchberger run over the merged generator list.
-                compute_gb_incremental_with_order(
+                match compute_gb_incremental_with_order(
                     poly_ring,
                     prev_basis,
                     vec![assign_poly],
                     cancel,
                     FfOrder::DegRevLex,
-                )
+                ) {
+                    GbOutcome::Basis(b) => b,
+                    GbOutcome::Cancelled => return FindZeroOutcome::Unknown,
+                    // Undetermined: an empty ideal keeps the search
+                    // running (bounded → Unknown), never a false UNSAT.
+                    GbOutcome::Failed => Vec::new(),
+                }
             } else {
                 let mut merged = prev_basis;
                 merged.push(assign_poly);

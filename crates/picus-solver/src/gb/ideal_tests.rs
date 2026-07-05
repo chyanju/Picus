@@ -41,7 +41,7 @@ fn interreduce_dedups_equal_leading_monomials() {
         vec![pr.clone_poly(&g1), pr.clone_poly(&g2)],
         &CancelToken::none(),
         FfOrder::DegRevLex,
-    );
+    ).expect_basis("gb");
 
     let non_minimal = vec![g1, g2, g3];
     let out = interreduce_basis(&pr, non_minimal, &CancelToken::none());

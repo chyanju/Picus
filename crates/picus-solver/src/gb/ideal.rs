@@ -65,8 +65,13 @@ impl<'r> Ideal<'r> {
         // generators): downstream reads that as "no constraints", never
         // as a trusted GB. The post-call `is_cancelled` checks lift a
         // cancellation into `Err(Cancelled)`.
-        let basis = compute_gb_with_order(poly_ring, generators, cancel, FfOrder::DegRevLex);
-        if cancel.is_cancelled() { return Err(Cancelled); }
+        let basis = match compute_gb_with_order(poly_ring, generators, cancel, FfOrder::DegRevLex) {
+            GbOutcome::Basis(b) => b,
+            GbOutcome::Cancelled => return Err(Cancelled),
+            // Undetermined ideal: an empty basis reads as "no
+            // constraints" downstream, never as a trusted GB.
+            GbOutcome::Failed => Vec::new(),
+        };
         let basis = interreduce_basis(poly_ring, basis, cancel);
         if cancel.is_cancelled() { return Err(Cancelled); }
         Ok(Ideal { poly_ring, basis })
@@ -112,10 +117,13 @@ impl<'r> Ideal<'r> {
             return Ok(self);
         }
         let Ideal { poly_ring, basis: known_gb } = self;
-        let basis = compute_gb_incremental_with_order(
+        let basis = match compute_gb_incremental_with_order(
             poly_ring, known_gb, surviving, cancel, FfOrder::DegRevLex,
-        );
-        if cancel.is_cancelled() { return Err(Cancelled); }
+        ) {
+            GbOutcome::Basis(b) => b,
+            GbOutcome::Cancelled => return Err(Cancelled),
+            GbOutcome::Failed => Vec::new(),
+        };
         let basis = interreduce_basis(poly_ring, basis, cancel);
         if cancel.is_cancelled() { return Err(Cancelled); }
         Ok(Ideal { poly_ring, basis })
@@ -145,9 +153,15 @@ impl<'r> Ideal<'r> {
             return Ok(self);
         }
         let Ideal { poly_ring, basis: known_gb } = self;
-        let basis = compute_gb_incremental_with_order_traced(
+        let basis = match compute_gb_incremental_with_order_traced(
             poly_ring, known_gb, new_polys, cancel, FfOrder::DegRevLex, tracer,
-        );
+        ) {
+            GbOutcome::Basis(b) => b,
+            GbOutcome::Cancelled => return Err(Cancelled),
+            // Empty basis is `is_whole_ring() == false`: the linear
+            // fast-path UNSAT detection keeps searching, never concludes.
+            GbOutcome::Failed => Vec::new(),
+        };
         if cancel.is_cancelled() { return Err(Cancelled); }
         // NOTE: do NOT inter-reduce here — the trivial-element parents in
         // `tracer` are precise only when Buchberger aborted on trivial.

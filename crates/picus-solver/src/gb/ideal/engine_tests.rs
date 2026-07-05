@@ -147,35 +147,37 @@ fn dense_vec_round_trip_preserves_polys() {
 // ────────── finish_gb (cancel vs error semantics) ──────────
 
 #[test]
-fn finish_gb_returns_backup_on_cancel() {
-    let pr = pr3();
-    let backup = vec![pr.var(0)];
+fn finish_gb_cancelled_on_error_with_fired_token() {
     let cancel = CancelToken::cancelled();
     let out = finish_gb(
         Err(EngineError::Internal("simulated".into())),
         &cancel,
-        backup.clone(),
         "test",
     );
-    // On cancel, the backup is returned (caller's is_cancelled() check
-    // discards it; we just verify the path here).
-    assert_eq!(out.len(), backup.len());
+    assert!(matches!(out, GbOutcome::Cancelled));
 }
 
 #[test]
-fn finish_gb_returns_empty_on_genuine_error() {
+fn finish_gb_cancelled_on_ok_with_fired_token() {
+    // The sparse engine returns Ok(partial progress) on cancellation:
+    // a fired token means the basis is NOT a complete GB.
     let pr = pr3();
-    let backup = vec![pr.var(0)];
+    let cancel = CancelToken::cancelled();
+    let out = finish_gb(Ok(vec![pr.var(0)]), &cancel, "test");
+    assert!(matches!(out, GbOutcome::Cancelled));
+}
+
+#[test]
+fn finish_gb_failed_on_genuine_error() {
     let cancel = CancelToken::none();
     let out = finish_gb(
         Err(EngineError::Internal("simulated".into())),
         &cancel,
-        backup,
         "test",
     );
-    // Without cancel, a genuine engine error must yield an empty
-    // basis (downstream cannot mistake unreduced gens for a GB).
-    assert!(out.is_empty(), "expected empty basis on engine error");
+    // Without cancel, a genuine engine error is Failed (downstream maps
+    // it to an undetermined ideal, never a trusted GB).
+    assert!(matches!(out, GbOutcome::Failed));
 }
 
 #[test]
@@ -183,8 +185,8 @@ fn finish_gb_passes_through_on_ok() {
     let pr = pr3();
     let basis = vec![pr.var(0), pr.var(1)];
     let cancel = CancelToken::none();
-    let out = finish_gb(Ok(basis.clone()), &cancel, vec![], "test");
-    assert_eq!(out.len(), basis.len());
+    let out = finish_gb(Ok(basis.clone()), &cancel, "test");
+    assert_eq!(out.expect_basis("ok path").len(), basis.len());
 }
 
 // ────────── last_dispatched_algorithm thread-local ──────────
@@ -199,7 +201,7 @@ fn last_dispatched_records_chosen_algorithm() {
     });
     // Run a small GB to set the thread-local.
     let p = pr.mul(pr.var(0), pr.var(1));
-    let _ = compute_gb_with_order(&pr, vec![p], &CancelToken::none(), FfOrder::DegRevLex);
+    let _ = compute_gb_with_order(&pr, vec![p], &CancelToken::none(), FfOrder::DegRevLex).expect_basis("gb");
     let name = last_dispatched_algorithm();
     assert!(
         name.is_some(),
@@ -296,7 +298,7 @@ fn by_homog_lex_falls_back_to_direct() {
 #[test]
 fn compute_gb_direct_empty_returns_empty() {
     let pr = pr3();
-    let out = compute_gb_direct(&pr, vec![], &CancelToken::none(), FfOrder::DegRevLex);
+    let out = compute_gb_direct(&pr, vec![], &CancelToken::none(), FfOrder::DegRevLex).expect_basis("gb");
     assert!(out.is_empty());
 }
 
@@ -313,7 +315,7 @@ fn compute_gb_direct_dense_path_linear() {
         vec!["x".into(), "y".into(), "z".into()],
         crate::config::ReprKind::Dense,
     );
-    let gb = compute_gb_direct(&pr, vec![x_minus_1(&pr)], &CancelToken::none(), FfOrder::DegRevLex);
+    let gb = compute_gb_direct(&pr, vec![x_minus_1(&pr)], &CancelToken::none(), FfOrder::DegRevLex).expect_basis("gb");
     assert!(!gb.is_empty(), "direct dense GB of <x-1> is nonempty");
     assert!(reduces_to_zero(&pr, &gb, &x_minus_1(&pr)));
 }
@@ -326,7 +328,7 @@ fn incremental_empty_new_returns_known_gb() {
     let known = vec![x_minus_1(&pr)];
     let out = compute_gb_incremental_with_order(
         &pr, known.clone(), vec![], &CancelToken::none(), FfOrder::DegRevLex,
-    );
+    ).expect_basis("gb");
     assert_eq!(out.len(), known.len());
 }
 
@@ -335,7 +337,7 @@ fn incremental_empty_known_recomputes_from_scratch() {
     let pr = pr3();
     let out = compute_gb_incremental_with_order(
         &pr, vec![], vec![x_minus_1(&pr)], &CancelToken::none(), FfOrder::DegRevLex,
-    );
+    ).expect_basis("gb");
     assert!(!out.is_empty());
     assert!(reduces_to_zero(&pr, &out, &x_minus_1(&pr)));
 }
@@ -362,7 +364,7 @@ fn incremental_dense_seed_extends_ideal() {
         vec![pr.clone_poly(&y_m2)],
         &CancelToken::none(),
         FfOrder::DegRevLex,
-    );
+    ).expect_basis("gb");
     assert!(!out.is_empty());
     assert!(reduces_to_zero(&pr, &out, &x_m1));
     assert!(reduces_to_zero(&pr, &out, &y_m2));
@@ -437,7 +439,7 @@ fn compute_gb_with_order_dense_repr_records_dense_dispatch() {
         vec![x_minus_1(&pr)],
         &CancelToken::none(),
         FfOrder::DegRevLex,
-    );
+    ).expect_basis("gb");
     assert!(!gb.is_empty(), "dense GB of <x-1> is nonempty");
     assert!(reduces_to_zero(&pr, &gb, &x_minus_1(&pr)));
     // The dense path records a dense GbAlgorithm name (not "sparse-*").
@@ -466,7 +468,7 @@ fn sym_system(pr: &FfPolyRing) -> Vec<crate::poly::Poly> {
 }
 
 fn gb_hashes(pr: &FfPolyRing, gens: Vec<crate::poly::Poly>, order: FfOrder) -> Vec<u64> {
-    let gb = compute_gb_with_order(pr, gens, &CancelToken::none(), order);
+    let gb = compute_gb_with_order(pr, gens, &CancelToken::none(), order).expect_basis("gb");
     let mut h: Vec<u64> = gb.iter().map(|p| p.content_hash()).collect();
     h.sort_unstable();
     h
@@ -512,7 +514,7 @@ fn elim_order_gb_terminates_and_is_consistent() {
     // ideal (no nonzero constant ⇒ not whole-ring).
     let pr = pr3();
     let idx = intern(MatrixOrder::elim(&[2], pr.n_vars())); // eliminate z
-    let gb = compute_gb_with_order(&pr, sym_system(&pr), &CancelToken::none(), FfOrder::Matrix(idx));
+    let gb = compute_gb_with_order(&pr, sym_system(&pr), &CancelToken::none(), FfOrder::Matrix(idx)).expect_basis("gb");
     assert!(!gb.is_empty(), "elim-order GB of a consistent system is non-empty");
     assert!(
         !gb.iter().any(|p| !pr.is_zero(p) && p.is_constant()),

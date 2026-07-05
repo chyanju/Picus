@@ -132,7 +132,13 @@ impl GbAlgorithm for BuchbergerByHomog {
         order: FfOrder,
     ) -> Result<Vec<Poly>, EngineError> {
         if order == FfOrder::DegRevLex {
-            Ok(crate::gb::gb_homog::compute_gb_by_homog(pr, gens, cancel))
+            match crate::gb::gb_homog::compute_gb_by_homog(pr, gens, cancel) {
+                GbOutcome::Basis(b) => Ok(b),
+                GbOutcome::Cancelled => Err(EngineError::Timeout),
+                GbOutcome::Failed => {
+                    Err(EngineError::Internal("by-homog GB failed".into()))
+                }
+            }
         } else {
             // ByHomog only makes sense for DegRevLex; for Lex etc.
             // route through plain Buchberger so the contract of
@@ -317,29 +323,74 @@ pub(crate) fn wrap_dense_vec(v: Vec<crate::ff::DensePoly>) -> Vec<Poly> {
     v.into_iter().map(Poly::Dense).collect()
 }
 
-/// Resolve a GB `Result` into a basis under the soundness contract shared
-/// by every public GB entry point: on **cancellation** return `backup`
-/// (the caller's `is_cancelled()` check then discards it); on a **genuine
-/// engine error** return an empty basis — never the unreduced generators,
-/// so downstream cannot mistake them for a Gröbner basis (which would let
-/// `is_zero_dim`/`min_poly`/FGLM emit a false UNSAT). An empty basis
-/// leaves the ideal undetermined downstream (→ Unknown, or a
-/// `verify_model`-guarded SAT). `what` names the call site for the
-/// warning log.
+/// Outcome of a GB entry point.
+///
+/// Replaces the former tri-state `Vec<Poly>` sentinel (trusted basis /
+/// cancelled backup / error empty) whose discrimination lived out of
+/// band in the `CancelToken` plus caller discipline. Mistaking a
+/// cancelled or failed result for a Gröbner basis would let
+/// `is_zero_dim`/`min_poly`/FGLM emit a false UNSAT; this enum makes the
+/// protocol compiler-enforced and removes the defensive backup clone of
+/// all generators every entry point used to pay.
+#[derive(Debug)]
+pub enum GbOutcome {
+    /// A trusted Gröbner basis (the token did not fire during the run).
+    Basis(Vec<Poly>),
+    /// Cooperative cancellation fired; no trusted basis exists.
+    Cancelled,
+    /// Genuine engine failure (details were logged); the ideal is
+    /// undetermined — callers map this to an empty basis / Unknown,
+    /// never to a trusted GB.
+    Failed,
+}
+
+impl GbOutcome {
+    /// The basis, or `None` on `Cancelled`/`Failed`.
+    pub fn into_basis(self) -> Option<Vec<Poly>> {
+        match self {
+            GbOutcome::Basis(b) => Some(b),
+            GbOutcome::Cancelled | GbOutcome::Failed => None,
+        }
+    }
+
+    /// Unwrap a `Basis`; panics on `Cancelled`/`Failed`. For callers
+    /// running under a never-firing token (tests, bounded utilities).
+    #[track_caller]
+    pub fn expect_basis(self, msg: &str) -> Vec<Poly> {
+        match self {
+            GbOutcome::Basis(b) => b,
+            other => panic!("{}: expected GbOutcome::Basis, got {:?}", msg, other),
+        }
+    }
+}
+
+/// Resolve a GB `Result` under the soundness contract shared by every
+/// public GB entry point: a fired token means the basis (even an `Ok`
+/// one — the sparse engine returns its partial progress) is not a
+/// complete GB, so it is discarded as `Cancelled`; a genuine engine
+/// error becomes `Failed`. `what` names the call site for the log.
 fn finish_gb(
     result: Result<Vec<Poly>, EngineError>,
     cancel: &CancelToken,
-    backup: Vec<Poly>,
     what: &str,
-) -> Vec<Poly> {
-    result.unwrap_or_else(|e| {
-        if cancel.is_cancelled() {
-            backup
-        } else {
-            log::warn!("{} failed ({:?}); returning empty basis (Unknown)", what, e);
-            Vec::new()
+) -> GbOutcome {
+    match result {
+        Ok(basis) => {
+            if cancel.is_cancelled() {
+                GbOutcome::Cancelled
+            } else {
+                GbOutcome::Basis(basis)
+            }
         }
-    })
+        Err(e) => {
+            if cancel.is_cancelled() {
+                GbOutcome::Cancelled
+            } else {
+                log::warn!("{} failed ({:?}); treating the ideal as undetermined", what, e);
+                GbOutcome::Failed
+            }
+        }
+    }
 }
 
 /// Run `f` under `catch_unwind`, converting a panic into
@@ -371,19 +422,17 @@ pub(crate) fn catch_engine_panic<T>(
 
 /// Compute a Groebner basis of `generators` in the requested monomial
 /// order, routed through [`compute_gb_dispatch`] (dense) or the sparse
-/// engine ([`sparse_gb_route`]) per the active representation.
-/// Failure handling follows the [`finish_gb`] contract: cancellation
-/// returns the generators unchanged (caller's `is_cancelled()` check
-/// discards them); a genuine engine error returns an empty basis.
+/// engine ([`sparse_gb_route`]) per the ring's representation. See
+/// [`GbOutcome`] for the cancellation/failure contract.
 #[metric]
 pub fn compute_gb_with_order(
     poly_ring: &FfPolyRing,
     generators: Vec<Poly>,
     cancel: &CancelToken,
     order: FfOrder,
-) -> Vec<Poly> {
+) -> GbOutcome {
     if generators.is_empty() {
-        return Vec::new();
+        return GbOutcome::Basis(Vec::new());
     }
     if use_sparse_gb(poly_ring) {
         // Honour the configured strategy on the sparse path too: ByHomog
@@ -396,20 +445,20 @@ pub fn compute_gb_with_order(
             return crate::gb::gb_homog::compute_gb_by_homog(poly_ring, generators, cancel);
         }
         record_dispatched("sparse-buchberger");
-        let backup: Vec<Poly> = generators.iter().map(|p| p.clone()).collect();
         let result = sparse_gb_route(poly_ring, generators, order, cancel);
-        return finish_gb(result, cancel, backup, "sparse GB");
+        return finish_gb(result, cancel, "sparse GB");
     }
     let n_gens = generators.len();
     let n_vars = poly_ring.n_vars();
-    let backup: Vec<Poly> = generators.iter().map(|p| p.clone()).collect();
     let result = compute_gb_dispatch(poly_ring, generators, cancel, order, None);
-    let basis = finish_gb(result, cancel, backup, "GB dispatch");
-    log::trace!(
-        "GB call: {} gens, {} vars → {} basis elems",
-        n_gens, n_vars, basis.len()
-    );
-    basis
+    let out = finish_gb(result, cancel, "GB dispatch");
+    if let GbOutcome::Basis(basis) = &out {
+        log::trace!(
+            "GB call: {} gens, {} vars → {} basis elems",
+            n_gens, n_vars, basis.len()
+        );
+    }
+    out
 }
 
 /// Raw Buchberger entry point. Bypasses [`compute_gb_dispatch`] and
@@ -444,26 +493,23 @@ pub(crate) fn compute_gb_buchberger(
 /// Raw *direct* Gröbner basis (plain Buchberger, no strategy dispatch) on
 /// `poly_ring`, routed to the sparse or dense engine per the active
 /// representation. The inner homogeneous-GB step of the by-homog pipeline
-/// uses this so it never re-enters strategy dispatch. Empty input → empty;
-/// on cancellation → generators unchanged (caller discards); on a genuine
-/// engine error → empty (never a fake GB; see [`compute_gb_with_order`]).
+/// uses this so it never re-enters strategy dispatch. Empty input →
+/// empty basis; see [`GbOutcome`] for the cancellation/failure contract.
 pub(crate) fn compute_gb_direct(
     poly_ring: &FfPolyRing,
     generators: Vec<Poly>,
     cancel: &CancelToken,
     order: FfOrder,
-) -> Vec<Poly> {
+) -> GbOutcome {
     if generators.is_empty() {
-        return Vec::new();
+        return GbOutcome::Basis(Vec::new());
     }
     if use_sparse_gb(poly_ring) {
-        let backup: Vec<Poly> = generators.iter().map(|p| p.clone()).collect();
         let result = sparse_gb_route(poly_ring, generators, order, cancel);
-        return finish_gb(result, cancel, backup, "inner direct sparse GB");
+        return finish_gb(result, cancel, "inner direct sparse GB");
     }
-    let backup: Vec<Poly> = generators.iter().map(|p| p.clone()).collect();
     let result = compute_gb_buchberger(poly_ring, generators, cancel, order);
-    finish_gb(result, cancel, backup, "inner direct GB")
+    finish_gb(result, cancel, "inner direct GB")
 }
 
 /// Incremental GB extension. Computes GB of `<known_gb> + <new_polys>`
@@ -478,9 +524,9 @@ pub fn compute_gb_incremental_with_order(
     new_polys: Vec<Poly>,
     cancel: &CancelToken,
     order: FfOrder,
-) -> Vec<Poly> {
+) -> GbOutcome {
     if new_polys.is_empty() {
-        return known_gb;
+        return GbOutcome::Basis(known_gb);
     }
     if known_gb.is_empty() {
         return compute_gb_with_order(poly_ring, new_polys, cancel, order);
@@ -490,12 +536,9 @@ pub fn compute_gb_incremental_with_order(
         // contract the dense path relies on via `seed_reduced_basis`) and
         // process only the cross / intra-new S-pairs, then inter-reduce —
         // identical to recomputing the union, but skips the O(n²) seed
-        // pairs. A panic is caught and mapped to an empty basis → Unknown
-        // via `finish_gb`, mirroring the dense incremental path.
+        // pairs. A panic is caught and mapped to `Failed` via
+        // `finish_gb`, mirroring the dense incremental path.
         let ring = ring_for_order(poly_ring, order);
-        let backup: Vec<Poly> = known_gb.iter().chain(new_polys.iter())
-            .map(|p| p.clone())
-            .collect();
         let result = catch_engine_panic("incremental sparse Buchberger", || {
             let known: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
                 known_gb.iter().map(|p| p.to_sparse(&ring)).collect();
@@ -505,7 +548,7 @@ pub fn compute_gb_incremental_with_order(
             let reduced = crate::ff::sparse_gb::interreduce(gb, &ring, Some(cancel));
             Ok(reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>())
         });
-        return finish_gb(result, cancel, backup, "incremental sparse GB");
+        return finish_gb(result, cancel, "incremental sparse GB");
     }
     let ring = ring_for_order(poly_ring, order);
     let cfg = BuchbergerConfig {
@@ -519,13 +562,6 @@ pub fn compute_gb_incremental_with_order(
         use_f4: false,
         ..BuchbergerConfig::default()
     };
-
-    // Cancellation fallback: the caller discards this via its
-    // is_cancelled() check. A genuine engine error returns an empty basis
-    // instead (see `compute_gb_with_order`) — never a fake GB.
-    let backup: Vec<Poly> = known_gb.iter().chain(new_polys.iter())
-        .map(|p| p.clone())
-        .collect();
 
     let dense_known = unwrap_dense_vec(known_gb, &ring);
     let dense_new = unwrap_dense_vec(new_polys, &ring);
@@ -543,7 +579,7 @@ pub fn compute_gb_incremental_with_order(
         igb.add_generators(dense_new)?;
         Ok(wrap_dense_vec(igb.basis()))
     });
-    finish_gb(result, cancel, backup, "incremental GB")
+    finish_gb(result, cancel, "incremental GB")
 }
 
 /// Traced sibling of [`compute_gb_with_order`]: feeds Buchberger steps
@@ -563,13 +599,12 @@ pub fn compute_gb_with_order_traced(
     cancel: &CancelToken,
     order: FfOrder,
     tracer: &mut crate::gb::tracer::GbTracer,
-) -> Vec<Poly> {
+) -> GbOutcome {
     if generators.is_empty() {
-        return Vec::new();
+        return GbOutcome::Basis(Vec::new());
     }
-    let backup: Vec<Poly> = generators.iter().map(|p| p.clone()).collect();
     let result = compute_gb_dispatch(poly_ring, generators, cancel, order, Some(tracer));
-    finish_gb(result, cancel, backup, "traced GB dispatch")
+    finish_gb(result, cancel, "traced GB dispatch")
 }
 
 /// Raw traced Buchberger entry point. Counterpart to
@@ -617,9 +652,9 @@ pub fn compute_gb_incremental_with_order_traced(
     cancel: &CancelToken,
     order: FfOrder,
     tracer: &mut crate::gb::tracer::GbTracer,
-) -> Vec<Poly> {
+) -> GbOutcome {
     if new_polys.is_empty() {
-        return known_gb;
+        return GbOutcome::Basis(known_gb);
     }
     if known_gb.is_empty() {
         return compute_gb_with_order_traced(poly_ring, new_polys, cancel, order, tracer);
@@ -634,9 +669,6 @@ pub fn compute_gb_incremental_with_order_traced(
         use_f4: false,
         ..BuchbergerConfig::default()
     };
-    let backup: Vec<Poly> = known_gb.iter().chain(new_polys.iter())
-        .map(|p| p.clone())
-        .collect();
     let dense_known = unwrap_dense_vec(known_gb, &ring);
     let dense_new = unwrap_dense_vec(new_polys, &ring);
     let result = catch_engine_panic("traced incremental Buchberger", || {
@@ -645,14 +677,7 @@ pub fn compute_gb_incremental_with_order_traced(
         igb.add_generators_observed(dense_new, tracer)?;
         Ok(wrap_dense_vec(igb.basis()))
     });
-    // Mirror `compute_gb_incremental_with_order`: a genuine engine error
-    // (panic or non-cancel `Err`) returns an empty basis, never the
-    // unreduced `known_gb ++ new_polys`. Handing back a non-GB would let a
-    // downstream `is_zero_dim`/`min_poly`/FGLM treat it as a GB (a possible
-    // false UNSAT); an empty basis is `is_whole_ring() == false`, so the
-    // split-GB fixpoint keeps searching (Unknown) rather than concluding.
-    // `backup` is returned only on cooperative cancellation.
-    finish_gb(result, cancel, backup, "traced incremental GB")
+    finish_gb(result, cancel, "traced incremental GB")
 }
 
 #[cfg(test)]
