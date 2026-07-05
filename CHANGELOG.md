@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
+## [1.8.26] - 2026-07-05
+
+### API
+- `PolyIR::check_uniqueness(inputs, outputs, known, cfg)`: DPVL uniqueness analysis (two-copy lowering + propagation) from the IR, no R1CS round-trip; witnesses keyed by variable name.
+- `uniqueness::polysystem_to_uniqueness_query`: doubles a single-copy `PolySystem` into a two-copy `UniquenessQuery`; `r1cs_to_uniqueness_query` wraps it.
+- `dpvl::run_dpvl_on_query`: run DPVL on a pre-built `UniquenessQuery`; `run_dpvl` wraps it.
+- `UniquenessQuery.base_disequalities`: source disequalities preserved across `set_target`.
+
 ## [1.8.25] - 2026-07-05
 
 Workspace-wide maintainability refactor. No verdict or behaviour changes.
