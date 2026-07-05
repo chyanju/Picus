@@ -56,9 +56,9 @@ Binary-file parser. No internal Picus dependencies.
   magic, header, constraint blocks, wire-to-label section. Factors
   are reduced modulo the prime carried by the header (no hard-coded
   curve).
-- **`lib.rs`** — `bn128_prime()` constant and `field_reduce(x, &p)`
-  convenience helper. `parse_var_index("x5")` / `"y3"` for callers
-  that need to sort a witness map by wire index.
+- **`lib.rs`** — `parse_var_index("x5")` / `"y3"` decodes the `x{i}`/`y{i}`
+  naming for callers that sort a witness map by wire index. A `testkit` cargo
+  feature exposes shared R1CS fixture builders for downstream tests.
 
 ### `picus-core`
 
@@ -87,8 +87,10 @@ dependencies.
   consume these live in `picus-solver`.
 - **`timeout.rs`** — `CancelToken` (atomic cancellation threaded through the
   engine). `CancelToken::either(a, b)` fires when either source fires.
-- **`profile.rs`** — Per-site wall-clock profiler (`ScopedTimer`,
-  `dump_to_stderr`) plus the `SPLIT_DFS` / `SPLIT_GB` / `NATIVE_FF` counters.
+- **`profile/`** — the per-site wall-clock profiler (`ScopedTimer`,
+  `dump_to_stderr`), the `SPLIT_DFS` / `SPLIT_GB` / `NATIVE_FF` gb-stats
+  counters, and the `metric::` instrumentation macros, in the `phase`,
+  `counters`, and `metric` submodules.
 
 ### `picus-solver`
 

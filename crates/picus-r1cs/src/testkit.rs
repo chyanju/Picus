@@ -1,12 +1,9 @@
 //! Shared R1CS test-fixture builders.
 //!
-//! This module is `pub` and gated behind the `testkit` feature (NOT
-//! `#[cfg(test)]`) so it is visible to the unit AND integration tests of
-//! *other* crates. It collects the fixture helpers that were previously
-//! copy-pasted across the picus-analysis and picus-smt test suites.
-//!
-//! Each builder reproduces the exact behavior of the local helpers it
-//! replaced: same wire-0 handling, same header fields, same section layout.
+//! `pub` and gated behind the `testkit` feature (not `#[cfg(test)]`) so it is
+//! reachable from other crates' unit and integration tests. Builders use the
+//! standard fixture layout: wire 0 is the constant one-wire, `field_size = 32`,
+//! all public-I/O counts zero.
 
 use num_bigint::BigUint;
 

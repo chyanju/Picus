@@ -19,9 +19,8 @@ use crate::ff::sparse_polynomial::SparsePolynomial;
 pub type Poly = Polynomial;
 /// Re-export the monomial type.
 pub type Mono = Monomial;
-/// Type alias for the polynomial-ring facade, used by picus-solver's GB code
-/// as its `&PolyRingType` reference shape. (Only picus-solver consumes this
-/// alias; see plan2 T2 — a candidate to relocate into the solver crate.)
+/// Alias for the polynomial-ring facade, used as the `&PolyRingType` reference
+/// shape in the GB code.
 pub type PolyRingType = PolyRingFacade;
 
 /// A multivariate polynomial ring GF(p)[x_0, ..., x_{n-1}].

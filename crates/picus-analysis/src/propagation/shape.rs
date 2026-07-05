@@ -1,12 +1,10 @@
 //! Shared polynomial-shape primitives for the propagation lemmas.
 //!
-//! Several lemmas parse a constraint polynomial as a linear combination. The
-//! per-term triage ("constant, single linear variable, or nonlinear?") was
-//! hand-rolled in each; [`linear_form`] centralises it. It is deliberately
-//! *descriptive* — it returns the raw terms plus the accumulated constant and
-//! makes no policy decision, because the lemmas intentionally differ on what a
-//! nonzero constant means (e.g. `bim` rejects it; `aboz` ignores it) and on
-//! how variables map to wires.
+//! [`linear_form`] parses a constraint polynomial as a linear combination. It
+//! is deliberately *descriptive*: it returns the raw terms plus the accumulated
+//! constant and makes no policy decision, since the lemmas differ on what a
+//! nonzero constant means (`bim` rejects it, `aboz` ignores it) and on how
+//! variables map to wires.
 
 use num_bigint::BigUint;
 
