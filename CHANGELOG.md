@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
+## [Unreleased]
+
+### API
+- `PolyIR::check_uniqueness` returns a scoped `UniquenessError` (`Config` | `Analysis`) instead of the broad `PicusError`.
+- `CheckResult::Unknown` / `DpvlResult::Unknown` carry a `DpvlUnknown` reason (`Timeout` | `BackendError` | `Exhausted`); the CLI surfaces it.
+- Removed the never-constructed `PicusError::Solver` variant.
+- Shared cvc5/z3 backend helpers are `pub(crate)`; `build_poly_cvc5` no longer leaks `cvc5-ff` types onto picus-smt's public surface.
+
+### Naming
+- Unified the wire vocabulary in picus-analysis: `UniquenessQuery.{known_signals,target_signal,input_indices}` → `{known_wires,target_wire,input_wires}`; DPVL `sid` and selector "signal" → "wire". The 0..2n ring `var` domain is unchanged.
+- `RangeValue::Bottom` → `Unconstrained` (was documented as the lattice top).
+- Generated engine overlay `EngineOverlay` → `RuntimeOverlay` (stem-symmetric with `RuntimeConfig`); facade re-exports it as `EngineOverlay`.
+
+### Extensibility
+- Signal selectors register via `inventory` (`SelectorDescriptor`); `--selector` is validated against the registry — no `SelectorKind` enum or hardcoded CLI list. `DpvlConfig.selector` is a name `String`.
+- `GbStrategy`/`ReprKind` gained `FromStr`; the CLI parses via it instead of inline matches that silently defaulted on bad input.
+- `Theory` derives `Ord` (dropped the sort-only `theory_key`); `--theory` / `--lemmas` valid-name lists are derived from the enum/registry, not hand-maintained.
+
+### Structure
+- Dropped the inert `native` Cargo feature (the native FF engine is always compiled; cvc5/z3 stay opt-in).
+- Removed the phantom `picus` → `picus-solver` and `picus-smt` → `picus-r1cs` dependency edges (picus-r1cs is dev-only in picus-smt).
+
 ## [1.8.26] - 2026-07-05
 
 ### API

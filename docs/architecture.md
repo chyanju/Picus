@@ -72,7 +72,8 @@ dependencies.
   `aboz_emit_disjunctions`, `poly_repr`), plus `ReprKind` and `GbStrategy`.
   Thread-local storage with `ConfigGuard` for RAII overrides; the
   `picus::check_r1cs` driver installs the resolved engine config per call.
-  `EngineOverlay` is the all-optional partial used for config layering.
+  `RuntimeOverlay` is the all-optional partial used for config layering
+  (re-exported through the facade as `EngineOverlay`).
 - **`poly.rs`** — `FfPolyRing` (multivariate polynomial ring over
   `PrimeField`), `Poly` / `Mono` aliases, `PolyRingFacade` (`terms`,
   `exponent_at`, `appearing_indeterminates`, owned-`Poly` `add` / `sub` /
@@ -397,9 +398,11 @@ DPVL algorithm, the uniqueness overlay, and propagation lemma plugins.
   the live `inventory` registry.
 - **`propagation/`** — Six propagation lemmas plus the plugin
   infrastructure. See [Propagation Lemmas](./lemmas.md).
-- **`selector.rs`** — `SelectorKind` (`First` / `Counter`) +
-  `SelectorState`. The counter strategy consumes a
-  `wire_connectivity_score(&PolySystem)` map built once by the DPVL
+- **`selector.rs`** — the `Selector` trait plus the `first` / `counter`
+  strategies, registered via `inventory` (`SelectorDescriptor`) like the
+  lemmas; `SelectorState` builds one by name and `--selector` is validated
+  against the registry. The counter strategy consumes a
+  `wire_connectivity_score(&UniquenessQuery)` map built once by the DPVL
   driver: wires that participate in more constraints score higher.
 
 ### `picus`
