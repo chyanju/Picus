@@ -268,10 +268,9 @@ pub(crate) fn use_sparse_gb() -> bool {
 /// so far — a valid generating set of the same ideal but NOT a complete
 /// Gröbner basis — surfaced here as `Ok(partial)`, so every caller MUST
 /// re-check `cancel.is_cancelled()` and discard it before trusting it as a
-/// GB. A panic in the sparse engine is caught and mapped to
-/// `EngineError::Internal` (mirroring the dense path's `catch_unwind`), so
-/// a malformed query degrades to an empty basis → Unknown via `finish_gb`
-/// rather than aborting the process.
+/// GB. A panic in the sparse engine is caught by [`catch_engine_panic`]
+/// (mirroring the dense path), so a malformed query degrades to an empty
+/// basis → Unknown via `finish_gb` rather than aborting the process.
 fn sparse_gb_route(
     poly_ring: &FfPolyRing,
     generators: Vec<Poly>,
@@ -279,20 +278,13 @@ fn sparse_gb_route(
     cancel: &CancelToken,
 ) -> Result<Vec<Poly>, EngineError> {
     let ring = ring_for_order(poly_ring, order);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    catch_engine_panic("sparse Buchberger", || {
         let sparse: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
             generators.iter().map(|p| p.to_sparse(&ring)).collect();
         let gb = crate::ff::sparse_gb::groebner_basis(sparse, &ring, Some(cancel));
         let reduced = crate::ff::sparse_gb::interreduce(gb, &ring, Some(cancel));
-        reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>()
-    }));
-    match result {
-        Ok(basis) => Ok(basis),
-        Err(_) => {
-            log::warn!("sparse GB computation panicked");
-            Err(EngineError::Internal("sparse Buchberger panicked".into()))
-        }
-    }
+        Ok(reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>())
+    })
 }
 
 /// Unwrap a vector of solve-core `Poly` to the dense `DensePoly` the
@@ -335,6 +327,33 @@ fn finish_gb(
             Vec::new()
         }
     })
+}
+
+/// Run `f` under `catch_unwind`, converting a panic into
+/// [`EngineError::EnginePanic`] with the payload text and call site
+/// preserved. A caught panic means the engine has a bug: it is logged at
+/// error level and counted (`IDEAL.engine_panics`) before the caller's
+/// fail-closed handling (empty basis → Unknown) takes over. This is the
+/// crate's only in-crate unwind boundary.
+pub(crate) fn catch_engine_panic<T>(
+    site: &'static str,
+    f: impl FnOnce() -> Result<T, EngineError>,
+) -> Result<T, EngineError> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+        Ok(r) => r,
+        Err(payload) => {
+            let message = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "non-string panic payload".to_string()
+            };
+            metric::incr!(picus_core::profile::IDEAL.engine_panics);
+            log::error!("engine panic at {}: {}", site, message);
+            Err(EngineError::EnginePanic { site, message })
+        }
+    }
 }
 
 /// Compute a Groebner basis of `generators` in the requested monomial
@@ -402,17 +421,10 @@ pub(crate) fn compute_gb_buchberger(
         use_f4: crate::ff::buchberger::use_f4_default(),
     };
     let dense_gens = unwrap_dense_vec(generators, &ring);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    catch_engine_panic("Buchberger", || {
         buchberger::groebner_basis(dense_gens, &ring, &cfg)
-    }));
-    match result {
-        Ok(Ok(GBasis { basis, .. })) => Ok(wrap_dense_vec(basis)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => {
-            log::warn!("GB computation panicked");
-            Err(EngineError::Internal("Buchberger panicked".into()))
-        }
-    }
+            .map(|GBasis { basis, .. }| wrap_dense_vec(basis))
+    })
 }
 
 /// Raw *direct* Gröbner basis (plain Buchberger, no strategy dispatch) on
@@ -470,22 +482,15 @@ pub fn compute_gb_incremental_with_order(
         let backup: Vec<Poly> = known_gb.iter().chain(new_polys.iter())
             .map(|p| p.clone())
             .collect();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = catch_engine_panic("incremental sparse Buchberger", || {
             let known: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
                 known_gb.iter().map(|p| p.to_sparse(&ring)).collect();
             let fresh: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
                 new_polys.iter().map(|p| p.to_sparse(&ring)).collect();
             let gb = crate::ff::sparse_gb::groebner_basis_incremental(known, fresh, &ring, Some(cancel));
             let reduced = crate::ff::sparse_gb::interreduce(gb, &ring, Some(cancel));
-            reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>()
-        }));
-        let result: Result<Vec<Poly>, EngineError> = match result {
-            Ok(basis) => Ok(basis),
-            Err(_) => {
-                log::warn!("incremental sparse GB computation panicked");
-                Err(EngineError::Internal("incremental sparse Buchberger panicked".into()))
-            }
-        };
+            Ok(reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>())
+        });
         return finish_gb(result, cancel, backup, "incremental sparse GB");
     }
     let ring = ring_for_order(poly_ring, order);
@@ -509,7 +514,7 @@ pub fn compute_gb_incremental_with_order(
 
     let dense_known = unwrap_dense_vec(known_gb, &ring);
     let dense_new = unwrap_dense_vec(new_polys, &ring);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = catch_engine_panic("incremental Buchberger", || {
         let mut igb = IncrementalGB::new(ring.clone(), cfg);
         // Seed with the trusted reduced GB via the pair-free fast path.
         // `add_generators` would have generated O(n²) S-pairs among the
@@ -521,13 +526,8 @@ pub fn compute_gb_incremental_with_order(
         // Genuinely incremental: only the cross-pairs (known_gb × new) and
         // intra-new pairs are processed by add_generators below.
         igb.add_generators(dense_new)?;
-        Ok::<Vec<crate::ff::DensePoly>, crate::EngineError>(igb.basis())
-    }));
-    let result: Result<Vec<Poly>, EngineError> = match result {
-        Ok(Ok(basis)) => Ok(wrap_dense_vec(basis)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err(EngineError::Internal("incremental GB panicked".into())),
-    };
+        Ok(wrap_dense_vec(igb.basis()))
+    });
     finish_gb(result, cancel, backup, "incremental GB")
 }
 
@@ -579,17 +579,10 @@ pub(crate) fn compute_gb_buchberger_traced(
         use_f4: crate::ff::buchberger::use_f4_default(),
     };
     let dense_gens = unwrap_dense_vec(generators, &ring);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    catch_engine_panic("traced Buchberger", || {
         buchberger::groebner_basis_observed(dense_gens, &ring, &cfg, tracer)
-    }));
-    match result {
-        Ok(Ok(GBasis { basis, .. })) => Ok(wrap_dense_vec(basis)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => {
-            log::warn!("traced GB computation panicked");
-            Err(EngineError::Internal("traced Buchberger panicked".into()))
-        }
-    }
+            .map(|GBasis { basis, .. }| wrap_dense_vec(basis))
+    })
 }
 
 /// Traced incremental variant.  Mirrors `compute_gb_incremental_with_order`
@@ -629,30 +622,20 @@ pub fn compute_gb_incremental_with_order_traced(
         .collect();
     let dense_known = unwrap_dense_vec(known_gb, &ring);
     let dense_new = unwrap_dense_vec(new_polys, &ring);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = catch_engine_panic("traced incremental Buchberger", || {
         let mut igb = IncrementalGB::new(ring.clone(), cfg);
         igb.add_generators_observed(dense_known, tracer)?;
         igb.add_generators_observed(dense_new, tracer)?;
-        Ok::<Vec<crate::ff::DensePoly>, crate::EngineError>(igb.basis())
-    }));
-    match result {
-        Ok(Ok(basis)) => wrap_dense_vec(basis),
-        // Mirror `compute_gb_incremental_with_order`: a genuine engine error
-        // (panic or non-cancel `Err`) returns an empty basis, never the
-        // unreduced `known_gb ++ new_polys`. Handing back a non-GB would let a
-        // downstream `is_zero_dim`/`min_poly`/FGLM treat it as a GB (a possible
-        // false UNSAT); an empty basis is `is_whole_ring() == false`, so the
-        // split-GB fixpoint keeps searching (Unknown) rather than concluding.
-        // `backup` is returned only on cooperative cancellation.
-        Ok(Err(_)) | Err(_) => {
-            if cancel.is_cancelled() {
-                backup
-            } else {
-                log::warn!("traced incremental GB failed; returning empty basis (Unknown)");
-                Vec::new()
-            }
-        }
-    }
+        Ok(wrap_dense_vec(igb.basis()))
+    });
+    // Mirror `compute_gb_incremental_with_order`: a genuine engine error
+    // (panic or non-cancel `Err`) returns an empty basis, never the
+    // unreduced `known_gb ++ new_polys`. Handing back a non-GB would let a
+    // downstream `is_zero_dim`/`min_poly`/FGLM treat it as a GB (a possible
+    // false UNSAT); an empty basis is `is_whole_ring() == false`, so the
+    // split-GB fixpoint keeps searching (Unknown) rather than concluding.
+    // `backup` is returned only on cooperative cancellation.
+    finish_gb(result, cancel, backup, "traced incremental GB")
 }
 
 #[cfg(test)]

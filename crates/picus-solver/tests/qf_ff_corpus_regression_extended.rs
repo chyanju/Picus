@@ -49,22 +49,6 @@ fn test_bigff_is_zero_sound() {
     // algebraic content for the soundness direction.
     let p: BigUint = "21888242871839275222246405745257275088548364400416034343698204186575808495617"
         .parse().unwrap();
-    let _system = NamedSystem {
-        prime: p.clone(),
-        equalities: vec![
-            // m*x + iz - 1 = 0
-            vec![pt(1, &["m", "x"]), vt("iz"), ctb(&p - BigUint::one())],
-            // iz*x = 0
-            vec![pt(1, &["iz", "x"])],
-            // (iz^2 - iz) * w = 1 → witness for iz ∉ {0,1}
-            vec![pt(1, &["iz", "iz", "w"]), pt(p.to_u64_digits().first().copied().unwrap_or(0).wrapping_sub(1).wrapping_add(1).max(1) as u64, &[])],  // placeholder, replaced next line
-        ],
-        disequalities: vec![],
-        assignments: vec![],
-        add_field_polys: false,
-        bitsums: vec![],
-    };
-    // The struct above is a placeholder; build the actual system below.
     let p_minus_1 = &p - BigUint::one();
     let system = NamedSystem {
         prime: p.clone(),
@@ -132,7 +116,10 @@ fn test_multicheck() {
     s.assert_equality(vec![pt(1, &["a", "a"]), svt(16, "b")]);
     // a - 1 = 0
     s.assert_equality(vec![vt("a"), ct(16)]);
-    matches!(s.check(), SolveOutcome::Sat(_));
+    assert!(
+        matches!(s.check(), SolveOutcome::Sat(_)),
+        "first incremental check must be SAT"
+    );
     // c*c - c = 0
     s.assert_equality(vec![pt(1, &["c", "c"]), svt(16, "c")]);
     // c*c - b = 0

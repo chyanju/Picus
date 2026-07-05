@@ -62,7 +62,15 @@ struct PartialBuild {
     inflight: Vec<IncrementalGB>,
     pending: Vec<Vec<Poly>>,
     contains_memo: std::collections::HashSet<(u64, usize)>,
+    /// Consecutive resume attempts that made no progress (no extend work,
+    /// no new propagations). At [`NO_PROGRESS_RESUME_CAP`] the build is
+    /// declared failed so the query falls back to the stateless path
+    /// instead of returning Unknown on every future call.
+    no_progress_resumes: u32,
 }
+
+/// See [`PartialBuild::no_progress_resumes`].
+const NO_PROGRESS_RESUME_CAP: u32 = 3;
 
 #[derive(Default)]
 pub struct IncrementalSolverContext {
@@ -249,6 +257,7 @@ impl IncrementalSolverContext {
                     inflight,
                     pending,
                     contains_memo: std::collections::HashSet::new(),
+                    no_progress_resumes: 0,
                 });
                 // Returning Ok here lets the caller know the rebuild
                 // attempt is captured (in partial_build); the solve()
@@ -267,9 +276,38 @@ enum ResumeOutcome {
 
 /// Resume a partial build. Re-attaches the new cancel token to all
 /// in-flight `IncrementalGB`s, runs the fixpoint loop. On completion,
-/// produces a `CachedBase`. On further cancellation, the partial state
-/// is updated in place and `StillPartial` is returned.
+/// produces a `CachedBase`. On further cancellation (timeout), the
+/// partial state is updated in place and `StillPartial` is returned.
+/// Non-timeout engine errors, fixpoint-cap exhaustion, and
+/// [`NO_PROGRESS_RESUME_CAP`] consecutive stalled resumes return
+/// `Failed`, dropping the partial so the query is answered statelessly
+/// instead of pinning every future identical query to Unknown.
 fn continue_partial(partial: &mut PartialBuild, cancel: &CancelToken) -> ResumeOutcome {
+    let mut made_progress = false;
+    let out = continue_partial_inner(partial, cancel, &mut made_progress);
+    if matches!(out, ResumeOutcome::StillPartial) {
+        if made_progress {
+            partial.no_progress_resumes = 0;
+        } else {
+            partial.no_progress_resumes += 1;
+            if partial.no_progress_resumes >= NO_PROGRESS_RESUME_CAP {
+                log::warn!(
+                    "continue_partial: {} consecutive resumes made no progress; \
+                     dropping the partial build",
+                    partial.no_progress_resumes
+                );
+                return ResumeOutcome::Failed;
+            }
+        }
+    }
+    out
+}
+
+fn continue_partial_inner(
+    partial: &mut PartialBuild,
+    cancel: &CancelToken,
+    made_progress: &mut bool,
+) -> ResumeOutcome {
     for igb in partial.inflight.iter_mut() {
         igb.set_cancel_token(Some(cancel.clone()));
     }
@@ -286,8 +324,12 @@ fn continue_partial(partial: &mut PartialBuild, cancel: &CancelToken) -> ResumeO
         }
         fixpoint_iter += 1;
         if fixpoint_iter > iter_cap {
-            log::warn!("continue_partial: fixpoint cap reached");
-            break;
+            // Same digest ⇒ same cap: retrying the resume can never get
+            // further, so a StillPartial here would be a permanent
+            // per-digest Unknown. The stateless path has its own cap
+            // semantics and still produces a verdict.
+            log::warn!("continue_partial: fixpoint cap reached; falling back to stateless solve");
+            return ResumeOutcome::Failed;
         }
 
         let mut any_extend_work = false;
@@ -303,6 +345,7 @@ fn continue_partial(partial: &mut PartialBuild, cancel: &CancelToken) -> ResumeO
                 continue;
             }
             any_extend_work = true;
+            *made_progress = true;
             let surviving: Vec<Poly> = if has_pending {
                 let basis = wrap_dense_vec(partial.inflight[i].basis());
                 if basis.is_empty() {
@@ -330,9 +373,15 @@ fn continue_partial(partial: &mut PartialBuild, cancel: &CancelToken) -> ResumeO
             } else {
                 partial.inflight[i].run_only()
             };
-            if res.is_err() {
-                partial.bit_prop_state = bit_prop.to_state();
-                return ResumeOutcome::StillPartial;
+            if let Err(e) = res {
+                if matches!(e, crate::EngineError::Timeout) {
+                    partial.bit_prop_state = bit_prop.to_state();
+                    return ResumeOutcome::StillPartial;
+                }
+                // A non-timeout engine failure is not resumable: the
+                // same input will fail the same way on every retry.
+                log::warn!("continue_partial: engine error, dropping the partial build: {}", e);
+                return ResumeOutcome::Failed;
             }
         }
 
@@ -376,6 +425,7 @@ fn continue_partial(partial: &mut PartialBuild, cancel: &CancelToken) -> ResumeO
                 ) == Propagate::NewGenerator {
                     partial.pending[j].push(poly_ring.ring.clone_el(p));
                     any_new = true;
+                    *made_progress = true;
                 }
             }
         }
@@ -403,6 +453,7 @@ fn continue_partial(partial: &mut PartialBuild, cancel: &CancelToken) -> ResumeO
             inflight: Vec::new(),
             pending: Vec::new(),
             contains_memo: std::collections::HashSet::new(),
+            no_progress_resumes: 0,
         };
         let owned = std::mem::replace(partial, dummy_partial);
         match finalize_partial(owned) {

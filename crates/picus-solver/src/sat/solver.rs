@@ -531,6 +531,17 @@ impl Solver {
             self.unsat = true;
             return None;
         }
+        // Enforce the precondition instead of trusting it: a literal that
+        // is not currently False (True, or unassigned at level -1) means
+        // the theory's explanation diverged from the SAT trail. Failing
+        // open here would either report root UNSAT (`max_level <= 0`
+        // below) or feed level -1 literals into `analyze`, which drops
+        // them from resolvents; both flip verdicts. Fail closed instead,
+        // mirroring [`Self::enqueue_theory`].
+        if lits.iter().any(|&l| self.lit_value(l) != LBool::False) {
+            self.give_up = true;
+            return None;
+        }
         lits.sort_by_key(|&l| std::cmp::Reverse(self.level[l.var().index()]));
         let max_level = self.level[lits[0].var().index()];
         if max_level <= 0 {

@@ -108,6 +108,9 @@ atomic_counters! {
     pub struct IdealCounters {
         pub is_zero_dim_calls: AtomicU64,
         pub quotient_dimension_calls: AtomicU64,
+        /// Panics caught at the GB engine boundary (each one is an
+        /// engine bug that degraded fail-closed to Unknown).
+        pub engine_panics: AtomicU64,
     }
 }
 

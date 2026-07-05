@@ -45,6 +45,18 @@ pub enum EngineError {
     Internal(String),
     #[error("encoding error: {0}")]
     Encoding(String),
+    /// A panic caught at the Gröbner-engine boundary — an engine bug,
+    /// not a property of the input. The unwind is converted to a
+    /// fail-closed degrade (empty basis → Unknown) in
+    /// `gb::ideal::engine`; `site`/`message` keep the defect
+    /// diagnosable. This conversion assumes `panic = "unwind"`: a
+    /// `panic = "abort"` profile turns the degrade into a process
+    /// abort.
+    #[error("engine panic at {site}: {message}")]
+    EnginePanic {
+        site: &'static str,
+        message: String,
+    },
     #[error("timeout")]
     Timeout,
 }

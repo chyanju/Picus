@@ -485,6 +485,7 @@ fn make_partial_build(cs: &ConstraintSystem) -> PartialBuild {
         inflight,
         pending: gens,
         contains_memo: std::collections::HashSet::new(),
+        no_progress_resumes: 0,
     }
 }
 
@@ -664,6 +665,7 @@ fn hand_partial(
         inflight,
         pending: pending_per_split,
         contains_memo: std::collections::HashSet::new(),
+        no_progress_resumes: 0,
     }
 }
 

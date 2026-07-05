@@ -67,7 +67,8 @@ pub struct IncrementalFfTheoryState<'a> {
     /// `FfTheory::pending_reasons`).
     pending_reasons: HashMap<Var, Vec<(Var, bool)>>,
     /// Sticky flag set whenever [`build_atom_polys`] cannot encode a
-    /// fact (slot budget exhausted, or atom not registered). While set,
+    /// fact (slot budget exhausted, or atom not registered) or the
+    /// engine fails to extend the basis (timeout/error). While set,
     /// [`post_check`] returns [`CheckOutcome::Unknown`] unconditionally:
     /// the trail no longer matches the algebraic state in `igb`, so no
     /// SAT/UNSAT verdict is safe. Snapshotted in `levels` so a `pop`
@@ -96,7 +97,16 @@ impl<'a> IncrementalFfTheoryState<'a> {
         let field = PrimeField::new(prime.clone());
         let names: Vec<String> = (0..max_vars).map(|i| format!("__slot_{}", i)).collect();
         let ring = PolyRing::new(field.clone(), names, MonomialOrder::DegRevLex);
-        let igb = IncrementalGB::new(ring.clone(), BuchbergerConfig::default());
+        // The engine must share the solve deadline: without the token a
+        // single `notify_fact` can run a full Buchberger completion past
+        // the wall-clock budget the rest of the crate polls against.
+        let igb = IncrementalGB::new(
+            ring.clone(),
+            BuchbergerConfig {
+                cancel_token: Some(cancel.clone()),
+                ..BuchbergerConfig::default()
+            },
+        );
         let add_field_polys = prime <= BigUint::from(1000u32);
         Self {
             atoms,
@@ -226,7 +236,12 @@ impl<'a> IncrementalFfTheoryState<'a> {
         self.next_slot += 1;
         if self.add_field_polys {
             if let Some(fp) = self.field_poly_for_slot(slot) {
-                let _ = self.igb.add_generators(vec![fp]);
+                // Err (timeout/engine failure) ⇒ the basis may lack this
+                // slot's field polynomial; only Unknown is safe until a
+                // `pop` past this level restores basis and flag together.
+                if self.igb.add_generators(vec![fp]).is_err() {
+                    self.degraded = true;
+                }
             }
         }
         Some(slot)
@@ -306,7 +321,13 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
             }
         };
         self.facts.push((atom, polarity));
-        let _ = self.igb.add_generators(polys);
+        // Err (timeout/engine failure) may leave `igb` partially extended;
+        // roll the trail back and degrade so `post_check` answers Unknown
+        // until a `pop` restores basis and flag together.
+        if self.igb.add_generators(polys).is_err() {
+            self.facts.pop();
+            self.degraded = true;
+        }
     }
 
     fn post_check(&mut self) -> CheckOutcome {
