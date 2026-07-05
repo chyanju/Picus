@@ -250,6 +250,7 @@ fn bench_f4_vs_per_pair_large() {
             cancel_token: None,
             abort_on_trivial: false,
             use_f4,
+            ..BuchbergerConfig::default()
         };
         let mut igb = IncrementalGB::new(Arc::clone(ring), cfg);
         let t = Instant::now();
@@ -475,6 +476,7 @@ fn bench_f4_non_cyclic_workloads() {
             cancel_token: None,
             abort_on_trivial: false,
             use_f4,
+            ..BuchbergerConfig::default()
         };
         let mut igb = IncrementalGB::new(Arc::clone(ring), cfg);
         let t = Instant::now();
@@ -631,6 +633,7 @@ fn bench_f4_vs_per_pair() {
                 cancel_token: None,
                 abort_on_trivial: false,
                 use_f4,
+                ..BuchbergerConfig::default()
             };
             let mut igb = IncrementalGB::new(Arc::clone(ring), cfg);
             let t = Instant::now();
@@ -738,6 +741,7 @@ fn audit_p3_cyclic_n_hilbert_and_sparse_cache_do_not_regress() {
             cancel_token: None,
             abort_on_trivial: false,
             use_f4,
+            ..BuchbergerConfig::default()
         };
         let mut igb = IncrementalGB::new(Arc::clone(ring), cfg);
         let t = Instant::now();

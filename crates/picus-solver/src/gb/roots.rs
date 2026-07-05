@@ -24,15 +24,27 @@ pub fn find_roots(field: &PrimeField, coeffs: &[FieldElem]) -> Vec<FieldElem> {
 /// contract: when `complete == false` the returned roots are only a subset
 /// of the true root set, so callers must not treat exhausting them as proof
 /// of infeasibility.
-#[metric("find_roots")]
 pub fn find_roots_checked(field: &PrimeField, coeffs: &[FieldElem]) -> (Vec<FieldElem>, bool) {
+    find_roots_checked_cancel(field, coeffs, None)
+}
+
+/// [`find_roots_checked`] with cooperative cancellation: root finding is
+/// the most expensive post-GB primitive, and on cancellation it returns
+/// `(roots_so_far, false)` — the completeness contract already forces
+/// sound callers to degrade to Unknown on `complete == false`.
+#[metric("find_roots")]
+pub fn find_roots_checked_cancel(
+    field: &PrimeField,
+    coeffs: &[FieldElem],
+    cancel: Option<&crate::timeout::CancelToken>,
+) -> (Vec<FieldElem>, bool) {
     let fp = field;
     let owned: Vec<FieldElem> = coeffs.iter().map(|c| fp.clone_el(c)).collect();
     let poly = UnivariatePoly::from_coeffs(owned, fp);
     if poly.is_zero() {
         return (Vec::new(), true);
     }
-    univariate::find_roots_checked(&poly, fp)
+    univariate::find_roots_checked_cancel(&poly, fp, cancel)
 }
 
 #[cfg(test)]

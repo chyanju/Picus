@@ -18,7 +18,7 @@ use crate::ff::monomial::MonomialOrder as FfOrder;
 use crate::gb::fglm::fglm_to_lex_cancel;
 use crate::gb::ideal::{compute_gb_incremental_with_order, Ideal};
 use crate::poly::{FfPolyRing, Poly};
-use crate::gb::roots::{find_roots, find_roots_checked};
+use crate::gb::roots::find_roots_checked_cancel;
 use crate::timeout::CancelToken;
 
 /// Three-valued outcome of a model search.
@@ -64,11 +64,17 @@ pub fn find_zero_cancel(
         return FindZeroOutcome::Sat(model);
     }
 
-    // Build initial ideal from the provided GB
+    // Build the initial ideal under the caller's token. The parameter is
+    // documented as a GB, but the public contract does not enforce it
+    // (unit callers pass raw generators), so the GB recompute must stay:
+    // `from_gb` would let `is_zero_dim`/`min_poly` trust a non-GB basis.
     let initial_gens: Vec<Poly> = initial_gb.iter()
         .map(|p| poly_ring.ring.clone_el(p))
         .collect();
-    let initial_ideal = Ideal::new(poly_ring, initial_gens);
+    let initial_ideal = match Ideal::new_with_cancel(poly_ring, initial_gens, cancel) {
+        Ok(ideal) => ideal,
+        Err(_) => return FindZeroOutcome::Unknown,
+    };
 
     // Stack-based iterative search.
     let mut ideals: Vec<Ideal> = vec![initial_ideal];
@@ -125,7 +131,10 @@ pub fn find_zero_cancel(
             } else {
                 let mut merged = prev_basis;
                 merged.push(assign_poly);
-                Ideal::new(poly_ring, merged).basis
+                match Ideal::new_with_cancel(poly_ring, merged, cancel) {
+                    Ok(ideal) => ideal.basis,
+                    Err(_) => return FindZeroOutcome::Unknown,
+                }
             };
             let new_ideal = Ideal::from_gb(poly_ring, new_basis);
             ideals.push(new_ideal);
@@ -233,7 +242,7 @@ fn tri_dfs(
         Some(c) => c,
         None => return false, // no triangular structure → caller falls back
     };
-    for r in find_roots(&poly_ring.field(), &coeffs) {
+    for r in find_roots_checked_cancel(&poly_ring.field(), &coeffs, Some(cancel)).0 {
         assignment.insert(v, r);
         if tri_dfs(poly_ring, gb_polys, assignment, cancel) {
             return true;
@@ -310,7 +319,8 @@ fn compute_candidates(
             if !assigned[var_idx] {
                 if let Some(coeffs) = univariate_coeffs(poly_ring, p, var_idx) {
                     if coeffs.len() > 2 { // deg > 1
-                        let (roots, complete) = find_roots_checked(field, &coeffs);
+                        let (roots, complete) =
+                            find_roots_checked_cancel(field, &coeffs, Some(cancel));
                         if complete {
                             return Brancher::Roots(
                                 roots.into_iter().map(|v| (var_idx, v)).collect()
@@ -356,8 +366,9 @@ fn compute_candidates(
     if ideal.is_zero_dim() {
         for v in 0..n_vars {
             if !assigned[v] {
-                if let Some(coeffs) = ideal.min_poly(v) {
-                    let (roots, complete) = find_roots_checked(field, &coeffs);
+                if let Some(coeffs) = ideal.min_poly_cancel(v, cancel) {
+                    let (roots, complete) =
+                        find_roots_checked_cancel(field, &coeffs, Some(cancel));
                     if complete {
                         return Brancher::Roots(
                             roots.into_iter().map(|val| (v, val)).collect()

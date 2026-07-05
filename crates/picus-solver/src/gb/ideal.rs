@@ -414,7 +414,7 @@ pub(crate) fn interreduce_basis(
     if cancel.is_cancelled() {
         return basis;
     }
-    if use_sparse_gb() {
+    if use_sparse_gb(poly_ring) {
         let ctx = poly_ring.ctx();
         let sparse: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
             basis.iter().map(|p| p.to_sparse(ctx)).collect();

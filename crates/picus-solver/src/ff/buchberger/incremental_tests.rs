@@ -18,6 +18,7 @@ fn cfg() -> BuchbergerConfig {
         cancel_token: None,
         abort_on_trivial: true,
         use_f4: false,
+        ..BuchbergerConfig::default()
     }
 }
 

@@ -1,4 +1,5 @@
 use super::*;
+use crate::timeout::CancelToken;
 use crate::ff::field::PrimeField;
 use num_bigint::BigUint;
 
@@ -20,7 +21,7 @@ fn apply_rule_empty_basis_yields_round_robin() {
     let pr = pr_one_var();
     let gb = Ideal::from_gb(&pr, vec![]);
     let r: PartialPoint = vec![None];
-    let b = apply_rule(&pr, &gb, &r);
+    let b = apply_rule(&pr, &gb, &r, &CancelToken::none());
     assert!(matches!(b, Brancher::RoundRobin { .. }));
 }
 
@@ -33,7 +34,7 @@ fn apply_rule_univariate_yields_roots_brancher() {
     let p = pr.sub(x2, pr.constant(f.one()));
     let gb = Ideal::new(&pr, vec![p]);
     let r: PartialPoint = vec![None];
-    let b = apply_rule(&pr, &gb, &r);
+    let b = apply_rule(&pr, &gb, &r, &CancelToken::none());
     match b {
         Brancher::Roots(v) => assert_eq!(v.len(), 2),
         _ => panic!("expected Roots(2)"),
@@ -46,7 +47,7 @@ fn apply_rule_all_assigned_yields_empty_roots() {
     let f = pr.field();
     let gb = Ideal::from_gb(&pr, vec![]);
     let r: PartialPoint = vec![Some(f.from_int(3))];
-    let b = apply_rule(&pr, &gb, &r);
+    let b = apply_rule(&pr, &gb, &r, &CancelToken::none());
     // No unassigned variable → empty Roots (acts as exhaustive sentinel).
     match b {
         Brancher::Roots(v) => assert!(v.is_empty()),
@@ -67,7 +68,7 @@ fn apply_rule_skips_univariate_in_assigned_variable() {
     // zero-dim → ideal might be zero-dim with x pinned; min_poly(y)
     // returns the y-coordinate's minimal poly, which is `y` alone in
     // R/(x-3), giving roots {0..p-1} → branches.
-    let _b = apply_rule(&pr, &gb, &r);
+    let _b = apply_rule(&pr, &gb, &r, &CancelToken::none());
     // Just exercise the path; outcome depends on zero-dim detection.
 }
 
@@ -91,7 +92,7 @@ fn apply_rule_zero_dim_minpoly_yields_exhaustive_roots() {
     let gb = Ideal::new(&pr, vec![p_x, p_xy]);
     assert!(gb.is_zero_dim(), "precondition: I is zero-dimensional");
     let r: PartialPoint = vec![None, Some(f.from_int(2))]; // y assigned, x free
-    let b = apply_rule(&pr, &gb, &r);
+    let b = apply_rule(&pr, &gb, &r, &CancelToken::none());
     match b {
         Brancher::Roots(v) => {
             assert!(!v.is_empty(), "zero-dim min-poly must yield roots");
@@ -104,7 +105,7 @@ fn apply_rule_zero_dim_minpoly_yields_exhaustive_roots() {
         _ => panic!("expected Roots from zero-dim min-poly"),
     }
     assert!(
-        apply_rule(&pr, &gb, &r).is_exhaustive(),
+        apply_rule(&pr, &gb, &r, &CancelToken::none()).is_exhaustive(),
         "complete root extraction over a small prime is exhaustive"
     );
 }
@@ -115,7 +116,7 @@ fn apply_rule_zero_dim_minpoly_yields_exhaustive_roots() {
 fn apply_rule_multi_empty_bases_yields_empty_roots() {
     let pr = pr_one_var();
     let r: PartialPoint = vec![None];
-    let b = apply_rule_multi(&pr, &[], &r);
+    let b = apply_rule_multi(&pr, &[], &r, &CancelToken::none());
     match b {
         Brancher::Roots(v) => assert!(v.is_empty()),
         _ => panic!("expected empty Roots"),
@@ -130,7 +131,7 @@ fn apply_rule_multi_picks_univariate_across_bases() {
     let p = pr.sub(pr.var(0), pr.constant(f.from_int(2))); // x = 2
     let bases = vec![Ideal::from_gb(&pr, vec![]), Ideal::new(&pr, vec![p])];
     let r: PartialPoint = vec![None];
-    let b = apply_rule_multi(&pr, &bases, &r);
+    let b = apply_rule_multi(&pr, &bases, &r, &CancelToken::none());
     match b {
         Brancher::Roots(v) => {
             assert_eq!(v.len(), 1);
@@ -148,6 +149,6 @@ fn apply_rule_multi_falls_back_to_round_robin_on_basis_zero() {
     // No basis has univariate / zero-dim → round-robin on basis 0.
     let bases = vec![Ideal::from_gb(&pr, vec![])];
     let r: PartialPoint = vec![None];
-    let b = apply_rule_multi(&pr, &bases, &r);
+    let b = apply_rule_multi(&pr, &bases, &r, &CancelToken::none());
     assert!(matches!(b, Brancher::RoundRobin { .. }));
 }

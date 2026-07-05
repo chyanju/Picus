@@ -10,6 +10,7 @@ use num_traits::{One, Zero};
 use oorandom::Rand64;
 
 use super::field::{FieldElem, PrimeField};
+use crate::timeout::CancelToken;
 
 /// A univariate polynomial over GF(p). Coefficients are stored low-to-high
 /// (`coeffs[i]` is the coefficient of `x^i`); trailing zero coefficients are
@@ -212,21 +213,40 @@ impl UnivariatePoly {
 
     /// Compute `self^exp mod modulus` using square-and-multiply.
     pub fn pow_mod(&self, exp: &BigUint, modulus: &Self, field: &PrimeField) -> Self {
+        self.pow_mod_cancel(exp, modulus, field, None)
+            .expect("pow_mod without a cancel token cannot be cancelled")
+    }
+
+    /// [`Self::pow_mod`] with cooperative cancellation: polls once per
+    /// squaring iteration (each costs O(deg²) coefficient work; over a
+    /// 254-bit prime the loop runs up to 254 iterations, making this the
+    /// longest otherwise-poll-free region in the crate). Returns `None`
+    /// when cancelled.
+    pub fn pow_mod_cancel(
+        &self,
+        exp: &BigUint,
+        modulus: &Self,
+        field: &PrimeField,
+        cancel: Option<&CancelToken>,
+    ) -> Option<Self> {
         let one = UnivariatePoly::one(field);
         if exp.is_zero() {
-            return one.rem(modulus, field);
+            return Some(one.rem(modulus, field));
         }
         let mut result = one;
         let base = self.rem(modulus, field);
         // Iterate bits from MSB to LSB.
         let bits = exp.bits();
         for i in (0..bits).rev() {
+            if cancel.is_some_and(|c| c.is_cancelled()) {
+                return None;
+            }
             result = result.mul(&result, field).rem(modulus, field);
             if exp.bit(i) {
                 result = result.mul(&base, field).rem(modulus, field);
             }
         }
-        result
+        Some(result)
     }
 }
 
@@ -260,15 +280,20 @@ fn squarefree(poly: &UnivariatePoly, field: &PrimeField) -> UnivariatePoly {
 /// memoized in a thread-local cache so repeated root-finding calls on the same
 /// `(ring, poly)` (e.g. across DFS branches in model construction) reuse a
 /// single square-and-multiply pass.
-fn distinct_linear_part(poly: &UnivariatePoly, field: &PrimeField) -> UnivariatePoly {
+/// Returns `None` when cancelled mid-Frobenius.
+fn distinct_linear_part(
+    poly: &UnivariatePoly,
+    field: &PrimeField,
+    cancel: Option<&CancelToken>,
+) -> Option<UnivariatePoly> {
     let x_poly = UnivariatePoly::x(field);
     let xp = if picus_core::config::with(|c| c.frobenius_cache) {
-        frobenius_cached(poly, field)
+        frobenius_cached(poly, field, cancel)?
     } else {
-        x_poly.pow_mod(field.prime(), poly, field)
+        x_poly.pow_mod_cancel(field.prime(), poly, field, cancel)?
     };
     let xp_minus_x = xp.sub(&x_poly, field);
-    poly.gcd(&xp_minus_x, field)
+    Some(poly.gcd(&xp_minus_x, field))
 }
 
 thread_local! {
@@ -287,7 +312,11 @@ struct FrobeniusKey {
     coeffs: Vec<BigUint>,
 }
 
-fn frobenius_cached(poly: &UnivariatePoly, field: &PrimeField) -> UnivariatePoly {
+fn frobenius_cached(
+    poly: &UnivariatePoly,
+    field: &PrimeField,
+    cancel: Option<&CancelToken>,
+) -> Option<UnivariatePoly> {
     let key = FrobeniusKey {
         prime: field.prime().clone(),
         coeffs: poly.coeffs().iter().map(|c| field.to_biguint(c)).collect(),
@@ -298,10 +327,10 @@ fn frobenius_cached(poly: &UnivariatePoly, field: &PrimeField) -> UnivariatePoly
     });
     if let Some(big_coeffs) = cached {
         let coeffs: Vec<FieldElem> = big_coeffs.iter().map(|b| field.from_biguint(b)).collect();
-        return UnivariatePoly::from_coeffs(coeffs, field);
+        return Some(UnivariatePoly::from_coeffs(coeffs, field));
     }
     let x_poly = UnivariatePoly::x(field);
-    let xp = x_poly.pow_mod(field.prime(), poly, field);
+    let xp = x_poly.pow_mod_cancel(field.prime(), poly, field, cancel)?;
     let big_xp: Vec<BigUint> = xp.coeffs().iter().map(|c| field.to_biguint(c)).collect();
     FROBENIUS_CACHE.with(|cell| {
         let mut map = cell.borrow_mut();
@@ -310,7 +339,7 @@ fn frobenius_cached(poly: &UnivariatePoly, field: &PrimeField) -> UnivariatePoly
         }
         map.insert(key, big_xp);
     });
-    xp
+    Some(xp)
 }
 
 /// Clears the thread-local Frobenius cache. Test-only.
@@ -358,6 +387,7 @@ fn split_linear_factors(
     poly: &UnivariatePoly,
     field: &PrimeField,
     rng: &mut Rand64,
+    cancel: Option<&CancelToken>,
 ) -> Vec<UnivariatePoly> {
     let mut out = Vec::new();
     let mut stack = vec![poly.clone()];
@@ -370,6 +400,19 @@ fn split_linear_factors(
     let exp = (&p - BigUint::one()) / &two;
 
     while let Some(g) = stack.pop() {
+        if cancel.is_some_and(|c| c.is_cancelled()) {
+            // Cooperative cancellation: hand back everything unsplit. A
+            // degree >= 2 entry makes the caller's `complete` flag false —
+            // the same sound degradation as an exhausted retry budget.
+            for rest in std::iter::once(g).chain(stack.drain(..)) {
+                if rest.degree() == Some(1) {
+                    out.push(rest.make_monic(field));
+                } else {
+                    out.push(rest);
+                }
+            }
+            break;
+        }
         let deg = g.degree().unwrap_or(0);
         if deg == 0 {
             continue;
@@ -399,10 +442,15 @@ fn split_linear_factors(
         // Random splitting: pick `a`, compute h = (x + a)^exp - 1 mod g.
         let mut split = None;
         for _attempt in 0..40 {
+            if cancel.is_some_and(|c| c.is_cancelled()) {
+                break;
+            }
             let a_big = rand_below(rng, &p);
             let a = field.from_biguint(&a_big);
             let x_plus_a = UnivariatePoly::from_coeffs(vec![a, field.one()], field);
-            let h = x_plus_a.pow_mod(&exp, &g, field);
+            let Some(h) = x_plus_a.pow_mod_cancel(&exp, &g, field, cancel) else {
+                break;
+            };
             let h_minus_1 = h.sub(&UnivariatePoly::one(field), field);
             let factor = g.gcd(&h_minus_1, field);
             let fdeg = factor.degree().unwrap_or(0);
@@ -431,18 +479,23 @@ fn split_linear_factors(
 /// irreducible factors (over GF(p), restricted to those involved in the
 /// linear part — non-linear irreducible factors are returned as a single
 /// composite polynomial since we only care about roots).
+/// Returns `None` when cancelled before the linear part was isolated
+/// (no factor information at all); `Some(factors)` otherwise, where a
+/// mid-split cancellation leaves unsplit composite factors in the list
+/// (surfaced as `complete == false` by [`find_roots_checked_cancel`]).
 pub(crate) fn cantor_zassenhaus(
     poly: &UnivariatePoly,
     field: &PrimeField,
-) -> Vec<UnivariatePoly> {
-    let linear_product = distinct_linear_part(poly, field);
+    cancel: Option<&CancelToken>,
+) -> Option<Vec<UnivariatePoly>> {
+    let linear_product = distinct_linear_part(poly, field, cancel)?;
     if linear_product.degree().unwrap_or(0) == 0 {
-        return Vec::new();
+        return Some(Vec::new());
     }
     // Deterministic seed for reproducibility; root-finding correctness does
     // not depend on randomness, only its probability per attempt.
     let mut rng = Rand64::new(0xC0FFEE_DEADBEEFu128);
-    split_linear_factors(&linear_product, field, &mut rng)
+    Some(split_linear_factors(&linear_product, field, &mut rng, cancel))
 }
 
 /// Find all roots of `poly` in GF(p). Returns an empty vector if `poly` is
@@ -468,6 +521,18 @@ pub fn find_roots(poly: &UnivariatePoly, field: &PrimeField) -> Vec<FieldElem> {
 /// callers should fall back to a non-exhaustive search (yielding Unknown)
 /// instead.
 pub fn find_roots_checked(poly: &UnivariatePoly, field: &PrimeField) -> (Vec<FieldElem>, bool) {
+    find_roots_checked_cancel(poly, field, None)
+}
+
+/// [`find_roots_checked`] with cooperative cancellation. On cancellation
+/// the result is `(roots_so_far, false)` — the same shape as an exhausted
+/// split budget, so every caller that honours the completeness contract
+/// degrades soundly (to Unknown, never a false UNSAT).
+pub fn find_roots_checked_cancel(
+    poly: &UnivariatePoly,
+    field: &PrimeField,
+    cancel: Option<&CancelToken>,
+) -> (Vec<FieldElem>, bool) {
     if poly.is_zero() {
         return (Vec::new(), true);
     }
@@ -485,7 +550,10 @@ pub fn find_roots_checked(poly: &UnivariatePoly, field: &PrimeField) -> (Vec<Fie
     }
     let monic = poly.make_monic(field);
     let sf = squarefree(&monic, field);
-    let factors = cantor_zassenhaus(&sf, field);
+    let Some(factors) = cantor_zassenhaus(&sf, field, cancel) else {
+        // Cancelled before any factor was isolated.
+        return (Vec::new(), false);
+    };
     let mut roots = Vec::with_capacity(factors.len());
     let mut complete = true;
     for f in factors {

@@ -497,6 +497,7 @@ fn f4_incremental_push_pop_roundtrip() {
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
+        ..BuchbergerConfig::default()
     };
     let mut igb = IncrementalGB::new(Arc::clone(&ring), cfg);
     // Base level: f1, f2.
@@ -544,6 +545,7 @@ fn f4_incremental_pop_clears_trivial_state() {
         cancel_token: None,
         abort_on_trivial: true,
         use_f4: true,
+        ..BuchbergerConfig::default()
     };
     let mut igb = IncrementalGB::new(Arc::clone(&ring), cfg);
     igb.add_generators(vec![
@@ -786,6 +788,7 @@ fn f4_vs_per_pair_bn254_3vars() {
                 cancel_token: None,
                 abort_on_trivial: false,
                 use_f4,
+                ..BuchbergerConfig::default()
             };
             let mut igb = IncrementalGB::new(Arc::clone(&ring), cfg);
             let trivial = igb.add_generators(polys.clone()).expect("add");
@@ -858,6 +861,7 @@ fn f4_size_fallback_fires_on_small_batches() {
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
+        ..BuchbergerConfig::default()
     };
     let mut igb_f4 = IncrementalGB::new(Arc::clone(&ring), cfg_f4);
     igb_f4
@@ -879,6 +883,7 @@ fn f4_size_fallback_fires_on_small_batches() {
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: false,
+        ..BuchbergerConfig::default()
     };
     let mut igb_pp = IncrementalGB::new(Arc::clone(&ring), cfg_pp);
     igb_pp
@@ -938,6 +943,7 @@ fn f4_matrix_path_fires_on_cyclic_5() {
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
+        ..BuchbergerConfig::default()
     };
     let mut igb = IncrementalGB::new(Arc::clone(&ring), cfg);
     igb.add_generators(polys).expect("F4 add_generators");
@@ -1004,6 +1010,7 @@ fn f4_large_batch_cyclic_6() {
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
+        ..BuchbergerConfig::default()
     };
     let mut igb_f4 = IncrementalGB::new(Arc::clone(&ring), cfg_f4);
     igb_f4
@@ -1040,6 +1047,7 @@ fn f4_large_batch_cyclic_6() {
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: false,
+        ..BuchbergerConfig::default()
     };
     let mut igb_pp = IncrementalGB::new(Arc::clone(&ring), cfg_pp);
     igb_pp
@@ -1124,6 +1132,7 @@ fn f4_large_batch_homog_5vars_deg2() {
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
+        ..BuchbergerConfig::default()
     };
     let mut igb_f4 = IncrementalGB::new(Arc::clone(&ring), cfg_f4);
     igb_f4
@@ -1148,6 +1157,7 @@ fn f4_large_batch_homog_5vars_deg2() {
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: false,
+        ..BuchbergerConfig::default()
     };
     let mut igb_pp = IncrementalGB::new(Arc::clone(&ring), cfg_pp);
     igb_pp

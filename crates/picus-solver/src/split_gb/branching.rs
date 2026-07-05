@@ -15,6 +15,7 @@ use crate::gb::brancher::{univariate_coeffs, Brancher};
 use crate::gb::ideal::Ideal;
 use crate::metric;
 use crate::poly::FfPolyRing;
+use crate::timeout::CancelToken;
 
 use super::PartialPoint;
 
@@ -30,6 +31,7 @@ pub fn apply_rule<'r>(
     poly_ring: &'r FfPolyRing,
     gb: &Ideal<'r>,
     r: &PartialPoint,
+    cancel: &CancelToken,
 ) -> Brancher {
     let ring = &poly_ring.ring;
     let field = &poly_ring.field();
@@ -41,7 +43,8 @@ pub fn apply_rule<'r>(
             let (var_idx, _) = appearing[0];
             if r[var_idx].is_none() {
                 if let Some(coeffs) = univariate_coeffs(poly_ring, p, var_idx) {
-                    let (roots, complete) = crate::gb::roots::find_roots_checked(field, &coeffs);
+                    let (roots, complete) =
+                        crate::gb::roots::find_roots_checked_cancel(field, &coeffs, Some(cancel));
                     if complete {
                         return Brancher::Roots(
                             roots.into_iter().map(|v| (var_idx, v)).collect()
@@ -60,8 +63,9 @@ pub fn apply_rule<'r>(
     if gb.is_zero_dim() {
         for v in 0..poly_ring.n_vars() {
             if r[v].is_none() {
-                if let Some(coeffs) = gb.min_poly(v) {
-                    let (roots, complete) = crate::gb::roots::find_roots_checked(field, &coeffs);
+                if let Some(coeffs) = gb.min_poly_cancel(v, cancel) {
+                    let (roots, complete) =
+                        crate::gb::roots::find_roots_checked_cancel(field, &coeffs, Some(cancel));
                     // A *complete* empty root set proves the ideal inconsistent
                     // under any assignment to this variable (empty Roots ⇒
                     // backtrack). An *incomplete* set must not be trusted as
@@ -92,6 +96,7 @@ pub(super) fn apply_rule_multi<'r>(
     poly_ring: &'r FfPolyRing,
     bases: &[Ideal<'r>],
     r: &PartialPoint,
+    cancel: &CancelToken,
 ) -> Brancher {
     let ring = &poly_ring.ring;
     let field = &poly_ring.field();
@@ -105,7 +110,8 @@ pub(super) fn apply_rule_multi<'r>(
                 let (var_idx, _) = appearing[0];
                 if r[var_idx].is_none() {
                     if let Some(coeffs) = univariate_coeffs(poly_ring, p, var_idx) {
-                        let (roots, complete) = crate::gb::roots::find_roots_checked(field, &coeffs);
+                        let (roots, complete) =
+                        crate::gb::roots::find_roots_checked_cancel(field, &coeffs, Some(cancel));
                         if complete {
                             return Brancher::Roots(
                                 roots.into_iter().map(|v| (var_idx, v)).collect()
@@ -124,8 +130,9 @@ pub(super) fn apply_rule_multi<'r>(
         if gb.is_zero_dim() {
             for v in 0..poly_ring.n_vars() {
                 if r[v].is_none() {
-                    if let Some(coeffs) = gb.min_poly(v) {
-                        let (roots, complete) = crate::gb::roots::find_roots_checked(field, &coeffs);
+                    if let Some(coeffs) = gb.min_poly_cancel(v, cancel) {
+                        let (roots, complete) =
+                        crate::gb::roots::find_roots_checked_cancel(field, &coeffs, Some(cancel));
                         if complete {
                             return Brancher::Roots(
                                 roots.into_iter().map(|val| (v, val)).collect()
@@ -140,7 +147,7 @@ pub(super) fn apply_rule_multi<'r>(
 
     // (3) Round-robin on basis 0.
     if !bases.is_empty() {
-        apply_rule(poly_ring, &bases[0], r)
+        apply_rule(poly_ring, &bases[0], r, cancel)
     } else {
         Brancher::Roots(Vec::new())
     }

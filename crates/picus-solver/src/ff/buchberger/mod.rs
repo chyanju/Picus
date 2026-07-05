@@ -31,6 +31,12 @@ use super::polynomial::{PolyRing, DensePoly, ReducerIndex};
 use super::spair::SPair;
 
 /// Configuration for `groebner_basis`.
+///
+/// A [`BuchbergerState`] is pinned to its construction-time config: every
+/// engine knob is snapshotted here (the `Default` impl reads the ambient
+/// runtime config once) and read via `self.cfg` during the run, so a
+/// config change between construction and `run` — or mid-run — never
+/// switches algorithm selection between S-pair batches.
 #[derive(Clone)]
 pub struct BuchbergerConfig {
     pub order: MonomialOrder,
@@ -41,16 +47,32 @@ pub struct BuchbergerConfig {
     /// reduction) instead of one-S-pair-at-a-time geobucket reduction.
     /// Default: the `use_f4` config value (compiled default `false`).
     pub use_f4: bool,
+    /// GVW signature engine on rings of at least `GVW_MIN_VARS` variables.
+    /// Default: the `signature_criterion` config value.
+    pub signature_criterion: bool,
+    /// Cache the reducer divisor index across S-pair reductions.
+    /// Default: the `reducer_index_cache` config value.
+    pub reducer_index_cache: bool,
+    /// Pick the F4 batch sugar by predicted Hilbert-function drop.
+    /// Inert unless `use_f4`. Default: the `f4_hilbert_select` config value.
+    pub f4_hilbert_select: bool,
+    /// Carry the F4 reducer cache across batches. Inert unless `use_f4`.
+    /// Default: the `f4_sparse_reducer_cache` config value.
+    pub f4_sparse_reducer_cache: bool,
 }
 
 impl Default for BuchbergerConfig {
     fn default() -> Self {
-        BuchbergerConfig {
+        crate::config::with(|c| BuchbergerConfig {
             order: MonomialOrder::DegRevLex,
             cancel_token: None,
             abort_on_trivial: true,
-            use_f4: use_f4_default(),
-        }
+            use_f4: c.use_f4,
+            signature_criterion: c.signature_criterion,
+            reducer_index_cache: c.reducer_index_cache,
+            f4_hilbert_select: c.f4_hilbert_select,
+            f4_sparse_reducer_cache: c.f4_sparse_reducer_cache,
+        })
     }
 }
 
@@ -766,7 +788,7 @@ impl BuchbergerState {
             .collect();
         let mut use_counts = vec![0u64; active_idxs.len()];
 
-        let use_cache = crate::config::with(|c| c.reducer_index_cache)
+        let use_cache = self.cfg.reducer_index_cache
             && active_idxs.len() >= ReducerIndex::SORT_THRESHOLD;
 
         if !use_cache {
@@ -865,7 +887,7 @@ impl BuchbergerState {
         // ring width like the elimination-order selection. Off by default:
         // even above the gate it rarely helps, since the timeouts are
         // GB-size-bound, not zero-reduction-bound.
-        if self.ring.n_vars >= GVW_MIN_VARS && crate::config::with(|c| c.signature_criterion) {
+        if self.ring.n_vars >= GVW_MIN_VARS && self.cfg.signature_criterion {
             return self.run_gvw();
         }
         // Granular per-phase timing for the gb-stats dump (profiling locals).
@@ -1256,7 +1278,7 @@ impl BuchbergerState {
                 Some(p) => p.sugar,
                 None => break,
             };
-            let chosen_sugar = if picus_core::config::with(|c| c.f4_hilbert_select)
+            let chosen_sugar = if self.cfg.f4_hilbert_select
                 && self.basis.iter().filter(|e| e.active).count() <= HILBERT_SELECT_BASIS_CAP
             {
                 self.select_sugar_hilbert(lowest_sugar)
@@ -1337,7 +1359,7 @@ impl BuchbergerState {
             // a single batch via the same scratch allocators); when
             // ON, the workspace declared at `run_f4` entry carries the
             // cache across batches.
-            let new_polys = if picus_core::config::with(|c| c.f4_sparse_reducer_cache) {
+            let new_polys = if self.cfg.f4_sparse_reducer_cache {
                 super::f4::process_batch_with_workspace(
                     &batch_refs,
                     &basis_refs,

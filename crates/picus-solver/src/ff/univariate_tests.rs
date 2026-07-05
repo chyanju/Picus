@@ -304,7 +304,7 @@ fn cantor_zassenhaus_no_linear_part_returns_empty() {
     }
     let nq = nonqr.unwrap();
     let p = poly_from_ints(&[nq as i64, 0, 1], &f); // x^2 + nq, no roots
-    let factors = cantor_zassenhaus(&p, &f);
+    let factors = cantor_zassenhaus(&p, &f, None).expect("not cancelled");
     assert!(factors.is_empty());
 }
 
@@ -321,7 +321,7 @@ fn split_linear_factors_degree_zero_input_yields_no_factors() {
     // helper from the sibling test mod.
     let f = small_field();
     let mut rng = oorandom::Rand64::new(0xDEADBEEF);
-    let factors = split_linear_factors(&UnivariatePoly::one(&f), &f, &mut rng);
+    let factors = split_linear_factors(&UnivariatePoly::one(&f), &f, &mut rng, None);
     assert!(factors.is_empty(), "constant seed must produce no linear factors");
 }
 

@@ -245,18 +245,31 @@ fn compute_gb_dispatch(
 /// Build a per-call `ff::PolyRing` whose monomial order matches `order`.
 /// Cheap (an `Arc<PolyRing>` with the same field/var-name data).
 pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::sync::Arc<crate::ff::polynomial::PolyRing> {
-    crate::ff::polynomial::PolyRing::new(
+    let ctx = poly_ring.ctx();
+    if ctx.order == order {
+        // Dominant case (DegRevLex request on a DegRevLex ring): reuse
+        // the existing ring instead of rebuilding it per GB call.
+        return ctx.clone();
+    }
+    // Rebuild under the requested order, carrying the source ring's
+    // representation (never the ambient config's).
+    crate::ff::polynomial::PolyRing::new_with_repr(
         poly_ring.field().clone(),
         poly_ring.var_names().to_vec(),
         order,
+        ctx.repr,
     )
 }
 
 /// True when the configured IR representation is sparse, so native GB
 /// computation should be routed through the sparse engine.
 #[inline]
-pub(crate) fn use_sparse_gb() -> bool {
-    crate::config::with(|c| c.poly_repr == crate::config::ReprKind::Sparse)
+/// Route GB work by the representation recorded on the ring at its
+/// construction — the single source of truth after construction — so a
+/// ring pinned via `new_with_repr` is honoured and routing cannot drift
+/// with ambient config changes between calls.
+pub(crate) fn use_sparse_gb(poly_ring: &FfPolyRing) -> bool {
+    poly_ring.ctx().repr == crate::config::ReprKind::Sparse
 }
 
 /// Compute a Gröbner basis through the sparse engine (`ff::sparse_gb`)
@@ -372,7 +385,7 @@ pub fn compute_gb_with_order(
     if generators.is_empty() {
         return Vec::new();
     }
-    if use_sparse_gb() {
+    if use_sparse_gb(poly_ring) {
         // Honour the configured strategy on the sparse path too: ByHomog
         // (DegRevLex only, mirroring BuchbergerByHomog) runs the
         // homogenize → GB → dehomogenize pipeline with a sparse inner GB;
@@ -419,6 +432,7 @@ pub(crate) fn compute_gb_buchberger(
         cancel_token: Some(cancel.clone()),
         abort_on_trivial: true,
         use_f4: crate::ff::buchberger::use_f4_default(),
+        ..BuchbergerConfig::default()
     };
     let dense_gens = unwrap_dense_vec(generators, &ring);
     catch_engine_panic("Buchberger", || {
@@ -442,7 +456,7 @@ pub(crate) fn compute_gb_direct(
     if generators.is_empty() {
         return Vec::new();
     }
-    if use_sparse_gb() {
+    if use_sparse_gb(poly_ring) {
         let backup: Vec<Poly> = generators.iter().map(|p| p.clone()).collect();
         let result = sparse_gb_route(poly_ring, generators, order, cancel);
         return finish_gb(result, cancel, backup, "inner direct sparse GB");
@@ -471,7 +485,7 @@ pub fn compute_gb_incremental_with_order(
     if known_gb.is_empty() {
         return compute_gb_with_order(poly_ring, new_polys, cancel, order);
     }
-    if use_sparse_gb() {
+    if use_sparse_gb(poly_ring) {
         // Incremental seeding: trust `known_gb` as a reduced GB (the same
         // contract the dense path relies on via `seed_reduced_basis`) and
         // process only the cross / intra-new S-pairs, then inter-reduce —
@@ -503,6 +517,7 @@ pub fn compute_gb_incremental_with_order(
         // here. F4 (when enabled) is used only for from-scratch GB.
         // Result-identical (F4 ≡ per-pair).
         use_f4: false,
+        ..BuchbergerConfig::default()
     };
 
     // Cancellation fallback: the caller discards this via its
@@ -577,6 +592,7 @@ pub(crate) fn compute_gb_buchberger_traced(
         cancel_token: Some(cancel.clone()),
         abort_on_trivial: true,
         use_f4: crate::ff::buchberger::use_f4_default(),
+        ..BuchbergerConfig::default()
     };
     let dense_gens = unwrap_dense_vec(generators, &ring);
     catch_engine_panic("traced Buchberger", || {
@@ -616,6 +632,7 @@ pub fn compute_gb_incremental_with_order_traced(
         // See `compute_gb_incremental_with_order`: incremental extends are
         // tiny-batch, so F4 never amortizes — always per-pair here.
         use_f4: false,
+        ..BuchbergerConfig::default()
     };
     let backup: Vec<Poly> = known_gb.iter().chain(new_polys.iter())
         .map(|p| p.clone())

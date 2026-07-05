@@ -466,6 +466,7 @@ fn make_partial_build(cs: &ConstraintSystem) -> PartialBuild {
         cancel_token: None,
         abort_on_trivial: true,
         use_f4: false,
+        ..BuchbergerConfig::default()
     };
     let inflight = vec![
         IncrementalGB::new(ring.clone(), bcfg.clone()),
@@ -638,6 +639,7 @@ fn hand_partial(
         cancel_token: None,
         abort_on_trivial: true,
         use_f4: false,
+        ..BuchbergerConfig::default()
     };
     let mut inflight = vec![
         IncrementalGB::new(ring.clone(), cfg.clone()),

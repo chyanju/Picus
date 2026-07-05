@@ -240,6 +240,7 @@ impl IncrementalSolverContext {
                     cancel_token: None,
                     abort_on_trivial: true,
                     use_f4: crate::ff::buchberger::use_f4_default(),
+                    ..BuchbergerConfig::default()
                 };
                 let inflight = vec![
                     IncrementalGB::new(ring.clone(), cfg.clone()),
@@ -469,6 +470,12 @@ fn continue_partial_inner(
 /// Convert a quiescent partial build into a `CachedBase`. Performs a
 /// final inter-reduce on each partition's basis to produce the
 /// canonical reduced GB.
+///
+/// Deliberately token-free: the input bases are quiescent, so the
+/// remaining work is one bounded inter-reduce per partition, and a
+/// cancellable inter-reduce that aborted midway must not be cached — a
+/// half-reduced basis persisted into `CachedBase` would feed later
+/// verdicts. Run to completion instead.
 fn finalize_partial(partial: PartialBuild) -> Option<CachedBase> {
     let cancel = CancelToken::none();
     let poly_ring: &FfPolyRing = &partial.poly_ring;

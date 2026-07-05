@@ -77,7 +77,7 @@ fn test_apply_rule_round_robin_interleaves() {
     let pr = FfPolyRing::new(ff(5), vec!["x".into(), "y".into()]);
     let gb: Ideal = Ideal::from_gb(&pr, vec![]);
     let r: PartialPoint = vec![None, None];
-    let mut brancher = apply_rule(&pr, &gb, &r);
+    let mut brancher = apply_rule(&pr, &gb, &r, &CancelToken::none());
     // first 2 candidates should be (0, 0) and (1, 0): same val, different var.
     let c0 = brancher.next(&pr.field()).unwrap();
     assert_eq!(c0.0, 0);
@@ -109,7 +109,7 @@ fn test_apply_rule_univariate() {
     let p = pr.sub(y_sq, pr.constant(four));
     let gb = Ideal::new(&pr, vec![p]);
     let r: PartialPoint = vec![None, None];
-    let mut brancher = apply_rule(&pr, &gb, &r);
+    let mut brancher = apply_rule(&pr, &gb, &r, &CancelToken::none());
     let mut cands = Vec::new();
     while let Some(c) = brancher.next(&pr.field()) {
         cands.push(c);

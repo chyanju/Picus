@@ -2,9 +2,11 @@
 //!
 //! Single thread-local [`RuntimeConfig`] aggregates every runtime
 //! knob: GB strategy, F4 toggle, DNF cap, CDCL(T) iteration cap,
-//! GB-stats / GB-trace / phase-profile flags. Production code reads
-//! values via [`with`] at the point of use so no cached snapshot can
-//! drift from the active config. Callers override fields via
+//! GB-stats / GB-trace / phase-profile flags. Most production code
+//! reads values via [`with`] at the point of use; engine-scoped knobs
+//! are instead snapshotted once at engine construction (see
+//! `BuchbergerConfig` in picus-solver), so a `BuchbergerState` runs
+//! under exactly the config that built it. Callers override fields via
 //! [`set`] (one-shot) or [`ConfigGuard`] (RAII scope); per-thread
 //! storage keeps concurrent solves on different threads independent.
 //!

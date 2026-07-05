@@ -148,7 +148,7 @@ pub fn split_zero_extend_cancel<'r>(
         return ZeroExtendResult::Point(out);
     }
 
-    first.candidates = apply_rule_multi(poly_ring, &first.bases, &first.r);
+    first.candidates = apply_rule_multi(poly_ring, &first.bases, &first.r, cancel);
     apply_phase_save(&mut first.candidates, &saved_phase);
     log::trace!(
         "split_zero_extend: {} vars, {} assigned, brancher={}",
@@ -331,7 +331,7 @@ pub fn split_zero_extend_cancel<'r>(
         }
 
         // Descend: compute candidates for the new state and push.
-        let mut new_candidates = apply_rule_multi(poly_ring, &new_bases, &new_r);
+        let mut new_candidates = apply_rule_multi(poly_ring, &new_bases, &new_r, cancel);
         apply_phase_save(&mut new_candidates, &saved_phase);
         log::trace!(
             "split_zero_extend: depth={}, var={}, brancher={}",
