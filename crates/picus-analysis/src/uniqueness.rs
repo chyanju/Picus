@@ -54,10 +54,10 @@ pub struct UniquenessQuery {
     /// Number of circuit wires; the ring holds `2 * n_wires` variables.
     pub n_wires: usize,
     /// Wires that are circuit inputs (shared across both copies).
-    pub input_indices: HashSet<usize>,
+    pub input_wires: HashSet<usize>,
     /// Wires currently believed uniquely determined by the inputs. The DPVL
-    /// loop seeds this with `input_indices`.
-    pub known_signals: HashSet<usize>,
+    /// loop seeds this with `input_wires`.
+    pub known_wires: HashSet<usize>,
     /// Disequalities carried by the source circuit itself (already doubled into
     /// both copies), kept separate from the per-round target disequality that
     /// [`Self::set_target`] appends. Empty for an R1CS lowering (R1CS is pure
@@ -66,7 +66,7 @@ pub struct UniquenessQuery {
     pub base_disequalities: Vec<(usize, usize)>,
     /// Wire whose uniqueness is being tested this round; a SAT verdict means a
     /// witness pair exists with `x_target != y_target`.
-    pub target_signal: usize,
+    pub target_wire: usize,
 }
 
 impl UniquenessQuery {
@@ -104,7 +104,7 @@ impl UniquenessQuery {
         &self.ir.ring.var_names()[self.n_wires + wire]
     }
 
-    /// Set the current uniqueness target: updates `target_signal` and rebuilds
+    /// Set the current uniqueness target: updates `target_wire` and rebuilds
     /// the underlying `PolySystem`'s single disequality to point at the new
     /// target's `(x, y)` pair. The constraint set is otherwise unaffected.
     ///
@@ -116,10 +116,10 @@ impl UniquenessQuery {
     pub fn set_target(&mut self, wire: usize) {
         debug_assert!(wire < self.n_wires);
         assert!(
-            !self.input_indices.contains(&wire),
+            !self.input_wires.contains(&wire),
             "uniqueness target must not be an input wire (its copies are shared)"
         );
-        self.target_signal = wire;
+        self.target_wire = wire;
         // Rebuild as the source circuit's own disequalities (if any) plus the
         // single target disequality. For an R1CS lowering `base_disequalities`
         // is empty, so this reduces to `vec![(x_target, y_target)]`.
@@ -134,7 +134,7 @@ impl UniquenessQuery {
     /// sees it as a regular constraint. Input wires reuse `x_i` across both
     /// copies at lowering, so only non-input wires need a fresh equality.
     pub fn add_known_wire(&mut self, wire: usize) {
-        if self.known_signals.insert(wire) && !self.input_indices.contains(&wire) {
+        if self.known_wires.insert(wire) && !self.input_wires.contains(&wire) {
             let x = self.ir.ring.var(self.orig_var(wire));
             let y = self.ir.ring.var(self.alt_var(wire));
             let diff = self.ir.ring.sub(x, y);
@@ -278,10 +278,10 @@ pub fn polysystem_to_uniqueness_query(
     Ok(UniquenessQuery {
         ir,
         n_wires,
-        input_indices: inputs.clone(),
-        known_signals: known.clone(),
+        input_wires: inputs.clone(),
+        known_wires: known.clone(),
         base_disequalities,
-        target_signal: 0,
+        target_wire: 0,
     })
 }
 
@@ -298,20 +298,20 @@ pub fn polysystem_to_uniqueness_query(
 /// [`LowerError::WireOutOfBounds`] rather than a silent skip.
 pub fn r1cs_to_uniqueness_query(
     r1cs: &R1csFile,
-    known_signals: &HashSet<usize>,
-    target_signal: usize,
+    known_wires: &HashSet<usize>,
+    target_wire: usize,
 ) -> Result<UniquenessQuery, LowerError> {
     let n_wires = r1cs.n_wires() as usize;
     // The target indexes both copies; an out-of-range value would build a
     // disequality over a non-existent ring variable. Reject explicitly.
-    if target_signal >= n_wires {
+    if target_wire >= n_wires {
         return Err(LowerError::WireOutOfBounds {
-            wire: target_signal,
+            wire: target_wire,
             n_wires,
             ctx: "target signal",
         });
     }
-    let input_indices: HashSet<usize> = r1cs.inputs.iter().copied().collect();
+    let input_wires: HashSet<usize> = r1cs.inputs.iter().copied().collect();
     let prime = &r1cs.header.prime_number;
 
     // Build the SINGLE-copy constraint system first: one variable per wire
@@ -338,7 +338,7 @@ pub fn r1cs_to_uniqueness_query(
 
     // Double into two copies (input wires shared) via the generic lowering,
     // then re-attach the R1CS-specific policy the doubler stays agnostic to.
-    let mut q = polysystem_to_uniqueness_query(&single, &input_indices, known_signals)?;
+    let mut q = polysystem_to_uniqueness_query(&single, &input_wires, known_wires)?;
 
     // Wire 0 pinned to 1. `constraint_to_poly_single` already folds `c * x_0`
     // into a constant, so no polynomial references wire 0 — but the backend
@@ -348,7 +348,7 @@ pub fn r1cs_to_uniqueness_query(
     let pin = q.ir.ring.sub(q.ir.ring.var(0), q.ir.ring.constant(one_el));
     q.ir.equalities.push(pin);
 
-    q.target_signal = target_signal;
+    q.target_wire = target_wire;
     Ok(q)
 }
 

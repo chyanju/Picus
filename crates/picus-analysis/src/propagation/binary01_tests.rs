@@ -55,9 +55,9 @@ fn make_ir(n_wires: usize, build: impl FnOnce(&Arc<FfPolyRing>) -> Vec<picus_cor
     };
     UniquenessQuery {
         n_wires,
-        input_indices: HashSet::new(),
-        known_signals: HashSet::new(),
-        target_signal: 0,
+        input_wires: HashSet::new(),
+        known_wires: HashSet::new(),
+        target_wire: 0,
         base_disequalities: Vec::new(),
         ir,
     }

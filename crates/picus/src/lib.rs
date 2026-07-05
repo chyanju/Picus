@@ -368,9 +368,9 @@ pub(crate) fn check_polyir_uniqueness(
     outputs: &[ir::Var],
     known: &[ir::Var],
     config: PicusConfig,
-) -> Result<CheckResult, PicusError> {
+) -> Result<CheckResult, UniquenessError> {
     picus_smt::validate_combination(config.analysis.solver, config.analysis.theory)
-        .map_err(PicusError::Config)?;
+        .map_err(UniquenessError::Config)?;
 
     if let Some(ref dir) = config.analysis.dump_smt {
         let _ = std::fs::create_dir_all(dir);
@@ -385,7 +385,7 @@ pub(crate) fn check_polyir_uniqueness(
     let target_idx = to_idx(outputs);
 
     let q = picus_analysis::uniqueness::polysystem_to_uniqueness_query(&ps, &input_idx, &known_idx)
-        .map_err(|e| PicusError::Dpvl(e.into()))?;
+        .map_err(|e| UniquenessError::Analysis(e.into()))?;
     let result = picus_analysis::dpvl::run_dpvl_on_query(q, &target_idx, &config.analysis)?;
 
     match result {
@@ -446,6 +446,19 @@ pub enum SolveError {
     /// The chosen backend itself failed.
     #[error(transparent)]
     Solver(#[from] SolverError),
+}
+
+/// Errors from [`ir::PolyIR::check_uniqueness`] — the in-memory uniqueness
+/// path. Unlike [`PicusError`] it has no parse/I/O variants: this path never
+/// reads an R1CS file or touches the filesystem.
+#[derive(Debug, thiserror::Error)]
+pub enum UniquenessError {
+    /// Invalid solver/theory combination or other configuration issue.
+    #[error("invalid configuration: {0}")]
+    Config(String),
+    /// DPVL analysis error (two-copy lowering or backend construction).
+    #[error(transparent)]
+    Analysis(#[from] picus_analysis::dpvl::DpvlError),
 }
 
 // ============================================================

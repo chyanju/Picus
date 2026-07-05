@@ -110,9 +110,9 @@ fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc
     };
     UniquenessQuery {
         n_wires,
-        input_indices: HashSet::new(),
-        known_signals: HashSet::new(),
-        target_signal: 0,
+        input_wires: HashSet::new(),
+        known_wires: HashSet::new(),
+        target_wire: 0,
         base_disequalities: Vec::new(),
         ir,
     }

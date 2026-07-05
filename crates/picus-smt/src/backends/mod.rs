@@ -118,15 +118,8 @@ inventory::collect!(SolverBackendDescriptor);
 pub fn all_backend_descriptors() -> Vec<&'static SolverBackendDescriptor> {
     let mut v: Vec<&SolverBackendDescriptor> =
         inventory::iter::<SolverBackendDescriptor>.into_iter().collect();
-    v.sort_by_key(|d| (d.name, theory_key(d.theory)));
+    v.sort_by_key(|d| (d.name, d.theory));
     v
-}
-
-fn theory_key(t: crate::Theory) -> u8 {
-    match t {
-        crate::Theory::Ff => 0,
-        crate::Theory::Nia => 1,
-    }
 }
 
 /// Look up a backend by `(name, theory)`. Returns the factory's
@@ -148,7 +141,7 @@ pub fn create_backend_by_name(
 /// `(* coeff v1 v2 ...)`; the sum is wrapped in `(+ ...)` when it has
 /// more than one term, and an empty polynomial reduces to literal `0`.
 #[cfg(any(feature = "cvc5", feature = "z3"))]
-pub fn poly_to_smtlib_nia(ir: &PolySystem, poly: &picus_core::poly::Poly) -> String {
+pub(crate) fn poly_to_smtlib_nia(ir: &PolySystem, poly: &picus_core::poly::Poly) -> String {
     let parts: Vec<String> = ir
         .poly_terms(poly)
         .map(|(coeff, vars)| {
@@ -172,7 +165,7 @@ pub fn poly_to_smtlib_nia(ir: &PolySystem, poly: &picus_core::poly::Poly) -> Str
 /// `ff.add` / `ff.mul` and `#fNmP` literals over the field defined
 /// by the ring's prime.
 #[cfg(feature = "cvc5")]
-pub fn poly_to_smtlib_ff(ir: &PolySystem, poly: &picus_core::poly::Poly) -> String {
+pub(crate) fn poly_to_smtlib_ff(ir: &PolySystem, poly: &picus_core::poly::Poly) -> String {
     let p = ir.ring.field().prime();
     let parts: Vec<String> = ir
         .poly_terms(poly)
@@ -201,7 +194,7 @@ pub fn poly_to_smtlib_ff(ir: &PolySystem, poly: &picus_core::poly::Poly) -> Stri
 /// polynomial modulo the prime on the `[0, p)`-ranged variables this
 /// declares). Callers pass `mod_op` (`"mod"` / `"rem"`) accordingly.
 #[cfg(any(feature = "cvc5", feature = "z3"))]
-pub fn dump_smt_nia(ir: &PolySystem, mod_op: &str) -> String {
+pub(crate) fn dump_smt_nia(ir: &PolySystem, mod_op: &str) -> String {
     let p = ir.ring.field().prime();
     let mut lines = Vec::new();
     lines.push("(set-logic QF_NIA)".to_string());
@@ -247,7 +240,7 @@ pub fn dump_smt_nia(ir: &PolySystem, mod_op: &str) -> String {
 ///   R1CS uniqueness query never populates these, so the guard is inert on
 ///   the supported path.
 #[cfg(any(feature = "cvc5", feature = "z3"))]
-pub fn preflight(
+pub(crate) fn preflight(
     ir: &PolySystem,
     cancel: &CancelToken,
     allow_disjunctions: bool,
@@ -274,7 +267,7 @@ pub fn preflight(
 /// Each backend then emits its own API-specific `(not (= a b))` assertion
 /// over the returned names.
 #[cfg(any(feature = "cvc5", feature = "z3"))]
-pub fn resolve_disequalities(ir: &PolySystem) -> Result<Vec<(String, String)>, SolverError> {
+pub(crate) fn resolve_disequalities(ir: &PolySystem) -> Result<Vec<(String, String)>, SolverError> {
     let names = ir.ring.var_names();
     let mut out = Vec::with_capacity(ir.disequalities.len());
     for &(a, b) in &ir.disequalities {
@@ -307,7 +300,7 @@ pub fn resolve_disequalities(ir: &PolySystem) -> Result<Vec<(String, String)>, S
 /// sum is wrapped in `mk_term(add_kind, ..)` when it has more than one term.
 #[cfg(feature = "cvc5")]
 #[allow(clippy::too_many_arguments)]
-pub fn build_poly_cvc5<'a>(
+pub(crate) fn build_poly_cvc5<'a>(
     tm: &'a ::cvc5_ff::TermManager,
     vars: &HashMap<String, ::cvc5_ff::Term<'a>>,
     ir: &PolySystem,

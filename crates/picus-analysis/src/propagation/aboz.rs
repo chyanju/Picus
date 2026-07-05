@@ -148,7 +148,7 @@ impl AbozLemma {
             return false;
         }
         let alt_copy_var = |w: usize| {
-            if q.input_indices.contains(&w) {
+            if q.input_wires.contains(&w) {
                 q.orig_var(w)
             } else {
                 q.alt_var(w)

@@ -31,9 +31,9 @@ fn test_unknown_reason_variants_constructible() {
 fn prop_all_backend_descriptors_sorted_by_name_theory() {
     // Doc spec: "Stable order by `(name, theory)`".
     let descs = all_backend_descriptors();
-    let keys: Vec<(&str, u8)> = descs
+    let keys: Vec<(&str, crate::Theory)> = descs
         .iter()
-        .map(|d| (d.name, super::theory_key(d.theory)))
+        .map(|d| (d.name, d.theory))
         .collect();
     let mut sorted = keys.clone();
     sorted.sort();

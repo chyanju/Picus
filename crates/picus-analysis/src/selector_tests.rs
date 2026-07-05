@@ -6,8 +6,8 @@
 //!     irreproducible). `min()` over the pool.
 //!   * `SelectorKind::Counter` — highest `connectivity + weight`,
 //!     ties broken by smallest wire index. Determinism follows from
-//!     `(c+w, Reverse(sig))` being unique per signal.
-//!   * `feedback(Skip)` on a Counter selector decrements that signal's
+//!     `(c+w, Reverse(wire))` being unique per wire.
+//!   * `feedback(Skip)` on a Counter selector decrements that wire's
 //!     weight by 1; `feedback(Skip)` on a First selector is a no-op
 //!     (and Counter ignores `Verified` per the `let SolverFeedback::Skip`
 //!     guard).
@@ -68,7 +68,7 @@ fn prop_select_empty_pool_counter_is_none() {
 // First selector: smallest index
 // ---------------------------------------------------------------------------
 
-/// `First` picks the smallest signal index, regardless of insertion order.
+/// `First` picks the smallest wire index, regardless of insertion order.
 #[test]
 fn prop_first_selects_smallest_index() {
     let mut s = SelectorState::new(SelectorKind::First, HashMap::new());
@@ -162,7 +162,7 @@ fn prop_counter_single_element() {
 // feedback semantics
 // ---------------------------------------------------------------------------
 
-/// `feedback(Skip)` on Counter decrements the signal's weight by 1.
+/// `feedback(Skip)` on Counter decrements the wire's weight by 1.
 /// After enough skips, a high-connectivity wire is overtaken by a
 /// lower-connectivity one with neutral weight.
 #[test]

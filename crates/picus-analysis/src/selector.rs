@@ -1,4 +1,4 @@
-//! Signal selection strategies for the DPVL outer loop.
+//! Wire selection strategies for the DPVL outer loop.
 
 use std::collections::{HashMap, HashSet};
 
@@ -24,7 +24,7 @@ impl std::str::FromStr for SelectorKind {
 /// `feedback`; internal state is private.
 pub struct SelectorState {
     kind: SelectorKind,
-    /// Negative weights for signals we've skipped this run; used to
+    /// Negative weights for wires we've skipped this run; used to
     /// deprioritise them on the next pick.
     weights: HashMap<usize, i64>,
     /// Constraint-connectivity counter for each wire. Higher count ⇒
@@ -43,7 +43,7 @@ impl SelectorState {
         }
     }
 
-    /// Pick the next signal from the unknown pool to send to the
+    /// Pick the next wire from the unknown pool to send to the
     /// solver. Returns `None` when the pool is empty.
     pub fn select(&mut self, uspool: &HashSet<usize>) -> Option<usize> {
         match self.kind {
@@ -55,12 +55,12 @@ impl SelectorState {
         }
     }
 
-    /// Record the outcome of a solver call on `signal`.
-    pub fn feedback(&mut self, signal: usize, result: SolverFeedback) {
+    /// Record the outcome of a solver call on `wire`.
+    pub fn feedback(&mut self, wire: usize, result: SolverFeedback) {
         if self.kind == SelectorKind::Counter
             && let SolverFeedback::Skip = result
         {
-            *self.weights.entry(signal).or_insert(0) -= 1;
+            *self.weights.entry(wire).or_insert(0) -= 1;
         }
     }
 
@@ -70,19 +70,19 @@ impl SelectorState {
         // unique, so the pick is deterministic regardless of the
         // (nondeterministic) HashSet iteration order — matching the
         // reproducibility the `First` selector gets from `.min()`.
-        uspool.iter().copied().max_by_key(|&sig| {
-            let c = self.connectivity.get(&sig).copied().unwrap_or(0) as i64;
-            let w = self.weights.get(&sig).copied().unwrap_or(0);
-            (c + w, std::cmp::Reverse(sig))
+        uspool.iter().copied().max_by_key(|&wire| {
+            let c = self.connectivity.get(&wire).copied().unwrap_or(0) as i64;
+            let w = self.weights.get(&wire).copied().unwrap_or(0);
+            (c + w, std::cmp::Reverse(wire))
         })
     }
 }
 
 /// Feedback from a solver call.
 pub enum SolverFeedback {
-    /// Signal was verified as unique (UNSAT).
+    /// Wire was verified as unique (UNSAT).
     Verified,
-    /// Signal was skipped (SAT for non-target, timeout, or error).
+    /// Wire was skipped (SAT for non-target, timeout, or error).
     Skip,
 }
 

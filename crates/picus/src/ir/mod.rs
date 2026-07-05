@@ -299,7 +299,7 @@ impl PolyIR {
         outputs: &[Var],
         known: &[Var],
         cfg: PicusConfig,
-    ) -> Result<crate::CheckResult, crate::PicusError> {
+    ) -> Result<crate::CheckResult, crate::UniquenessError> {
         crate::check_polyir_uniqueness(self, inputs, outputs, known, cfg)
     }
 

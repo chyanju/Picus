@@ -26,7 +26,7 @@ fn query(n_wires: usize, inputs: &[usize]) -> UniquenessQuery {
         names.push(format!("y{}", i));
     }
     let ring = Arc::new(FfPolyRing::new(field, names));
-    let input_indices: HashSet<usize> = inputs.iter().copied().collect();
+    let input_wires: HashSet<usize> = inputs.iter().copied().collect();
     let ir = PolySystem {
         ring,
         equalities: Vec::new(),
@@ -38,9 +38,9 @@ fn query(n_wires: usize, inputs: &[usize]) -> UniquenessQuery {
     };
     UniquenessQuery {
         n_wires,
-        input_indices: input_indices.clone(),
-        known_signals: input_indices,
-        target_signal: 0,
+        input_wires: input_wires.clone(),
+        known_wires: input_wires,
+        target_wire: 0,
         base_disequalities: Vec::new(),
         ir,
     }
@@ -61,7 +61,7 @@ fn wire_index_roundtrip() {
 fn set_target_writes_single_disequality() {
     let mut q = query(3, &[0]);
     q.set_target(2);
-    assert_eq!(q.target_signal, 2);
+    assert_eq!(q.target_wire, 2);
     assert_eq!(q.ir.disequalities, vec![(2, 5)]);
 }
 
@@ -77,7 +77,7 @@ fn add_known_wire_appends_equality_for_noninput_and_is_idempotent() {
     let mut q = query(3, &[0]);
     let before = q.ir.equalities.len();
     q.add_known_wire(2);
-    assert!(q.known_signals.contains(&2));
+    assert!(q.known_wires.contains(&2));
     assert_eq!(q.ir.equalities.len(), before + 1);
     // Second call must not append a duplicate `x_2 - y_2 = 0`.
     q.add_known_wire(2);
@@ -89,7 +89,7 @@ fn add_known_wire_is_equality_noop_for_input_wire() {
     let mut q = query(3, &[0]);
     let before = q.ir.equalities.len();
     q.add_known_wire(0); // input: shares x_0 across copies, no fresh equality
-    assert!(q.known_signals.contains(&0));
+    assert!(q.known_wires.contains(&0));
     assert_eq!(q.ir.equalities.len(), before);
 }
 
@@ -104,7 +104,7 @@ fn add_known_wire_is_equality_noop_for_input_wire() {
 
 #[test]
 fn r1cs_target_out_of_bounds_returns_err() {
-    // Doc spec: target_signal ≥ n_wires must return WireOutOfBounds.
+    // Doc spec: target_wire ≥ n_wires must return WireOutOfBounds.
     let r1cs = r1cs(p7(), 3, vec![0], Vec::new());
     let r = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 3);
     assert!(matches!(r, Err(LowerError::WireOutOfBounds { .. })));
@@ -204,19 +204,19 @@ fn r1cs_inputs_propagated() {
     let r1cs = r1cs(p7(), 5, vec![0, 1, 3], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 2).unwrap();
     for w in [0usize, 1, 3] {
-        assert!(ir.input_indices.contains(&w), "wire {} is an input", w);
+        assert!(ir.input_wires.contains(&w), "wire {} is an input", w);
     }
-    assert!(!ir.input_indices.contains(&2));
-    assert!(!ir.input_indices.contains(&4));
+    assert!(!ir.input_wires.contains(&2));
+    assert!(!ir.input_wires.contains(&4));
 }
 
 #[test]
-fn r1cs_known_signals_seeded_from_argument() {
+fn r1cs_known_wires_seeded_from_argument() {
     let mut known = HashSet::new();
     known.insert(3usize);
     let r1cs = r1cs(p7(), 5, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).unwrap();
-    assert!(ir.known_signals.contains(&3));
+    assert!(ir.known_wires.contains(&3));
 }
 
 #[test]
@@ -294,10 +294,10 @@ fn r1cs_n_wires_recorded() {
 }
 
 #[test]
-fn r1cs_target_signal_recorded() {
+fn r1cs_target_wire_recorded() {
     let r1cs = r1cs(p7(), 5, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 3).unwrap();
-    assert_eq!(ir.target_signal, 3);
+    assert_eq!(ir.target_wire, 3);
 }
 
 // ─── Generic single-copy → two-copy doubling ─────────────────────
@@ -324,7 +324,7 @@ fn doubler_mirrors_constraints_and_shares_inputs() {
     assert_eq!(q.n_wires, 3);
     assert_eq!(q.ir.ring.n_vars(), 6, "doubled ring has 2n variables");
     assert_eq!(q.ir.equalities.len(), 2, "one constraint, emitted in both copies");
-    assert_eq!(q.input_indices, inputs);
+    assert_eq!(q.input_wires, inputs);
     assert_eq!(q.x_name(1), "x1");
     assert_eq!(q.y_name(1), "y1");
     assert_eq!(q.orig_var(1), 1);
@@ -341,11 +341,11 @@ fn doubler_carries_field_polys_flag() {
 }
 
 #[test]
-fn doubler_seeds_known_signals() {
+fn doubler_seeds_known_wires() {
     let single = single_gf7(4);
     let known: HashSet<usize> = [2usize, 3].into_iter().collect();
     let q = polysystem_to_uniqueness_query(&single, &HashSet::new(), &known).unwrap();
-    assert_eq!(q.known_signals, known);
+    assert_eq!(q.known_wires, known);
 }
 
 #[test]

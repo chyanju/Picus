@@ -38,8 +38,9 @@ pub enum SolverKind {
     None,
 }
 
-/// Theory selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Theory selection. `Ord` follows declaration order (`Ff` < `Nia`) and is
+/// the sort key for [`backends::all_backend_descriptors`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Theory {
     /// QF_FF: native finite field arithmetic (cvc5 only).
     Ff,
@@ -48,6 +49,10 @@ pub enum Theory {
 }
 
 impl Theory {
+    /// Every theory variant, in declaration order. Single source for the
+    /// valid-name list so error messages never go stale.
+    pub const ALL: [Theory; 2] = [Theory::Ff, Theory::Nia];
+
     /// Canonical lowercase name, matching `--theory <name>`.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -117,7 +122,10 @@ impl std::str::FromStr for Theory {
         match s {
             "ff" => Ok(Theory::Ff),
             "nia" => Ok(Theory::Nia),
-            _ => Err(format!("unknown theory: '{}'. Use 'ff' or 'nia'.", s)),
+            _ => {
+                let valid: Vec<&str> = Theory::ALL.iter().map(|t| t.as_str()).collect();
+                Err(format!("unknown theory: '{}'. Valid: {}", s, valid.join(", ")))
+            }
         }
     }
 }

@@ -15,7 +15,7 @@
 //!
 //! Backends consume the same [`PolySystem`] the propagation layer builds;
 //! before each solve the driver appends `x_w - y_w = 0` equalities for
-//! every newly-proved-unique wire and sets `target_signal` so the
+//! every newly-proved-unique wire and sets `target_wire` so the
 //! backend's closing `(not (= x_target y_target))` matches.
 
 use num_bigint::BigUint;
@@ -257,7 +257,7 @@ pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, Dpvl
 /// `Safe` verdict; a SAT counter-example on any of them yields `Unsafe`.
 ///
 /// The initial known set seeds from the query's inputs (shared across copies,
-/// hence always known) together with any `known_signals` the caller pre-set;
+/// hence always known) together with any `known_wires` the caller pre-set;
 /// every other wire enters the unknown pool.
 pub fn run_dpvl_on_query(
     mut q: UniquenessQuery,
@@ -265,7 +265,7 @@ pub fn run_dpvl_on_query(
     config: &DpvlConfig,
 ) -> Result<DpvlResult, DpvlError> {
     let nwires = q.n_wires;
-    let mut ks: HashSet<usize> = q.input_indices.union(&q.known_signals).copied().collect();
+    let mut ks: HashSet<usize> = q.input_wires.union(&q.known_wires).copied().collect();
     let mut us: HashSet<usize> = (0..nwires).filter(|i| !ks.contains(i)).collect();
     let mut ranges: HashMap<usize, RangeValue> = initial_ranges();
 
@@ -349,36 +349,36 @@ impl DpvlContext {
                 if uspool.is_empty() {
                     break;
                 }
-                let sid = match self.selector.select(&uspool) {
+                let wire = match self.selector.select(&uspool) {
                     Some(s) => s,
                     None => break,
                 };
-                uspool.remove(&sid);
+                uspool.remove(&wire);
 
                 log::debug!(
                     "Solving signal {} (target={})",
-                    sid,
-                    self.target_set.contains(&sid)
+                    wire,
+                    self.target_set.contains(&wire)
                 );
-                let result = self.solve(q, sid);
+                let result = self.solve(q, wire);
 
                 match result {
                     SolveResult::Verified => {
-                        self.selector.feedback(sid, SolverFeedback::Verified);
-                        ks.insert(sid);
-                        us.remove(&sid);
-                        q.add_known_wire(sid);
+                        self.selector.feedback(wire, SolverFeedback::Verified);
+                        ks.insert(wire);
+                        us.remove(&wire);
+                        q.add_known_wire(wire);
                         made_progress = true;
                         break;
                     }
                     SolveResult::Sat(model) => {
-                        if self.target_set.contains(&sid) {
+                        if self.target_set.contains(&wire) {
                             return DpvlResult::Unsafe(model);
                         }
-                        self.selector.feedback(sid, SolverFeedback::Skip);
+                        self.selector.feedback(wire, SolverFeedback::Skip);
                     }
                     SolveResult::Skip => {
-                        self.selector.feedback(sid, SolverFeedback::Skip);
+                        self.selector.feedback(wire, SolverFeedback::Skip);
                     }
                 }
             }
@@ -461,12 +461,12 @@ impl DpvlContext {
         }
     }
 
-    fn solve(&mut self, q: &mut UniquenessQuery, sid: usize) -> SolveResult {
+    fn solve(&mut self, q: &mut UniquenessQuery, wire: usize) -> SolveResult {
         let backend = match self.backend.as_mut() {
             Some(b) => b,
             None => return SolveResult::Skip,
         };
-        q.set_target(sid);
+        q.set_target(wire);
 
         if let Some(ref dir) = self.dump_smt {
             let smt_str = backend.dump_smt(&q.ir);
@@ -474,7 +474,7 @@ impl DpvlContext {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis();
-            let path = dir.join(format!("picus-{}-sig{}.smt2", ts, sid));
+            let path = dir.join(format!("picus-{}-sig{}.smt2", ts, wire));
             if let Err(e) = std::fs::write(&path, &smt_str) {
                 log::warn!("Failed to dump SMT: {}", e);
             } else {
@@ -496,14 +496,14 @@ impl DpvlContext {
                 // so it cannot emit a spurious one; cvc5's soundness is
                 // cvc5's own responsibility, not something we second-
                 // guess here.
-                if self.target_set.contains(&sid) {
+                if self.target_set.contains(&wire) {
                     SolveResult::Sat(model)
                 } else {
                     SolveResult::Skip
                 }
             }
             Ok(SolverResult::Unknown(reason)) => {
-                log::debug!("solver returned Unknown for wire {}: {:?}", sid, reason);
+                log::debug!("solver returned Unknown for wire {}: {:?}", wire, reason);
                 SolveResult::Skip
             }
             Err(e) => {
