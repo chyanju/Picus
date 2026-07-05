@@ -15,21 +15,36 @@
 use std::collections::HashSet;
 
 use num_traits::Zero;
-use picus_core::config;
 use picus_core::poly::Poly;
 
 use super::lemma::{LemmaDescriptor, PropagationCtx, PropagationLemma};
 use crate::uniqueness::UniquenessQuery;
 
-#[derive(Default)]
 pub struct AbozLemma {
     /// Zero-product disjunctions already emitted this run, keyed by the
     /// `(selector_wire, other_wire)` pair, so re-running the lemma to a
     /// fixed point does not flood `learned_disjunctions` with dupes.
     emitted: HashSet<(usize, usize)>,
+    /// Whether to emit the entailed zero-product disjunctions. Set from the
+    /// analysis knob `DpvlConfig::aboz_emit_disjunctions` via [`Self::configure`];
+    /// on by default.
+    emit_disjunctions: bool,
+}
+
+impl Default for AbozLemma {
+    fn default() -> Self {
+        Self {
+            emitted: HashSet::new(),
+            emit_disjunctions: true,
+        }
+    }
 }
 
 impl PropagationLemma for AbozLemma {
+    fn configure(&mut self, config: &crate::dpvl::DpvlConfig) {
+        self.emit_disjunctions = config.aboz_emit_disjunctions;
+    }
+
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let products = collect_bilinear_zero(q);
         if products.len() < 2 {
@@ -97,7 +112,7 @@ impl PropagationLemma for AbozLemma {
                         // can case-split. Sound — each follows from a
                         // `s * o = 0` equality already in the IR — and on
                         // by default.
-                        if config::with(|c| c.aboz_emit_disjunctions) {
+                        if self.emit_disjunctions {
                             if self.emit_zero_product(q, ctx, x, y0) {
                                 progress = true;
                             }

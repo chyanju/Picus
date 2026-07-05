@@ -11,7 +11,6 @@
 use std::collections::{HashMap, HashSet};
 
 use num_bigint::BigUint;
-use picus_core::config::ConfigGuard;
 use picus_r1cs::grammar::{
     Constraint, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
@@ -158,9 +157,6 @@ fn prop_aboz_promotes_when_selector_excludes_zero() {
 fn prop_aboz_does_not_promote_when_selector_can_be_zero() {
     // Disable disjunction emission so we observe ONLY the promote/no-promote
     // decision; otherwise progress may be true via disjunction emission.
-    let _guard = ConfigGuard::with_override(|c| {
-        c.aboz_emit_disjunctions = false;
-    });
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
@@ -179,6 +175,7 @@ fn prop_aboz_does_not_promote_when_selector_can_be_zero() {
     let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
     let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
+    lemma.emit_disjunctions = false;
     let progress = {
         let mut ctx = PropagationCtx {
             known: &mut known_set,
@@ -201,9 +198,6 @@ fn prop_aboz_does_not_promote_when_selector_can_be_zero() {
 /// promote.
 #[test]
 fn prop_aboz_does_not_promote_when_selector_range_is_bottom() {
-    let _guard = ConfigGuard::with_override(|c| {
-        c.aboz_emit_disjunctions = false;
-    });
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
@@ -221,6 +215,7 @@ fn prop_aboz_does_not_promote_when_selector_range_is_bottom() {
     let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
     let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
+    lemma.emit_disjunctions = false;
     let progress = {
         let mut ctx = PropagationCtx {
             known: &mut known_set,
@@ -246,9 +241,6 @@ fn prop_aboz_does_not_promote_when_selector_range_is_bottom() {
 /// the lemma must NOT promote.
 #[test]
 fn prop_aboz_requires_known_linear_partner() {
-    let _guard = ConfigGuard::with_override(|c| {
-        c.aboz_emit_disjunctions = false;
-    });
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
@@ -267,6 +259,7 @@ fn prop_aboz_requires_known_linear_partner() {
     let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
     let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
+    lemma.emit_disjunctions = false;
     let progress = {
         let mut ctx = PropagationCtx {
             known: &mut known_set,
@@ -289,9 +282,6 @@ fn prop_aboz_requires_known_linear_partner() {
 /// two pairs that's 4 disjunctions total.
 #[test]
 fn prop_aboz_emits_disjunctions_when_gate_closed() {
-    let _guard = ConfigGuard::with_override(|c| {
-        c.aboz_emit_disjunctions = true;
-    });
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
@@ -341,9 +331,6 @@ fn prop_aboz_emits_disjunctions_when_gate_closed() {
 /// pairs.
 #[test]
 fn prop_aboz_dedup_across_repeat_runs() {
-    let _guard = ConfigGuard::with_override(|c| {
-        c.aboz_emit_disjunctions = true;
-    });
 
     let r1cs = aboz_shape_r1cs();
     let known: HashSet<usize> = r1cs.inputs.iter().copied().collect();
@@ -596,9 +583,6 @@ fn test_aboz_shared_arm_a0_eq_a1() {
 /// Wires: 0=one, 1=a, 2=b, 3=c, 4=d (a*b=0, c*d=0 — no shared wire).
 #[test]
 fn test_aboz_shared_arm_none_no_overlap() {
-    let _guard = ConfigGuard::with_override(|c| {
-        c.aboz_emit_disjunctions = false;
-    });
     let header = HeaderSection {
         field_size: 32,
         prime_number: BigUint::from(7u32),
@@ -639,6 +623,7 @@ fn test_aboz_shared_arm_none_no_overlap() {
     let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
     let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
+    lemma.emit_disjunctions = false;
     let progress = {
         let mut ctx = PropagationCtx {
             known: &mut known_set,
@@ -659,9 +644,6 @@ fn test_aboz_shared_arm_none_no_overlap() {
 /// "x-not-known" continue.
 #[test]
 fn test_aboz_skips_when_selector_not_known() {
-    let _guard = ConfigGuard::with_override(|c| {
-        c.aboz_emit_disjunctions = false;
-    });
     let r1cs = aboz_shape_r1cs();
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).expect("lowering should succeed");
 
@@ -678,6 +660,7 @@ fn test_aboz_skips_when_selector_not_known() {
     let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
     let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
     let mut lemma = AbozLemma::default();
+    lemma.emit_disjunctions = false;
     let progress = {
         let mut ctx = PropagationCtx {
             known: &mut known_set,

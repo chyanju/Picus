@@ -157,14 +157,6 @@ runtime_config! {
     /// change. Disabling it forces every call to rebuild the basis from
     /// scratch — useful for benchmarking or for diagnosing cache bugs.
     cache_enabled: bool = true,
-    /// Let the `aboz` lemma emit the (entailed) zero-product
-    /// disjunctions for selector patterns whose selector cannot be
-    /// proved non-zero, feeding the disjunction-aware solver path. On by
-    /// default: each clause follows from an `s * o = 0` equality already
-    /// in the IR, so it is sound and verdict-neutral; this keeps the
-    /// pipeline's disjunction path live. Set `aboz_emit_disjunctions =
-    /// false` in config (CLI `--no-aboz-disj`) to disable.
-    aboz_emit_disjunctions: bool = true,
     /// Representation of the IR poly type ([`ReprKind`]). Defaults to
     /// `Sparse` so lowering + the cvc5 path scale on wide rings (the dense
     /// form OOMs there); set `poly_repr = "dense"` in config (CLI

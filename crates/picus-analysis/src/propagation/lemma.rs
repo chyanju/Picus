@@ -101,6 +101,11 @@ impl<T> LenGatedCache<T> {
 pub trait PropagationLemma: Send {
     /// Run one pass. Returns `true` iff it made progress this call.
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool;
+
+    /// Apply per-run options from the analysis config. The DPVL driver calls
+    /// this once after instantiation, before the propagation loop. Default:
+    /// no-op — only lemmas with a config-driven toggle override it.
+    fn configure(&mut self, _config: &crate::dpvl::DpvlConfig) {}
 }
 
 /// Factory closure that builds a fresh lemma instance.

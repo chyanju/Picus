@@ -27,6 +27,7 @@ Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1
 ### Structure
 - Dropped the inert `native` Cargo feature (the native FF engine is always compiled; cvc5/z3 stay opt-in).
 - Removed the phantom `picus` → `picus-solver` and `picus-smt` → `picus-r1cs` dependency edges (picus-r1cs is dev-only in picus-smt).
+- Moved the analysis knob `aboz_emit_disjunctions` from the engine config into `DpvlConfig`, threaded via a new `PropagationLemma::configure` hook instead of an ambient thread-local; the TOML key moves `[engine]` → `[analysis]`.
 
 ## [1.8.26] - 2026-07-05
 

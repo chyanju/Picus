@@ -186,6 +186,10 @@ pub struct DpvlConfig {
     pub timeout_ms: u64,
     pub lemmas: LemmaSet,
     pub dump_smt: Option<PathBuf>,
+    /// Whether the `aboz` lemma emits the entailed zero-product disjunctions
+    /// (on by default). Sound and verdict-neutral; CLI `--no-aboz-disj` turns
+    /// it off. Threaded into the lemma via `PropagationLemma::configure`.
+    pub aboz_emit_disjunctions: bool,
 }
 
 impl Default for DpvlConfig {
@@ -201,6 +205,7 @@ impl Default for DpvlConfig {
             timeout_ms: 5000,
             lemmas: LemmaSet::all(),
             dump_smt: None,
+            aboz_emit_disjunctions: true,
         }
     }
 }
@@ -236,6 +241,9 @@ impl DpvlConfig {
         if let Some(p) = &o.dump_smt {
             self.dump_smt = Some(p.clone());
         }
+        if let Some(v) = o.aboz_emit_disjunctions {
+            self.aboz_emit_disjunctions = v;
+        }
         Ok(())
     }
 }
@@ -254,6 +262,7 @@ pub struct DpvlOverlay {
     pub timeout_ms: Option<u64>,
     pub lemmas: Option<String>,
     pub dump_smt: Option<PathBuf>,
+    pub aboz_emit_disjunctions: Option<bool>,
 }
 
 /// Failure modes of [`run_dpvl`], surfaced as typed variants so callers
@@ -305,6 +314,12 @@ pub fn run_dpvl_on_query(
         .filter(|d| config.lemmas.is_enabled(d.name))
         .map(|d| (d.name, (d.factory)()))
         .collect();
+
+    // Apply per-run analysis options (e.g. aboz_emit_disjunctions) to each
+    // lemma instance before the propagation loop.
+    for (_, lemma) in lemma_instances.iter_mut() {
+        lemma.configure(config);
+    }
 
     // Per-wire connectivity score for the counter selector.
     let connectivity = wire_connectivity_score(&q);

@@ -25,6 +25,9 @@ timeout_ms = 5000
 # "none+X,Y" (include X,Y). Names: linear, binary01, basis2, aboz, bim,
 # tecomplete.
 lemmas = "all"
+# Let the aboz lemma emit entailed zero-product disjunctions (feeds the
+# disjunction-aware path for both native and cvc5). On by default.
+aboz_emit_disjunctions = true
 # Directory to dump SMT-LIB queries into for debugging. Unset = no dump.
 # dump_smt = "/tmp/picus-smt"
 
@@ -132,9 +135,6 @@ cdclt_equality_engine = false
 # representation, so it shapes the native solve AND the cvc5 lowering
 # footprint — "sparse" keeps wide rings from OOMing either path.
 poly_repr = "sparse"
-# Let the aboz lemma emit entailed zero-product disjunctions (feeds the
-# disjunction-aware path for both native and cvc5).
-aboz_emit_disjunctions = true
 
 # --- Diagnostics to stderr (native engine) ---
 gb_stats_enabled = false

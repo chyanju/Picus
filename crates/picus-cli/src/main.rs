@@ -70,6 +70,7 @@ fn main() {
                     timeout_ms: timeout,
                     lemmas,
                     dump_smt,
+                    aboz_emit_disjunctions: no_aboz_disj.then_some(false),
                 },
                 engine: EngineOverlay {
                     // Prefer the canonical --gb-strategy (parsed by the enum's
@@ -95,7 +96,6 @@ fn main() {
                     gb_stats_enabled: gb_stats.then_some(true),
                     gb_trace_enabled: gb_trace.then_some(true),
                     cache_enabled: no_cache.then_some(false),
-                    aboz_emit_disjunctions: no_aboz_disj.then_some(false),
                     profile_enabled: profile.as_deref().map(|s| s == "wall"),
                     linear_elim: linear_elim.then_some(true),
                     // Config-file only (no CLI flag): precise inter-reduce

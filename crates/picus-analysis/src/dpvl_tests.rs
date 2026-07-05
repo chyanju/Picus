@@ -18,6 +18,7 @@ fn apply_overlay_consumes_every_field() {
         timeout_ms: Some(1234),
         lemmas: Some("none".to_string()),
         dump_smt: Some(PathBuf::from("/tmp/picus-x")),
+        aboz_emit_disjunctions: Some(false),
     };
     let expected = DpvlConfig {
         solver: SolverKind::Cvc5,
@@ -26,6 +27,7 @@ fn apply_overlay_consumes_every_field() {
         timeout_ms: 1234,
         lemmas: LemmaSet::none(),
         dump_smt: Some(PathBuf::from("/tmp/picus-x")),
+        aboz_emit_disjunctions: false,
     };
 
     // Every chosen value must differ from the compiled default, so a
@@ -416,6 +418,7 @@ fn test_run_dpvl_lowering_error_surfaces_as_dpvl_error_lower() {
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     };
     let result = run_dpvl(&r, &cfg);
     match result {
@@ -437,6 +440,7 @@ fn test_run_dpvl_invalid_solver_theory_combo_surfaces_as_backend_error() {
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     };
     let result = run_dpvl(&r, &cfg);
     match result {
@@ -460,6 +464,7 @@ fn test_run_dpvl_empty_target_set_returns_safe() {
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(
@@ -482,6 +487,7 @@ fn test_run_dpvl_target_is_input_returns_safe() {
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(
@@ -508,6 +514,7 @@ fn test_run_dpvl_no_backend_with_unknown_target_returns_unknown() {
         // exercising that branch too.
         lemmas: LemmaSet::none(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(
@@ -533,6 +540,7 @@ fn test_run_dpvl_propagation_runs_but_target_unreached_returns_unknown() {
         timeout_ms: 100,
         lemmas: LemmaSet::all(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(
@@ -800,6 +808,7 @@ fn test_run_dpvl_propagation_promotes_target_returns_safe() {
         timeout_ms: 100,
         lemmas: LemmaSet::all(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(
@@ -822,6 +831,7 @@ fn test_run_dpvl_propagation_disabled_misses_promotion() {
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(

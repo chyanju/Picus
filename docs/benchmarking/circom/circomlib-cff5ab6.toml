@@ -33,6 +33,7 @@ theory = "ff"
 selector = "counter"
 timeout_ms = 10000
 lemmas = "all"
+aboz_emit_disjunctions = true
 
 [picus-1.engine]
 gb_strategy = "direct"
@@ -58,7 +59,6 @@ cdclt_multi_prime_router = false
 cdclt_incremental_theory = false
 cdclt_equality_engine = false
 poly_repr = "sparse"
-aboz_emit_disjunctions = true
 gb_stats_enabled = false
 gb_trace_enabled = false
 profile_enabled = false

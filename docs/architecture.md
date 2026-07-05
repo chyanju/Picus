@@ -69,7 +69,7 @@ dependencies.
 - **`config.rs`** — `RuntimeConfig`, the engine-layer knobs (`gb_strategy`,
   `use_f4`, `dnf_cap`, `dnf_enabled`, `cdclt_iter_cap`, `gb_stats_enabled`,
   `gb_trace_enabled`, `profile_enabled`, `cache_enabled`,
-  `aboz_emit_disjunctions`, `poly_repr`), plus `ReprKind` and `GbStrategy`.
+  `poly_repr`), plus `ReprKind` and `GbStrategy`.
   Thread-local storage with `ConfigGuard` for RAII overrides; the
   `picus::check_r1cs` driver installs the resolved engine config per call.
   `RuntimeOverlay` is the all-optional partial used for config layering
@@ -437,11 +437,12 @@ Public library facade.
   sound-but-incomplete.
 - **`PicusConfig { analysis, engine }`** (aliased `Config`) — the resolved
   configuration. `analysis` (`AnalysisConfig`: `solver = Native`,
-  `theory = Ff`, `timeout_ms = 5000`, `lemmas = all`, `selector = Counter`,
-  `dump_smt = None`) plus `engine` (`EngineConfig` = `RuntimeConfig`:
-  `gb_strategy = Direct`, `poly_repr = Sparse`, `cache_enabled = true`,
-  `aboz_emit_disjunctions = true`, the caps at `100_000` / `1_000_000`, and
-  the remaining toggles off). `default()` is zero-I/O.
+  `theory = Ff`, `timeout_ms = 5000`, `lemmas = all`, `selector = "counter"`,
+  `aboz_emit_disjunctions = true`, `dump_smt = None`) plus `engine`
+  (`EngineConfig` = `RuntimeConfig`: `gb_strategy = Direct`,
+  `poly_repr = Sparse`, `cache_enabled = true`, the caps at
+  `100_000` / `1_000_000`, and the remaining toggles off). `default()` is
+  zero-I/O.
 - **`resolve_config(path, cli_overlay)`** — layers, in increasing
   precedence, built-in defaults < config file (`--config`, else
   `./picus.toml`) < CLI overlay, into one `PicusConfig`.

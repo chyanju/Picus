@@ -24,6 +24,7 @@ fn propagation_only_config() -> DpvlConfig {
         timeout_ms: 5000,
         lemmas: LemmaSet::all(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     }
 }
 
@@ -35,6 +36,7 @@ fn native_ff_config() -> DpvlConfig {
         timeout_ms: 5000,
         lemmas: LemmaSet::all(),
         dump_smt: None,
+        aboz_emit_disjunctions: true,
     }
 }
 
