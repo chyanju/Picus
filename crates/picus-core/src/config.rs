@@ -46,33 +46,90 @@ pub enum ReprKind {
     Sparse,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RuntimeConfig {
+/// Declarative source of truth for the solver's runtime knobs. From one
+/// annotated `name: Type = default` field list this generates the
+/// [`RuntimeConfig`] struct (with per-field docs), its [`Default`] impl,
+/// the parallel [`EngineOverlay`] (each field wrapped in `Option`), and
+/// [`RuntimeConfig::apply_overlay`] — so every knob is named exactly once.
+macro_rules! runtime_config {
+    (
+        $(
+            $(#[$fmeta:meta])*
+            $field:ident : $ty:ty = $default:expr
+        ),* $(,)?
+    ) => {
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        pub struct RuntimeConfig {
+            $(
+                $(#[$fmeta])*
+                pub $field: $ty,
+            )*
+        }
+
+        impl Default for RuntimeConfig {
+            fn default() -> Self {
+                Self {
+                    $($field: $default,)*
+                }
+            }
+        }
+
+        /// Partial overlay for [`RuntimeConfig`]: every field is optional, so a
+        /// single config layer (file, environment, CLI) carries only the knobs
+        /// it actually sets. Merged onto a base via [`RuntimeConfig::apply_overlay`];
+        /// later layers win.
+        ///
+        /// TOML keys mirror the [`RuntimeConfig`] field names exactly, so adding
+        /// a knob is one field here plus one line in `apply_overlay` — no rename
+        /// bookkeeping. `deny_unknown_fields` turns a mistyped key into an error
+        /// rather than a silent no-op.
+        #[derive(Default, Debug, Clone, Serialize, Deserialize)]
+        #[serde(default, deny_unknown_fields)]
+        pub struct EngineOverlay {
+            $(
+                pub $field: Option<$ty>,
+            )*
+        }
+
+        impl RuntimeConfig {
+            /// Merge the `Some` fields of `o` onto `self`; `None` fields are
+            /// left untouched. This is the overlay/merge step that layers a
+            /// config file, environment, or CLI flags onto a base config.
+            pub fn apply_overlay(&mut self, o: &EngineOverlay) {
+                $(
+                    if let Some(v) = o.$field { self.$field = v; }
+                )*
+            }
+        }
+    };
+}
+
+runtime_config! {
     /// GB algorithm strategy.
-    pub gb_strategy: GbStrategy,
+    gb_strategy: GbStrategy = GbStrategy::Direct,
     /// Use F4 matrix reduction for batched same-sugar S-pairs.
-    pub use_f4: bool,
+    use_f4: bool = false,
     /// DNF expansion cap (max disjunct count) before
     /// `solve_boolean_query_dnf` (in picus-solver) returns `Unknown`.
-    pub dnf_cap: u64,
+    dnf_cap: u64 = 100_000,
     /// Pick DNF instead of CNF for the boolean layer.
-    pub dnf_enabled: bool,
+    dnf_enabled: bool = false,
     /// CDCL(T) outer-iteration cap. Set `0` to force an immediate
     /// `Unknown` (used by tests); `u64::MAX` for effectively unbounded.
-    pub cdclt_iter_cap: u64,
+    cdclt_iter_cap: u64 = 1_000_000,
     /// Emit per-run GB statistics (basis size, S-pair counts, F4 batch
     /// distribution) to stderr.
-    pub gb_stats_enabled: bool,
+    gb_stats_enabled: bool = false,
     /// Emit GB trace events for the in-flight basis to stderr.
-    pub gb_trace_enabled: bool,
+    gb_trace_enabled: bool = false,
     /// Enable the phase profiler (`ScopedTimer`).
-    pub profile_enabled: bool,
+    profile_enabled: bool = false,
     /// Reuse the incremental Buchberger cache between successive
     /// `solve()` calls in the same `NativeFfBackend` instance. The cache
     /// amortises split-GB across calls whose constraint set didn't
     /// change. Disabling it forces every call to rebuild the basis from
     /// scratch — useful for benchmarking or for diagnosing cache bugs.
-    pub cache_enabled: bool,
+    cache_enabled: bool = true,
     /// Let the `aboz` lemma emit the (entailed) zero-product
     /// disjunctions for selector patterns whose selector cannot be
     /// proved non-zero, feeding the disjunction-aware solver path. On by
@@ -80,13 +137,13 @@ pub struct RuntimeConfig {
     /// in the IR, so it is sound and verdict-neutral; this keeps the
     /// pipeline's disjunction path live. Set `aboz_emit_disjunctions =
     /// false` in config (CLI `--no-aboz-disj`) to disable.
-    pub aboz_emit_disjunctions: bool,
+    aboz_emit_disjunctions: bool = true,
     /// Representation of the IR poly type ([`ReprKind`]). Defaults to
     /// `Sparse` so lowering + the cvc5 path scale on wide rings (the dense
     /// form OOMs there); set `poly_repr = "dense"` in config (CLI
     /// `--poly-repr dense`) to force the dense representation (the
     /// differential-test oracle, faster on small rings).
-    pub poly_repr: ReprKind,
+    poly_repr: ReprKind = ReprKind::Sparse,
     /// Opt-in linear (Gaussian) pre-elimination (cvc5 `gauss.cpp`
     /// analogue): before solving, reduce the nonlinear constraints modulo
     /// a Gröbner basis of the linear subsystem, substituting out pivot
@@ -94,7 +151,7 @@ pub struct RuntimeConfig {
     /// constraints in basis 0, and the substitution can densify the
     /// nonlinear part and add per-`solve` overhead. Exposed as a knob for
     /// linear-heavy conjunctive circuits where it may pay off.
-    pub linear_elim: bool,
+    linear_elim: bool = false,
     /// Track inter-reduction reducer dependencies in the single-GB UNSAT-core
     /// tracer (`GbTracer`), so a trivial core reflects the basis elements that
     /// actually reduced the contradiction — matching cvc5/CoCoA's precise
@@ -105,7 +162,7 @@ pub struct RuntimeConfig {
     /// fire there regardless of this flag; its UNSAT core is instead
     /// attributed by a conservative union (see `split_gb::fixpoint`). Set
     /// false to drop the small per-reduce counting cost on the SingleGb path.
-    pub track_inter_reduce_deps: bool,
+    track_inter_reduce_deps: bool = true,
     /// Triangular model construction (cvc5 `multi_roots` analogue) on the
     /// default split-GB path: decide a zero-dimensional combined system by
     /// univariate-root + back-substitution enumeration instead of the
@@ -116,7 +173,7 @@ pub struct RuntimeConfig {
     /// verdict. Off by default: it builds the combined GB the split path
     /// otherwise avoids, so it is opt-in for zero-dimensional workloads the
     /// bounded brancher leaves `Unknown`.
-    pub split_triangular: bool,
+    split_triangular: bool = false,
     /// Ideal-membership Safe fast-path for uniqueness queries on the
     /// cached split-GB path. Before extending the constraint-side basis
     /// with a query disequality's Rabinowitsch polynomial, reduce the
@@ -130,7 +187,7 @@ pub struct RuntimeConfig {
     /// polynomials, so the test is exact radical membership; for large
     /// primes it is a one-sided Safe filter (misses fall through). On by
     /// default.
-    pub membership_fastpath: bool,
+    membership_fastpath: bool = true,
     /// Monolithic-GB radical Safe fast-path. Upgrade of `membership_fastpath`:
     /// rather than reducing `x_a − x_b` against the union of the per-partition
     /// bases (not a Gröbner basis of the combined ideal, so a nonzero remainder
@@ -146,7 +203,7 @@ pub struct RuntimeConfig {
     /// GF(p) but not over the closure — e.g. curve addition laws relying on a
     /// field-specific fact such as `d` being a non-residue — is not in `√I` and
     /// falls through. CLI: --radical-membership on|off.
-    pub radical_membership: bool,
+    radical_membership: bool = false,
     /// Compute the native split-GB under an elimination term order on the
     /// alt-copy (`y`) variables instead of DegRevLex, driving those
     /// variables out of the leading terms first (see
@@ -160,7 +217,7 @@ pub struct RuntimeConfig {
     /// `unknown` (never a wrong verdict — soundness is order-independent).
     /// Kept as a research knob; re-evaluate if the model search gains an
     /// elimination-aware branching strategy.
-    pub matrix_elim_order: bool,
+    matrix_elim_order: bool = false,
     /// Size-adaptive term-order selection for the native split-GB. When
     /// set, the encoder builds the solve ring under the alt-copy
     /// elimination order only for rings of at least
@@ -171,7 +228,7 @@ pub struct RuntimeConfig {
     /// computed; verdicts are guarded independently of the order. On by
     /// default: the size guard routes small rings, where the elimination
     /// order regresses, to DegRevLex.
-    pub dynamic_order: bool,
+    dynamic_order: bool = true,
     /// Signature-based Gröbner basis (GVW with signature-safe reduction) in
     /// place of the per-pair Buchberger run, for rings of at least
     /// `ff::buchberger::GVW_MIN_VARS` variables. GVW carries a Schreyer
@@ -186,7 +243,7 @@ pub struct RuntimeConfig {
     /// size guard routes small rings — where a from-scratch GVW recompute on
     /// each split-GB extend regresses — to the per-pair engine. Kept as a
     /// research knob and the foundation for further signature work.
-    pub signature_criterion: bool,
+    signature_criterion: bool = false,
     /// Use Zech (discrete-log) tables for prime fields with
     /// `prime <= ff::field::ZECH_LOG_MAX_PRIME`, turning multiply / inverse /
     /// power into table lookups. Result-identical (the stored element is the
@@ -198,20 +255,20 @@ pub struct RuntimeConfig {
     /// reduction is mul-heavy, and only marginally wins on tiny primes. So the
     /// net is workload-dependent; kept as an opt-in knob for inverse-heavy
     /// small-prime arithmetic, with an `O(prime)` table build per field.
-    pub zech_log_small_fp: bool,
+    zech_log_small_fp: bool = false,
     /// Cache the geobucket reducer's divisor index (DivMask buckets + degree
     /// order) across S-pair reductions whose active basis is unchanged,
     /// instead of rebuilding it per call. Result-preserving (same normal
     /// form). Off by default: a growing basis changes the active set often,
     /// so the rebuild on a cache miss offsets the saving; opt-in for long
     /// runs of reductions against a stable basis.
-    pub reducer_index_cache: bool,
+    reducer_index_cache: bool = false,
     /// Memoize the Frobenius polynomial `x^p mod f` across calls to
     /// `distinct_linear_part` keyed by `(prime, f.coeffs)`. The result is a
     /// pure function of its key, so cached values are always correct. Helps
     /// model-construction phases that call root-finding on the same `(ring,
     /// f)` across multiple DFS branches.
-    pub frobenius_cache: bool,
+    frobenius_cache: bool = true,
     /// In multivariate model construction (`find_zero_cancel`), use the
     /// incremental Buchberger driver (`compute_gb_incremental_with_order`)
     /// to extend the basis with the new `(var − val)` constraint at every
@@ -219,35 +276,35 @@ pub struct RuntimeConfig {
     /// merged generator list. Result-preserving (same reduced GB modulo
     /// canonicalisation) — only the work to reach it is amortized across
     /// branches.
-    pub branching_incremental_gb: bool,
+    branching_incremental_gb: bool = true,
     /// Route the FF theory through `cdclt::multi_prime::FfTheoryRouter`
     /// instead of the single-prime `FfTheory`. Capability flag for
     /// future multi-prime SMT-LIB inputs; the parser today still
     /// rejects multi-prime sessions, so the router runs in single-slot
     /// mode (path-equivalent to `FfTheory` on the same input). Off by
     /// default until the parser is widened to emit per-prime atom tables.
-    pub cdclt_multi_prime_router: bool,
+    cdclt_multi_prime_router: bool = false,
     /// Interpose `cdclt::equality_engine::EqualityEngine` before the
     /// FF theory at fact-notification time. `Fresh` facts forward,
     /// `Redundant` facts drop, `Contradiction` facts surface a
     /// precise 2-literal lemma `{atom, witness}` via
     /// `EqualityEngine::prior_witness` instead of deferring to the
     /// inner GB collapse. Off by default.
-    pub cdclt_equality_engine: bool,
+    cdclt_equality_engine: bool = false,
     /// Reorder F4 S-pair batches by predicted Hilbert-function drop
     /// (Bigatti–Caboara–Robbiano selection oracle with
     /// `HilbertNum::add_generators_incremental` per candidate;
     /// `HILBERT_SELECT_BASIS_CAP=250` ceiling). Default ON when the
     /// F4 path is in use (`use_f4=true`); inert when the per-pair
     /// path runs. On homogeneous systems the oracle has nothing to rank.
-    pub f4_hilbert_select: bool,
+    f4_hilbert_select: bool = true,
     /// Cross-batch sparse reducer-row cache inside `F4Workspace`:
     /// stores only the basis index per cache entry and rematerialises
     /// the reducer poly via `basis[bi].poly.mul_term(m / LT(basis[bi]),
     /// 1)` at hit time. Default ON when `use_f4=true`; inert
     /// otherwise. Per-entry memory drops from O(n_terms × n_vars) to
     /// O(1) word, freeing allocator pressure on wider-ring F4 workloads.
-    pub f4_sparse_reducer_cache: bool,
+    f4_sparse_reducer_cache: bool = true,
     /// Route the FF theory through `cdclt::ff_theory_incremental::
     /// IncrementalFfTheoryState`, which carries an `IncrementalGB`
     /// across SAT decisions instead of rebuilding the basis per
@@ -255,120 +312,7 @@ pub struct RuntimeConfig {
     /// propagation from `FfTheory` and falls back to Unknown on
     /// large-prime non-trivial bases (BN254/BabyJubJub) pending model
     /// extraction.
-    pub cdclt_incremental_theory: bool,
-}
-
-impl Default for RuntimeConfig {
-    fn default() -> Self {
-        Self {
-            gb_strategy: GbStrategy::Direct,
-            use_f4: false,
-            dnf_cap: 100_000,
-            dnf_enabled: false,
-            cdclt_iter_cap: 1_000_000,
-            gb_stats_enabled: false,
-            gb_trace_enabled: false,
-            profile_enabled: false,
-            cache_enabled: true,
-            aboz_emit_disjunctions: true,
-            poly_repr: ReprKind::Sparse,
-            linear_elim: false,
-            track_inter_reduce_deps: true,
-            split_triangular: false,
-            membership_fastpath: true,
-            radical_membership: false,
-            matrix_elim_order: false,
-            dynamic_order: true,
-            signature_criterion: false,
-            zech_log_small_fp: false,
-            reducer_index_cache: false,
-            frobenius_cache: true,
-            branching_incremental_gb: true,
-            cdclt_multi_prime_router: false,
-            cdclt_equality_engine: false,
-            f4_hilbert_select: true,
-            f4_sparse_reducer_cache: true,
-            cdclt_incremental_theory: false,
-        }
-    }
-}
-
-impl RuntimeConfig {
-    /// Merge the `Some` fields of `o` onto `self`; `None` fields are
-    /// left untouched. This is the overlay/merge step that layers a
-    /// config file, environment, or CLI flags onto a base config.
-    pub fn apply_overlay(&mut self, o: &EngineOverlay) {
-        if let Some(v) = o.gb_strategy { self.gb_strategy = v; }
-        if let Some(v) = o.use_f4 { self.use_f4 = v; }
-        if let Some(v) = o.dnf_cap { self.dnf_cap = v; }
-        if let Some(v) = o.dnf_enabled { self.dnf_enabled = v; }
-        if let Some(v) = o.cdclt_iter_cap { self.cdclt_iter_cap = v; }
-        if let Some(v) = o.gb_stats_enabled { self.gb_stats_enabled = v; }
-        if let Some(v) = o.gb_trace_enabled { self.gb_trace_enabled = v; }
-        if let Some(v) = o.profile_enabled { self.profile_enabled = v; }
-        if let Some(v) = o.cache_enabled { self.cache_enabled = v; }
-        if let Some(v) = o.aboz_emit_disjunctions { self.aboz_emit_disjunctions = v; }
-        if let Some(v) = o.poly_repr { self.poly_repr = v; }
-        if let Some(v) = o.linear_elim { self.linear_elim = v; }
-        if let Some(v) = o.track_inter_reduce_deps { self.track_inter_reduce_deps = v; }
-        if let Some(v) = o.split_triangular { self.split_triangular = v; }
-        if let Some(v) = o.membership_fastpath { self.membership_fastpath = v; }
-        if let Some(v) = o.radical_membership { self.radical_membership = v; }
-        if let Some(v) = o.matrix_elim_order { self.matrix_elim_order = v; }
-        if let Some(v) = o.dynamic_order { self.dynamic_order = v; }
-        if let Some(v) = o.signature_criterion { self.signature_criterion = v; }
-        if let Some(v) = o.zech_log_small_fp { self.zech_log_small_fp = v; }
-        if let Some(v) = o.reducer_index_cache { self.reducer_index_cache = v; }
-        if let Some(v) = o.frobenius_cache { self.frobenius_cache = v; }
-        if let Some(v) = o.branching_incremental_gb { self.branching_incremental_gb = v; }
-        if let Some(v) = o.cdclt_multi_prime_router { self.cdclt_multi_prime_router = v; }
-        if let Some(v) = o.cdclt_equality_engine { self.cdclt_equality_engine = v; }
-        if let Some(v) = o.f4_hilbert_select { self.f4_hilbert_select = v; }
-        if let Some(v) = o.f4_sparse_reducer_cache { self.f4_sparse_reducer_cache = v; }
-        if let Some(v) = o.cdclt_incremental_theory { self.cdclt_incremental_theory = v; }
-    }
-}
-
-/// Partial overlay for [`RuntimeConfig`]: every field is optional, so a
-/// single config layer (file, environment, CLI) carries only the knobs
-/// it actually sets. Merged onto a base via [`RuntimeConfig::apply_overlay`];
-/// later layers win.
-///
-/// TOML keys mirror the [`RuntimeConfig`] field names exactly, so adding
-/// a knob is one field here plus one line in `apply_overlay` — no rename
-/// bookkeeping. `deny_unknown_fields` turns a mistyped key into an error
-/// rather than a silent no-op.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct EngineOverlay {
-    pub gb_strategy: Option<GbStrategy>,
-    pub use_f4: Option<bool>,
-    pub dnf_cap: Option<u64>,
-    pub dnf_enabled: Option<bool>,
-    pub cdclt_iter_cap: Option<u64>,
-    pub gb_stats_enabled: Option<bool>,
-    pub gb_trace_enabled: Option<bool>,
-    pub profile_enabled: Option<bool>,
-    pub cache_enabled: Option<bool>,
-    pub aboz_emit_disjunctions: Option<bool>,
-    pub poly_repr: Option<ReprKind>,
-    pub linear_elim: Option<bool>,
-    pub track_inter_reduce_deps: Option<bool>,
-    pub split_triangular: Option<bool>,
-    pub membership_fastpath: Option<bool>,
-    pub radical_membership: Option<bool>,
-    pub matrix_elim_order: Option<bool>,
-    pub dynamic_order: Option<bool>,
-    pub signature_criterion: Option<bool>,
-    pub zech_log_small_fp: Option<bool>,
-    pub reducer_index_cache: Option<bool>,
-    pub frobenius_cache: Option<bool>,
-    pub branching_incremental_gb: Option<bool>,
-    pub cdclt_multi_prime_router: Option<bool>,
-    pub cdclt_equality_engine: Option<bool>,
-    pub f4_hilbert_select: Option<bool>,
-    pub f4_sparse_reducer_cache: Option<bool>,
-    pub cdclt_incremental_theory: Option<bool>,
+    cdclt_incremental_theory: bool = false,
 }
 
 thread_local! {

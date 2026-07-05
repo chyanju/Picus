@@ -11,186 +11,138 @@ use std::sync::atomic::{AtomicU64, Ordering};
 // `gb_stats` config flag. Independent of the `ScopedTimer` table. All counters
 // are `AtomicU64` so updates are wait-free and thread-safe.
 
-pub struct SplitDfsCounters {
-    pub branches_tried: AtomicU64,
-    pub quick_eval_unsat_hits: AtomicU64,
-    pub linear_quick_unsat_hits: AtomicU64,
-    pub nogood_subsumption_hits: AtomicU64,
-    pub branches_to_full_extend: AtomicU64,
-    pub conflicts_returned: AtomicU64,
-    pub max_dfs_depth: AtomicU64,
-    pub time_in_basis_clone_ns: AtomicU64,
-    pub time_in_split_gb_extend_ns: AtomicU64,
-    pub time_in_quick_eval_unsat_ns: AtomicU64,
-    pub time_in_linear_quick_unsat_ns: AtomicU64,
-    pub points_returned: AtomicU64,
-    pub split_zero_extend_calls: AtomicU64,
+/// Declarative generator for an `AtomicU64` counter registry: emits both the
+/// `pub struct` (each field named once, with per-field doc-comment passthrough)
+/// and a matching `pub const fn new_const() -> Self` zero-initializer, so a
+/// field is listed exactly once instead of once per definition.
+macro_rules! atomic_counters {
+    (
+        $(#[$smeta:meta])*
+        $vis:vis struct $name:ident {
+            $(
+                $(#[$fmeta:meta])*
+                $fvis:vis $field:ident : AtomicU64
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$smeta])*
+        $vis struct $name {
+            $(
+                $(#[$fmeta])*
+                $fvis $field: AtomicU64,
+            )*
+        }
+
+        impl $name {
+            pub const fn new_const() -> Self {
+                Self {
+                    $($field: AtomicU64::new(0),)*
+                }
+            }
+        }
+    };
 }
 
-pub struct SplitGbCounters {
-    pub split_gb_extend_calls: AtomicU64,
-    pub fixpoint_iters_total: AtomicU64,
-    pub fixpoint_iters_per_call_max: AtomicU64,
-    pub propagate_candidates_total: AtomicU64,
-    pub propagate_admit_passes: AtomicU64,
-    pub propagate_contains_calls: AtomicU64,
-    pub propagate_contains_true: AtomicU64,
-    pub propagate_contains_false: AtomicU64,
-    pub propagate_memo_hits: AtomicU64,
-    pub new_polys_added_total: AtomicU64,
-    pub new_polys_per_iter_max: AtomicU64,
-    pub bit_eq_emitted_total: AtomicU64,
-    pub time_in_extend_with_cancel_ns: AtomicU64,
-    pub time_in_contains_ns: AtomicU64,
-    pub time_in_bit_eq_ns: AtomicU64,
-    pub basis_size_max: AtomicU64,
-    pub basis_size_total_terms_max: AtomicU64,
-    pub extend_with_cancel_calls: AtomicU64,
-    pub extend_no_op_skips: AtomicU64,
-    /// Fine-grained reducer timers.
-    pub reduce_calls: AtomicU64,
-    pub reduce_lt_pops: AtomicU64,
-    pub reduce_div_lookups: AtomicU64,
-    pub reduce_sub_scaled_calls: AtomicU64,
-    pub time_div_lt_setup_ns: AtomicU64,
-    pub time_pop_lt_ns: AtomicU64,
-    pub time_div_lookup_ns: AtomicU64,
-    pub time_sub_scaled_ns: AtomicU64,
-    pub time_sub_scaled_setup_ns: AtomicU64,
-    pub time_sub_scaled_addpoly_ns: AtomicU64,
-    pub time_finalize_ns: AtomicU64,
-    pub merge_owned_calls: AtomicU64,
-    pub merge_owned_terms_total: AtomicU64,
+atomic_counters! {
+    pub struct SplitDfsCounters {
+        pub branches_tried: AtomicU64,
+        pub quick_eval_unsat_hits: AtomicU64,
+        pub linear_quick_unsat_hits: AtomicU64,
+        pub nogood_subsumption_hits: AtomicU64,
+        pub branches_to_full_extend: AtomicU64,
+        pub conflicts_returned: AtomicU64,
+        pub max_dfs_depth: AtomicU64,
+        pub time_in_basis_clone_ns: AtomicU64,
+        pub time_in_split_gb_extend_ns: AtomicU64,
+        pub time_in_quick_eval_unsat_ns: AtomicU64,
+        pub time_in_linear_quick_unsat_ns: AtomicU64,
+        pub points_returned: AtomicU64,
+        pub split_zero_extend_calls: AtomicU64,
+    }
+}
+
+atomic_counters! {
+    pub struct SplitGbCounters {
+        pub split_gb_extend_calls: AtomicU64,
+        pub fixpoint_iters_total: AtomicU64,
+        pub fixpoint_iters_per_call_max: AtomicU64,
+        pub propagate_candidates_total: AtomicU64,
+        pub propagate_admit_passes: AtomicU64,
+        pub propagate_contains_calls: AtomicU64,
+        pub propagate_contains_true: AtomicU64,
+        pub propagate_contains_false: AtomicU64,
+        pub propagate_memo_hits: AtomicU64,
+        pub new_polys_added_total: AtomicU64,
+        pub new_polys_per_iter_max: AtomicU64,
+        pub bit_eq_emitted_total: AtomicU64,
+        pub time_in_extend_with_cancel_ns: AtomicU64,
+        pub time_in_contains_ns: AtomicU64,
+        pub time_in_bit_eq_ns: AtomicU64,
+        pub basis_size_max: AtomicU64,
+        pub basis_size_total_terms_max: AtomicU64,
+        pub extend_with_cancel_calls: AtomicU64,
+        pub extend_no_op_skips: AtomicU64,
+        /// Fine-grained reducer timers.
+        pub reduce_calls: AtomicU64,
+        pub reduce_lt_pops: AtomicU64,
+        pub reduce_div_lookups: AtomicU64,
+        pub reduce_sub_scaled_calls: AtomicU64,
+        pub time_div_lt_setup_ns: AtomicU64,
+        pub time_pop_lt_ns: AtomicU64,
+        pub time_div_lookup_ns: AtomicU64,
+        pub time_sub_scaled_ns: AtomicU64,
+        pub time_sub_scaled_setup_ns: AtomicU64,
+        pub time_sub_scaled_addpoly_ns: AtomicU64,
+        pub time_finalize_ns: AtomicU64,
+        pub merge_owned_calls: AtomicU64,
+        pub merge_owned_terms_total: AtomicU64,
+    }
 }
 
 pub static SPLIT_DFS: SplitDfsCounters = SplitDfsCounters::new_const();
 pub static SPLIT_GB: SplitGbCounters = SplitGbCounters::new_const();
 
-/// Counters for `gb::ideal::Ideal` introspection used by FGLM /
-/// model construction. `gb_stats`-gated like the others.
-pub struct IdealCounters {
-    pub is_zero_dim_calls: AtomicU64,
-    pub quotient_dimension_calls: AtomicU64,
-}
-
-impl IdealCounters {
-    pub const fn new_const() -> Self {
-        Self {
-            is_zero_dim_calls: AtomicU64::new(0),
-            quotient_dimension_calls: AtomicU64::new(0),
-        }
+atomic_counters! {
+    /// Counters for `gb::ideal::Ideal` introspection used by FGLM /
+    /// model construction. `gb_stats`-gated like the others.
+    pub struct IdealCounters {
+        pub is_zero_dim_calls: AtomicU64,
+        pub quotient_dimension_calls: AtomicU64,
     }
 }
 
 pub static IDEAL: IdealCounters = IdealCounters::new_const();
 
-/// Counters for the native-ff SMT backend, surfaced when `gb_stats` is
-/// enabled. Reports per-call encoding vs. solving time and
-/// constraint-side digest stability across consecutive calls.
-pub struct NativeFfBackendCounters {
-    pub solve_calls: AtomicU64,
-    pub encode_time_ns: AtomicU64,
-    pub solve_inner_time_ns: AtomicU64,
-    pub encoded_polys_total: AtomicU64,
-    pub encoded_polys_max: AtomicU64,
-    pub encoded_vars_max: AtomicU64,
-    /// Number of distinct constraint-side digests observed.
-    pub distinct_cs_digests: AtomicU64,
-    /// Number of solve calls whose constraint-side digest equaled the
-    /// immediately-previous call's.
-    pub repeated_cs_digest_streak: AtomicU64,
-    /// Cache hit / rebuild stats.
-    pub cache_hits: AtomicU64,
-    pub cache_rebuild_time_ns: AtomicU64,
-    pub cache_query_diff_time_ns: AtomicU64,
-    /// Number of solve calls that resumed an in-progress GB build saved
-    /// from a prior cancelled call.
-    pub cache_partial_resumes: AtomicU64,
-    /// Number of partial builds that completed (`partial_build`
-    /// → `cached_base`).
-    pub cache_partial_completions: AtomicU64,
+atomic_counters! {
+    /// Counters for the native-ff SMT backend, surfaced when `gb_stats` is
+    /// enabled. Reports per-call encoding vs. solving time and
+    /// constraint-side digest stability across consecutive calls.
+    pub struct NativeFfBackendCounters {
+        pub solve_calls: AtomicU64,
+        pub encode_time_ns: AtomicU64,
+        pub solve_inner_time_ns: AtomicU64,
+        pub encoded_polys_total: AtomicU64,
+        pub encoded_polys_max: AtomicU64,
+        pub encoded_vars_max: AtomicU64,
+        /// Number of distinct constraint-side digests observed.
+        pub distinct_cs_digests: AtomicU64,
+        /// Number of solve calls whose constraint-side digest equaled the
+        /// immediately-previous call's.
+        pub repeated_cs_digest_streak: AtomicU64,
+        /// Cache hit / rebuild stats.
+        pub cache_hits: AtomicU64,
+        pub cache_rebuild_time_ns: AtomicU64,
+        pub cache_query_diff_time_ns: AtomicU64,
+        /// Number of solve calls that resumed an in-progress GB build saved
+        /// from a prior cancelled call.
+        pub cache_partial_resumes: AtomicU64,
+        /// Number of partial builds that completed (`partial_build`
+        /// → `cached_base`).
+        pub cache_partial_completions: AtomicU64,
+    }
 }
 
 pub static NATIVE_FF: NativeFfBackendCounters = NativeFfBackendCounters::new_const();
-
-impl NativeFfBackendCounters {
-    pub const fn new_const() -> Self {
-        Self {
-            solve_calls: AtomicU64::new(0),
-            encode_time_ns: AtomicU64::new(0),
-            solve_inner_time_ns: AtomicU64::new(0),
-            encoded_polys_total: AtomicU64::new(0),
-            encoded_polys_max: AtomicU64::new(0),
-            encoded_vars_max: AtomicU64::new(0),
-            distinct_cs_digests: AtomicU64::new(0),
-            repeated_cs_digest_streak: AtomicU64::new(0),
-            cache_hits: AtomicU64::new(0),
-            cache_rebuild_time_ns: AtomicU64::new(0),
-            cache_query_diff_time_ns: AtomicU64::new(0),
-            cache_partial_resumes: AtomicU64::new(0),
-            cache_partial_completions: AtomicU64::new(0),
-        }
-    }
-}
-
-impl SplitDfsCounters {
-    pub const fn new_const() -> Self {
-        Self {
-            branches_tried: AtomicU64::new(0),
-            quick_eval_unsat_hits: AtomicU64::new(0),
-            linear_quick_unsat_hits: AtomicU64::new(0),
-            nogood_subsumption_hits: AtomicU64::new(0),
-            branches_to_full_extend: AtomicU64::new(0),
-            conflicts_returned: AtomicU64::new(0),
-            max_dfs_depth: AtomicU64::new(0),
-            time_in_basis_clone_ns: AtomicU64::new(0),
-            time_in_split_gb_extend_ns: AtomicU64::new(0),
-            time_in_quick_eval_unsat_ns: AtomicU64::new(0),
-            time_in_linear_quick_unsat_ns: AtomicU64::new(0),
-            points_returned: AtomicU64::new(0),
-            split_zero_extend_calls: AtomicU64::new(0),
-        }
-    }
-}
-
-impl SplitGbCounters {
-    pub const fn new_const() -> Self {
-        Self {
-            split_gb_extend_calls: AtomicU64::new(0),
-            fixpoint_iters_total: AtomicU64::new(0),
-            fixpoint_iters_per_call_max: AtomicU64::new(0),
-            propagate_candidates_total: AtomicU64::new(0),
-            propagate_admit_passes: AtomicU64::new(0),
-            propagate_contains_calls: AtomicU64::new(0),
-            propagate_contains_true: AtomicU64::new(0),
-            propagate_contains_false: AtomicU64::new(0),
-            propagate_memo_hits: AtomicU64::new(0),
-            new_polys_added_total: AtomicU64::new(0),
-            new_polys_per_iter_max: AtomicU64::new(0),
-            bit_eq_emitted_total: AtomicU64::new(0),
-            time_in_extend_with_cancel_ns: AtomicU64::new(0),
-            time_in_contains_ns: AtomicU64::new(0),
-            time_in_bit_eq_ns: AtomicU64::new(0),
-            basis_size_max: AtomicU64::new(0),
-            basis_size_total_terms_max: AtomicU64::new(0),
-            extend_with_cancel_calls: AtomicU64::new(0),
-            extend_no_op_skips: AtomicU64::new(0),
-            reduce_calls: AtomicU64::new(0),
-            reduce_lt_pops: AtomicU64::new(0),
-            reduce_div_lookups: AtomicU64::new(0),
-            reduce_sub_scaled_calls: AtomicU64::new(0),
-            time_div_lt_setup_ns: AtomicU64::new(0),
-            time_pop_lt_ns: AtomicU64::new(0),
-            time_div_lookup_ns: AtomicU64::new(0),
-            time_sub_scaled_ns: AtomicU64::new(0),
-            time_sub_scaled_setup_ns: AtomicU64::new(0),
-            time_sub_scaled_addpoly_ns: AtomicU64::new(0),
-            time_finalize_ns: AtomicU64::new(0),
-            merge_owned_calls: AtomicU64::new(0),
-            merge_owned_terms_total: AtomicU64::new(0),
-        }
-    }
-}
 
 /// Atomic running-max update (CAS loop). Public so `metric::max!` can lower to
 /// `observe_max(&PATH, v)` against any `AtomicU64` counter field.
