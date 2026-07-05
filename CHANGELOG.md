@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
-## [Unreleased]
+## [1.8.27] - 2026-07-05
 
 ### API
 - `PolyIR::check_uniqueness` returns a scoped `UniquenessError` (`Config` | `Analysis`) instead of the broad `PicusError`.

@@ -44,10 +44,10 @@ pub enum DpvlResult {
 }
 
 /// Why a DPVL run returned `Unknown`, aggregated from the per-wire solver
-/// outcomes so a caller can react: `Timeout` (retry with a larger budget),
-/// `BackendError` (a broken/misconfigured solver), or `Exhausted`
-/// (propagation and the solver both ran to completion without deciding every
-/// target — genuinely hard, not a timeout or backend fault).
+/// outcomes: `Timeout` (retry with a larger budget), `BackendError` (a
+/// broken/misconfigured solver), or `Exhausted` (propagation and the solver
+/// both ran to completion without deciding every target — not a timeout or
+/// backend fault).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DpvlUnknown {
     Timeout,
@@ -340,7 +340,7 @@ pub fn run_dpvl_on_query(
         log::warn!(
             "DPVL: {} solver invocation(s) failed with a hard error; the Unknown \
              verdict may reflect a broken or misconfigured solver rather than a \
-             genuinely hard problem",
+             hard problem",
             ctx.solve_errors
         );
     }
@@ -355,12 +355,12 @@ struct DpvlContext {
     dump_smt: Option<PathBuf>,
     /// Count of per-query backend *hard errors* (as opposed to `Unknown`).
     /// A systematically-failing solver drives every wire to `Skip` and yields
-    /// `Unknown`; this lets `run_dpvl` distinguish that from a genuinely hard
-    /// problem in its final log.
+    /// `Unknown`; this lets `run_dpvl` distinguish that from a hard problem
+    /// in its final log.
     solve_errors: usize,
     /// Whether any per-wire solve returned `Unknown(Timeout)`, so an
     /// `Unknown` verdict can be attributed to a timeout budget rather than a
-    /// genuinely exhausted search.
+    /// exhausted search.
     saw_timeout: bool,
 }
 
@@ -513,7 +513,7 @@ impl DpvlContext {
 
     /// Aggregate the per-wire outcomes into a reason for an `Unknown`
     /// verdict: a hard backend error dominates (most actionable), then a
-    /// timeout, else the search is genuinely exhausted.
+    /// timeout, else the search is exhausted.
     fn unknown_reason(&self) -> DpvlUnknown {
         if self.solve_errors > 0 {
             DpvlUnknown::BackendError

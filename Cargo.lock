@@ -627,7 +627,7 @@ checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
 name = "picus"
-version = "1.8.26"
+version = "1.8.27"
 dependencies = [
  "num-bigint",
  "picus-analysis",
@@ -641,7 +641,7 @@ dependencies = [
 
 [[package]]
 name = "picus-analysis"
-version = "1.8.26"
+version = "1.8.27"
 dependencies = [
  "inventory",
  "log",
@@ -657,7 +657,7 @@ dependencies = [
 
 [[package]]
 name = "picus-cli"
-version = "1.8.26"
+version = "1.8.27"
 dependencies = [
  "anstream",
  "clap",
@@ -672,7 +672,7 @@ dependencies = [
 
 [[package]]
 name = "picus-core"
-version = "1.8.26"
+version = "1.8.27"
 dependencies = [
  "num-bigint",
  "num-integer",
@@ -683,7 +683,7 @@ dependencies = [
 
 [[package]]
 name = "picus-metric-macros"
-version = "1.8.26"
+version = "1.8.27"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -692,7 +692,7 @@ dependencies = [
 
 [[package]]
 name = "picus-r1cs"
-version = "1.8.26"
+version = "1.8.27"
 dependencies = [
  "byteorder",
  "num-bigint",
@@ -701,7 +701,7 @@ dependencies = [
 
 [[package]]
 name = "picus-smt"
-version = "1.8.26"
+version = "1.8.27"
 dependencies = [
  "cvc5-ff",
  "inventory",
@@ -717,7 +717,7 @@ dependencies = [
 
 [[package]]
 name = "picus-solver"
-version = "1.8.26"
+version = "1.8.27"
 dependencies = [
  "criterion",
  "env_logger",

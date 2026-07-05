@@ -54,7 +54,6 @@ pub use picus_analysis::dpvl::LemmaSet;
 /// analysis can't decide: timeout, backend error, or exhausted search.
 pub use picus_analysis::dpvl::DpvlUnknown;
 
-
 /// Groebner basis algorithm strategy used by the native FF backend.
 pub use picus_core::config::GbStrategy;
 
@@ -99,7 +98,7 @@ pub mod advanced {
 /// constraint systems with natural operator syntax (`x*x - x`, `2*x + 3*y`, …).
 pub mod ir;
 
-/// The headline builder type of the [`ir`] module.
+/// The primary builder type of the [`ir`] module.
 pub use ir::PolyIR;
 
 /// Ergonomic IR surface re-exported at the crate root.
@@ -269,7 +268,7 @@ pub enum CheckResult {
 
     /// The analysis could not determine uniqueness. The [`DpvlUnknown`]
     /// reason distinguishes a timeout (retry with a larger budget), a
-    /// backend error, or a genuinely exhausted search.
+    /// backend error, or an exhausted search.
     Unknown(DpvlUnknown),
 }
 
@@ -439,7 +438,7 @@ pub(crate) fn solve_system(
 }
 
 /// Error from deciding a caller-built constraint system through the
-/// [`ir::PolyIR::solve`] path. Deliberately narrower than [`PicusError`]: the
+/// [`ir::PolyIR::solve`] path. Narrower than [`PicusError`]: the
 /// in-memory IR path never parses R1CS files or touches the filesystem, so only
 /// a bad solver/theory configuration or a backend failure can arise.
 #[derive(Debug, thiserror::Error)]
