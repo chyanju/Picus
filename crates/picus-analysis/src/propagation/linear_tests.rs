@@ -271,12 +271,6 @@ fn prop_linear_cache_rebuilds_when_equalities_grow() {
     );
 }
 
-#[test]
-fn prop_linear_lemma_name_is_stable() {
-    let lemma = LinearLemma::default();
-    assert_eq!(lemma.name(), "linear");
-}
-
 /// `classify_poly_vars` treats a degree-0 non-zero constant term as a
 /// no-op match arm. Build `x_1 + 1 = 0` (which is `x_1 - p_minus_1 = 0`
 /// in field form): the polynomial has one constant term and one linear

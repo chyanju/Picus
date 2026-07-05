@@ -254,10 +254,10 @@ pub fn run_dpvl(r1cs: &R1csFile, config: &DpvlConfig) -> Result<DpvlResult, Dpvl
     let mut q = r1cs_to_uniqueness_query(r1cs, &ks, 0)?;
 
     // Instantiate enabled lemma plugins.
-    let mut lemma_instances: Vec<Box<dyn PropagationLemma>> = all_descriptors()
+    let mut lemma_instances: Vec<(&'static str, Box<dyn PropagationLemma>)> = all_descriptors()
         .iter()
         .filter(|d| config.lemmas.is_enabled(d.name))
-        .map(|d| (d.factory)())
+        .map(|d| (d.name, (d.factory)()))
         .collect();
 
     // Per-wire connectivity score for the counter selector.
@@ -302,7 +302,7 @@ impl DpvlContext {
     fn iterate(
         &mut self,
         q: &mut UniquenessQuery,
-        lemmas: &mut [Box<dyn PropagationLemma>],
+        lemmas: &mut [(&'static str, Box<dyn PropagationLemma>)],
         ks: &mut HashSet<usize>,
         us: &mut HashSet<usize>,
         ranges: &mut HashMap<usize, RangeValue>,
@@ -397,7 +397,7 @@ impl DpvlContext {
     fn propagate(
         &mut self,
         q: &mut UniquenessQuery,
-        lemmas: &mut [Box<dyn PropagationLemma>],
+        lemmas: &mut [(&'static str, Box<dyn PropagationLemma>)],
         ks: &mut HashSet<usize>,
         us: &mut HashSet<usize>,
         ranges: &mut HashMap<usize, RangeValue>,
@@ -415,7 +415,7 @@ impl DpvlContext {
                     learned: &mut learned_eqs,
                     learned_disjunctions: &mut learned_disjs,
                 };
-                for lemma in lemmas.iter_mut() {
+                for (name, lemma) in lemmas.iter_mut() {
                     let ks_pre = ctx.known.len();
                     let ranges_pre = ctx.ranges.len();
                     let eqs_pre = ctx.learned.len();
@@ -423,7 +423,7 @@ impl DpvlContext {
                     let p = lemma.run(q, &mut ctx);
                     log::debug!(
                         "lemma {} fired={} ks+={} ranges+={} eqs+={} disjs+={}",
-                        lemma.name(),
+                        name,
                         p,
                         ctx.known.len() - ks_pre,
                         ctx.ranges.len().saturating_sub(ranges_pre),

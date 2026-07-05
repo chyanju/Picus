@@ -310,12 +310,6 @@ fn prop_binary01_empty_ir_no_progress() {
     assert!(owned.ranges.is_empty());
 }
 
-#[test]
-fn prop_binary01_lemma_name_is_stable() {
-    let lemma = Binary01Lemma::default();
-    assert_eq!(lemma.name(), "binary01");
-}
-
 // ── structural matcher near-misses ─────────────────────────────────
 
 /// `x_1^2 - x_2 = 0` has both a quadratic term (in x_1) and a linear

@@ -32,10 +32,6 @@ pub struct LinearLemma {
 }
 
 impl PropagationLemma for LinearLemma {
-    fn name(&self) -> &'static str {
-        "linear"
-    }
-
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let cur_len = q.ir.equalities.len();
         let cdmap = self.cdmap.get_or_build(cur_len, || build_cdmap(q));

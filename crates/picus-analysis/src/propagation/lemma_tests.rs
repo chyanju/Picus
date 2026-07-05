@@ -4,12 +4,10 @@
 //!   - `all_descriptors()` returns lemmas sorted by name (reproducible
 //!     execution order across runs).
 //!   - `all_names()` matches the names of `all_descriptors()` in order.
-//!   - Every registered lemma's `factory()` builds an instance whose
-//!     `.name()` matches the descriptor's `.name`.
 //!   - The baseline lemma set (aboz / basis2 / bim / binary01 / linear)
 //!     must be registered.
 
-use crate::propagation::lemma::{all_descriptors, all_names, PropagationLemma};
+use crate::propagation::lemma::{all_descriptors, all_names};
 
 #[test]
 fn prop_all_descriptors_sorted_by_name() {
@@ -27,23 +25,6 @@ fn prop_all_names_matches_descriptors() {
     assert_eq!(descs.len(), names.len());
     for (d, n) in descs.iter().zip(names.iter()) {
         assert_eq!(d.name, *n, "name mismatch between descriptor / name");
-    }
-}
-
-#[test]
-fn prop_factory_produces_matching_name() {
-    // Every factory must build a fresh instance whose run-time name
-    // equals the descriptor's name. A mismatch would break the
-    // `--lemmas` flag selection (CLI matches by descriptor name).
-    for d in all_descriptors() {
-        let inst: Box<dyn PropagationLemma> = (d.factory)();
-        assert_eq!(
-            inst.name(),
-            d.name,
-            "factory for {:?} produced instance with name {:?}",
-            d.name,
-            inst.name()
-        );
     }
 }
 
@@ -76,15 +57,3 @@ fn prop_known_lemmas_registered() {
     }
 }
 
-#[test]
-fn prop_factory_name_stable_across_instances() {
-    // Two invocations of the same factory must produce instances with
-    // the same `name()`. (Caches built lazily on `run` should not affect
-    // the static `name`.)
-    if let Some(d) = all_descriptors().first() {
-        let a: Box<dyn PropagationLemma> = (d.factory)();
-        let b: Box<dyn PropagationLemma> = (d.factory)();
-        assert_eq!(a.name(), b.name(), "name is stable across instances");
-        assert_eq!(a.name(), d.name);
-    }
-}

@@ -26,10 +26,6 @@ pub struct Binary01Lemma {
 }
 
 impl PropagationLemma for Binary01Lemma {
-    fn name(&self) -> &'static str {
-        "binary01"
-    }
-
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let binary_set: HashSet<BigUint> =
             [BigUint::zero(), BigUint::one()].into_iter().collect();

@@ -94,10 +94,11 @@ impl<T> LenGatedCache<T> {
 }
 
 /// Plugin interface for a single propagation lemma.
+///
+/// The lemma's stable name is carried by its [`LemmaDescriptor`] (used by the
+/// CLI `--lemmas` flag and the registry), not duplicated on the trait — the
+/// driver pairs each instance with its descriptor name.
 pub trait PropagationLemma: Send {
-    /// Stable name used by the CLI `--lemmas` flag and by tests.
-    fn name(&self) -> &'static str;
-
     /// Run one pass. Returns `true` iff it made progress this call.
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool;
 }

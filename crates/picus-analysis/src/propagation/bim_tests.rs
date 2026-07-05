@@ -31,12 +31,6 @@ use crate::propagation::range::RangeValue;
 // ── tests ──────────────────────────────────────────────────────────
 
 /// Spec: lemma is registered in the inventory under name `"bim"`.
-#[test]
-fn prop_bim_lemma_name_is_bim() {
-    let lemma = BimLemma::default();
-    assert_eq!(lemma.name(), "bim");
-}
-
 /// Spec: empty IR ⇒ no progress (nothing to collect).
 #[test]
 fn prop_bim_no_progress_on_empty_equalities() {

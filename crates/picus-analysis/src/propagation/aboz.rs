@@ -30,10 +30,6 @@ pub struct AbozLemma {
 }
 
 impl PropagationLemma for AbozLemma {
-    fn name(&self) -> &'static str {
-        "aboz"
-    }
-
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let products = collect_bilinear_zero(q);
         if products.len() < 2 {

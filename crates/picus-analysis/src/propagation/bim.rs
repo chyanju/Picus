@@ -22,10 +22,6 @@ use crate::uniqueness::UniquenessQuery;
 pub struct BimLemma;
 
 impl PropagationLemma for BimLemma {
-    fn name(&self) -> &'static str {
-        "bim"
-    }
-
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let p = q.ir.ring.field().prime();
         let equations = collect_linear_homogeneous(q);

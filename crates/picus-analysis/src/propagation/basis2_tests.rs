@@ -373,15 +373,6 @@ fn prop_basis2_gate_open_when_two_pow_n_equals_prime_bound() {
 }
 
 #[test]
-fn prop_basis2_name_is_stable() {
-    // The lemma name is the public CLI identifier; downstream config
-    // matches against it. Locking it down here surfaces an accidental
-    // rename in review.
-    let l = Basis2Lemma::default();
-    assert_eq!(l.name(), "basis2");
-}
-
-#[test]
 fn prop_basis2_idempotent_when_already_known() {
     // Bits already in `known` (e.g., promoted by an earlier iteration).
     // The lemma must NOT report progress on a no-op run.

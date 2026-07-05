@@ -83,12 +83,6 @@ fn vals(items: &[u32]) -> RangeValue {
 // ── tests ──────────────────────────────────────────────────────────
 
 /// Spec: lemma is registered in the inventory under name `"aboz"`.
-#[test]
-fn prop_aboz_lemma_name_is_aboz() {
-    let lemma = AbozLemma::default();
-    assert_eq!(lemma.name(), "aboz");
-}
-
 /// Spec: ABOZ requires at least two bilinear-zero products. With no
 /// equalities, there is nothing to match; the lemma must NOT report
 /// progress.

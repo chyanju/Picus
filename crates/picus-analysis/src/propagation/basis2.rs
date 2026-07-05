@@ -79,10 +79,6 @@ pub(super) fn decomp_is_faithful(n_bits: usize, p: &BigUint) -> bool {
 pub struct Basis2Lemma;
 
 impl PropagationLemma for Basis2Lemma {
-    fn name(&self) -> &'static str {
-        "basis2"
-    }
-
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let p = q.ir.ring.field().prime();
         let mut progress = false;

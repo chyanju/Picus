@@ -50,10 +50,6 @@ struct Gadget {
 }
 
 impl PropagationLemma for TecompleteLemma {
-    fn name(&self) -> &'static str {
-        "tecomplete"
-    }
-
     fn run(&mut self, q: &UniquenessQuery, ctx: &mut PropagationCtx) -> bool {
         let cur = q.ir.equalities.len();
         let gadgets = self.gadgets.get_or_build(cur, || find_gadgets(q));
