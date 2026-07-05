@@ -22,7 +22,7 @@ use crate::sat::Var;
 use super::equality_engine::{EqualityEngine, NotifyOutcome};
 use super::theory::{CheckOutcome, Theory};
 
-pub struct EeFilteredTheory<T: Theory> {
+pub(crate) struct EeFilteredTheory<T: Theory> {
     ee: EqualityEngine,
     inner: T,
     /// Set by `notify_fact` when the EE detects a polarity contradiction
@@ -40,7 +40,7 @@ pub struct EeFilteredTheory<T: Theory> {
 }
 
 impl<T: Theory> EeFilteredTheory<T> {
-    pub fn new(ee: EqualityEngine, inner: T) -> Self {
+    pub(crate) fn new(ee: EqualityEngine, inner: T) -> Self {
         Self {
             ee,
             inner,
@@ -49,17 +49,6 @@ impl<T: Theory> EeFilteredTheory<T> {
         }
     }
 
-    pub fn inner(&self) -> &T {
-        &self.inner
-    }
-
-    pub fn inner_mut(&mut self) -> &mut T {
-        &mut self.inner
-    }
-
-    pub fn ee(&self) -> &EqualityEngine {
-        &self.ee
-    }
 }
 
 impl<T: Theory> Theory for EeFilteredTheory<T> {

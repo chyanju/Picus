@@ -18,7 +18,7 @@ use super::atoms::{AtomTable, InternLit};
 /// `AtomKey`. Returns `TseitinResult` describing the formula's
 /// top-level value: a SAT literal (assert as a unit clause to
 /// require the formula true), or a constant.
-pub fn tseitin(
+pub(crate) fn tseitin(
     formula: &Formula,
     var_names: &[String],
     atoms: &mut AtomTable,
@@ -32,7 +32,7 @@ pub fn tseitin(
 
 /// Result of applying [`tseitin`].
 #[derive(Debug)]
-pub enum TseitinResult {
+pub(crate) enum TseitinResult {
     /// Formula's truth value is the SAT literal. To assert the
     /// formula, add `[lit]` as a unit clause via `sat.add_clause`.
     Lit(Lit),

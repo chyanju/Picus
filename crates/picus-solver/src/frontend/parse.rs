@@ -31,13 +31,13 @@ use crate::poly::{FfPolyRing, Poly};
 /// Information about a detected bit constraint:  `var * (var - 1) == 0`
 /// (i.e. `var` is constrained to {0,1}).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BitConstraint {
+pub(crate) struct BitConstraint {
     pub var: usize,
 }
 
 /// A linear monomial `coeff * var`.
 #[derive(Debug, Clone)]
-pub struct LinearMonomial {
+pub(crate) struct LinearMonomial {
     pub var: usize,
     pub coeff: FieldElem,
 }
@@ -47,14 +47,18 @@ pub struct LinearMonomial {
 /// `bits[i]` is the variable index whose coefficient in the underlying sum
 /// is `coeff * 2^i`.
 #[derive(Debug, Clone)]
-pub struct BitSum {
+pub(crate) struct BitSum {
+    /// Scale factor of the whole sum. Consumers key on `bits` only; the
+    /// field keeps the parsed shape faithful for tests/debugging.
+    #[allow(dead_code)]
     pub coeff: FieldElem,
     pub bits: Vec<usize>,
 }
 
 /// Returns `Some(var_idx)` if `p` is `c*x` for some single variable `x`
 /// and a non-zero constant `c`.  Otherwise `None`.
-pub fn linear_monomial(pr: &FfPolyRing, p: &Poly) -> Option<LinearMonomial> {
+#[cfg(test)]
+pub(crate) fn linear_monomial(pr: &FfPolyRing, p: &Poly) -> Option<LinearMonomial> {
     let ring = &pr.ring;
     let fp = &pr.field();
     let n_vars = pr.n_vars();
@@ -90,13 +94,15 @@ pub fn linear_monomial(pr: &FfPolyRing, p: &Poly) -> Option<LinearMonomial> {
 
 /// `p == 0` represents `x == 0` for some variable `x`?
 /// Detects polynomials of the form `c*x` with `c != 0`.
-pub fn zero_constraint(pr: &FfPolyRing, p: &Poly) -> Option<usize> {
+#[cfg(test)]
+pub(crate) fn zero_constraint(pr: &FfPolyRing, p: &Poly) -> Option<usize> {
     linear_monomial(pr, p).map(|lm| lm.var)
 }
 
 /// `p == 0` represents `x == 1` for some variable `x`?
 /// Detects polynomials of the form `c*x + d` with `c, d != 0` and `d/c = -1`.
-pub fn one_constraint(pr: &FfPolyRing, p: &Poly) -> Option<usize> {
+#[cfg(test)]
+pub(crate) fn one_constraint(pr: &FfPolyRing, p: &Poly) -> Option<usize> {
     let ring = &pr.ring;
     let fp = &pr.field();
     let n_vars = pr.n_vars();
@@ -144,7 +150,7 @@ pub fn one_constraint(pr: &FfPolyRing, p: &Poly) -> Option<usize> {
 
 /// `p == 0` represents `x*(x-1) == 0`?  Detects bit constraints in
 /// any sign / scalar form: `c*(x^2 - x) == 0` for some non-zero `c`.
-pub fn bit_constraint(pr: &FfPolyRing, p: &Poly) -> Option<BitConstraint> {
+pub(crate) fn bit_constraint(pr: &FfPolyRing, p: &Poly) -> Option<BitConstraint> {
     let ring = &pr.ring;
     let fp = &pr.field();
     let n_vars = pr.n_vars();
@@ -196,7 +202,7 @@ pub fn bit_constraint(pr: &FfPolyRing, p: &Poly) -> Option<BitConstraint> {
 /// Decompose a polynomial into a list of linear monomials and a list of
 /// "rest" (constant + non-linear) terms (each rest term as a single-term
 /// polynomial).  Returns `None` if the polynomial is zero.
-pub fn extract_linear_monomials(
+pub(crate) fn extract_linear_monomials(
     pr: &FfPolyRing,
     p: &Poly,
 ) -> Option<(Vec<LinearMonomial>, Vec<Poly>)> {
@@ -255,7 +261,7 @@ pub fn extract_linear_monomials(
 ///      the one whose first bit is a variable from `bits_hint`.
 ///   4. Remove the consumed linear monomials and repeat until no more
 ///      bitsums can be extracted.
-pub fn bit_sums(
+pub(crate) fn bit_sums(
     pr: &FfPolyRing,
     p: &Poly,
     bits_hint: &HashSet<usize>,

@@ -806,7 +806,7 @@ fn dense_perpair_reduced_gb(
     ring: &Arc<PolyRing>,
 ) -> Vec<SparsePolynomial> {
     let gens_d: Vec<DensePoly> = gens.iter().map(|p| p.to_dense(ring)).collect();
-    let cfg = BuchbergerConfig { order: ring.order, use_f4: false, ..Default::default() };
+    let cfg = BuchbergerConfig { use_f4: false, ..Default::default() };
     let basis = dense_gb(gens_d, ring, &cfg).expect("dense per-pair GB OK").basis;
     dense_interreduce(basis, ring)
         .iter().map(|p| SparsePolynomial::from_dense(p, ring)).collect()
@@ -818,7 +818,7 @@ fn dense_f4_reduced_gb(
     ring: &Arc<PolyRing>,
 ) -> Vec<SparsePolynomial> {
     let gens_d: Vec<DensePoly> = gens.iter().map(|p| p.to_dense(ring)).collect();
-    let cfg = BuchbergerConfig { order: ring.order, use_f4: true, ..Default::default() };
+    let cfg = BuchbergerConfig { use_f4: true, ..Default::default() };
     let basis = dense_gb(gens_d, ring, &cfg).expect("dense F4 GB OK").basis;
     dense_interreduce(basis, ring)
         .iter().map(|p| SparsePolynomial::from_dense(p, ring)).collect()

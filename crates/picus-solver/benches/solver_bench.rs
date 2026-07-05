@@ -22,12 +22,12 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion, Benchmark
 use num_bigint::BigUint;
 use num_traits::One;
 
-use picus_solver::core::solve_encoded;
+use picus_solver::solve::solve_encoded;
 use picus_solver::frontend::encoder::{
     encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm, VarIdx,
 };
 use picus_core::ff::field::PrimeField;
-use picus_solver::gb::incremental::NamedTerm;
+use picus_solver::push_pop::NamedTerm;
 use picus_solver::gb::roots::find_roots;
 
 // ── Bench-local helpers ─────────────────────────────────────────────────────

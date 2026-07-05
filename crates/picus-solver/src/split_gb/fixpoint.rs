@@ -23,7 +23,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::frontend::bitprop::BitProp;
+use crate::split_gb::bitprop::BitProp;
 use crate::gb::ideal::Ideal;
 use crate::poly::{FfPolyRing, Poly};
 use crate::timeout::{CancelToken, Cancelled};
@@ -38,7 +38,8 @@ use crate::profile::SPLIT_GB;
 /// `generator_sets[i]` is the initial generator set for partition `i`.
 /// On cancel, falls back to an empty split GB (one empty `Ideal` per
 /// partition).
-pub fn split_gb<'r>(
+#[cfg(test)]
+pub(crate) fn split_gb<'r>(
     poly_ring: &'r FfPolyRing,
     generator_sets: Vec<Vec<Poly>>,
     bit_prop: &mut BitProp<'r>,
@@ -256,7 +257,7 @@ fn run_fixpoint<'r>(
 /// Result of [`split_gb_cancel_traced`]: the split basis plus, when
 /// some partition became the whole ring during fixpoint, the precise
 /// UNSAT core (a subset of original input indices).
-pub struct TracedSplitGb<'r> {
+pub(crate) struct TracedSplitGb<'r> {
     pub split_basis: SplitGb<'r>,
     /// `Some(core)` if a partition was reduced to the whole ring at
     /// some point and the trivial element's dependency set could be

@@ -36,30 +36,31 @@ struct Checkpoint {
     trivial: bool,
 }
 
-pub struct IncrementalGB {
+pub(crate) struct IncrementalGB {
     state: BuchbergerState,
     trail: Vec<Checkpoint>,
 }
 
 impl IncrementalGB {
-    pub fn new(ring: Arc<PolyRing>, cfg: BuchbergerConfig) -> Self {
+    pub(crate) fn new(ring: Arc<PolyRing>, cfg: BuchbergerConfig) -> Self {
         IncrementalGB {
             state: BuchbergerState::new(ring, cfg),
             trail: Vec::new(),
         }
     }
 
-    pub fn ring(&self) -> &Arc<PolyRing> { &self.state.ring }
+    #[cfg(test)]
+pub(crate) fn ring(&self) -> &Arc<PolyRing> { &self.state.ring }
 
     /// Seed the engine with a polynomial set that is already a reduced
     /// GB in the engine's order. Skips S-pair generation among these
     /// inputs entirely — the caller asserts the seeded set has no open
     /// obligations.
-    pub fn seed_reduced_basis(&mut self, basis: Vec<DensePoly>) {
+    pub(crate) fn seed_reduced_basis(&mut self, basis: Vec<DensePoly>) {
         self.state.seed_with_reduced_basis(basis);
     }
 
-    pub fn add_generators(&mut self, polys: Vec<DensePoly>) -> Result<bool, EngineError> {
+    pub(crate) fn add_generators(&mut self, polys: Vec<DensePoly>) -> Result<bool, EngineError> {
         let mut obs = NoObserver;
         self.state.add_generators(polys, &mut obs)?;
         self.state.run(&mut obs)?;
@@ -78,7 +79,7 @@ impl IncrementalGB {
     /// Semantics are identical to `add_generators(vec![])` but skips the
     /// no-op generator append and the homogeneous-input flag detection
     /// (which is set on the first call and is immutable thereafter).
-    pub fn run_only(&mut self) -> Result<bool, EngineError> {
+    pub(crate) fn run_only(&mut self) -> Result<bool, EngineError> {
         let mut obs = NoObserver;
         self.state.run(&mut obs)?;
         if !self.state.trivial {
@@ -92,19 +93,20 @@ impl IncrementalGB {
     /// invocation produces its own per-call cancel token; a persisted
     /// `IncrementalGB` must pick that up so a resumed run respects the
     /// new budget.
-    pub fn set_cancel_token(&mut self, token: Option<CancelToken>) {
+    pub(crate) fn set_cancel_token(&mut self, token: Option<CancelToken>) {
         self.state.cfg.cancel_token = token;
     }
 
     /// True iff the open S-pair queue is empty (no further reductions
     /// pending). When `is_quiescent()` and `!is_trivial()`, the active
     /// polys form a Groebner basis (modulo a final inter-reduce).
-    pub fn is_quiescent(&self) -> bool {
+    pub(crate) fn is_quiescent(&self) -> bool {
         self.state.open.is_empty()
     }
 
     /// Number of pending S-pairs in the open queue. Diagnostic.
-    pub fn open_queue_len(&self) -> usize {
+    #[cfg(test)]
+pub(crate) fn open_queue_len(&self) -> usize {
         self.state.open.len()
     }
 
@@ -112,7 +114,7 @@ impl IncrementalGB {
     /// observer receives `on_initial_basis` / `on_new_poly` /
     /// `on_inter_reduce` callbacks during the GB extension. Used by
     /// [`crate::gb::tracer::GbTracer`] for UNSAT-core extraction.
-    pub fn add_generators_observed<O: BuchbergerObserver>(
+    pub(crate) fn add_generators_observed<O: BuchbergerObserver>(
         &mut self,
         polys: Vec<DensePoly>,
         observer: &mut O,
@@ -131,7 +133,7 @@ impl IncrementalGB {
     /// required, not optional: `tail_reduce_active` rewrites pre-push
     /// element bodies with post-push contributions that `pop` must roll
     /// back.
-    pub fn push(&mut self) {
+    pub(crate) fn push(&mut self) {
         self.trail.push(Checkpoint {
             basis_snapshot: self.state.basis.clone(),
             generation: self.state.generation,
@@ -142,7 +144,7 @@ impl IncrementalGB {
         self.state.generation = self.state.generation.wrapping_add(1);
     }
 
-    pub fn pop(&mut self) {
+    pub(crate) fn pop(&mut self) {
         if let Some(cp) = self.trail.pop() {
             // Restore the basis to its exact push-time state in one move:
             // this drops every element added since the push and rolls back
@@ -156,20 +158,22 @@ impl IncrementalGB {
         }
     }
 
-    pub fn basis(&self) -> Vec<DensePoly> {
+    pub(crate) fn basis(&self) -> Vec<DensePoly> {
         self.state.active_polys()
     }
 
-    pub fn reduce(&self, p: &DensePoly) -> DensePoly {
+    #[cfg(test)]
+pub(crate) fn reduce(&self, p: &DensePoly) -> DensePoly {
         let refs = self.state.active_poly_refs();
         p.reduce_by_refs(&refs, &self.state.ring)
     }
 
-    pub fn is_trivial(&self) -> bool {
+    pub(crate) fn is_trivial(&self) -> bool {
         self.state.trivial
     }
 
-    pub fn decision_level(&self) -> usize {
+    #[cfg(test)]
+pub(crate) fn decision_level(&self) -> usize {
         self.trail.len()
     }
 
@@ -177,7 +181,8 @@ impl IncrementalGB {
     /// `add_generators` / `run_only` call. Pure telemetry — no field
     /// drives engine logic; counters only advance when the
     /// `metric::` DSL is active.
-    pub fn engine_stats(&self) -> &super::GbProfileCounters {
+    #[cfg(test)]
+pub(crate) fn engine_stats(&self) -> &super::GbProfileCounters {
         &self.state.profile
     }
 }

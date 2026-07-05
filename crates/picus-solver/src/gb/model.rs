@@ -27,7 +27,7 @@ use crate::timeout::CancelToken;
 /// a large prime field; the formula may still be SAT outside the
 /// searched range.  Callers must NOT treat `Unknown` as UNSAT.
 #[derive(Debug)]
-pub enum FindZeroOutcome {
+pub(crate) enum FindZeroOutcome {
     Sat(HashMap<String, BigUint>),
     Unsat,
     Unknown,
@@ -43,7 +43,7 @@ pub enum FindZeroOutcome {
 /// Test-only convenience: production callers must pass a live token via
 /// [`find_zero_cancel`] so the search shares the solve deadline.
 #[cfg(test)]
-pub fn find_zero(
+pub(crate) fn find_zero(
     poly_ring: &FfPolyRing,
     initial_gb: &[Poly],
 ) -> FindZeroOutcome {
@@ -51,7 +51,7 @@ pub fn find_zero(
 }
 
 /// Cancel-aware model search.
-pub fn find_zero_cancel(
+pub(crate) fn find_zero_cancel(
     poly_ring: &FfPolyRing,
     initial_gb: &[Poly],
     cancel: &CancelToken,
@@ -496,7 +496,7 @@ fn build_model(
 /// rather than defaulted to a value, so an incomplete model cannot
 /// vacuously pass this check — this function is the soundness backstop for
 /// SAT verdicts, so it fails closed.
-pub fn verify_model(
+pub(crate) fn verify_model(
     poly_ring: &FfPolyRing,
     polys: &[Poly],
     model: &HashMap<String, BigUint>,

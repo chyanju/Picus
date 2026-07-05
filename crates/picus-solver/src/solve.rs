@@ -5,15 +5,14 @@
 //! when the whole-ring element can be attributed to a subset of inputs,
 //! and the all-input core as a sound fallback otherwise.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use num_bigint::BigUint;
 
-use crate::frontend::bitprop::BitProp;
+use crate::split_gb::bitprop::BitProp;
 use crate::frontend::encoder::EncodedSystem;
 use crate::gb::ideal::Ideal;
 use crate::gb::model;
-use crate::frontend::parse;
 use crate::poly::{FfPolyRing, Poly};
 use crate::split_gb::split_find_zero_cancel;
 use crate::timeout::CancelToken;
@@ -38,40 +37,13 @@ pub enum SolveOutcome {
     Unknown,
 }
 
-/// Populate a `BitProp` by scanning the encoded polynomials for bit
-/// constraints (`x*(x-1) = 0`) and bitsum patterns.
-pub fn populate_bitprop<'r>(
-    poly_ring: &'r FfPolyRing,
-    polys: &[Poly],
-    bit_prop: &mut BitProp<'r>,
-) {
-    // Phase 1: detect bit constraints (x^2 - x = 0) → add_bit
-    for p in polys {
-        if let Some(bc) = parse::bit_constraint(poly_ring, p) {
-            bit_prop.add_bit(bc.var);
-        }
-    }
-
-    // Phase 2: detect bitsums in each polynomial → add_bitsum
-    // Collect all known bit variables for the hint set.
-    let bits_hint: HashSet<usize> = bit_prop.bits.clone();
-    for p in polys {
-        if let Some((sums, _residual)) = parse::bit_sums(poly_ring, p, &bits_hint) {
-            for bs in &sums {
-                if bs.bits.len() >= 2 {
-                    bit_prop.add_bitsum(bs.bits.clone());
-                }
-            }
-        }
-    }
-}
-
 /// Solve a system of polynomial constraints using the Split GB algorithm.
 ///
 /// `original_polys` is the full list of input polynomial generators (in
 /// the same order as `encoded.polys`); the returned `UnsatCore` is a list
 /// of indices into this slice.
-pub fn solve_split_gb<'r>(
+#[cfg(test)]
+pub(crate) fn solve_split_gb<'r>(
     poly_ring: &'r FfPolyRing,
     original_polys: &[Poly],
     bitsum_polys: &[Poly],
@@ -195,8 +167,8 @@ pub fn solve_split_gb_cancel<'r>(
         .collect();
 
     let mut bit_prop = BitProp::new(poly_ring);
-    populate_bitprop(poly_ring, original_polys, &mut bit_prop);
-    populate_bitprop(poly_ring, bitsum_polys, &mut bit_prop);
+    bit_prop.scan_polys(original_polys);
+    bit_prop.scan_polys(bitsum_polys);
     let traced = match crate::split_gb::split_gb_cancel_traced(
         poly_ring,
         gens,
@@ -243,5 +215,5 @@ pub fn solve_split_gb_cancel<'r>(
 }
 
 #[cfg(test)]
-#[path = "core_tests.rs"]
+#[path = "solve_tests.rs"]
 mod tests;

@@ -15,7 +15,7 @@ use crate::Theory;
 use std::cell::Cell;
 use std::sync::Once;
 
-use picus_solver::core::{solve_encoded_with_cancel, SolveOutcome};
+use picus_solver::solve::{solve_encoded_with_cancel, SolveOutcome};
 use picus_solver::frontend::encoder::ConstraintSystem;
 use picus_solver::incremental_context::IncrementalSolverContext;
 use picus_core::timeout::CancelToken;
@@ -173,7 +173,7 @@ impl SolverBackend for NativeFfBackend {
                 // Stateless path: encode directly via `PolySystem::encode`.
                 let encoded = {
                     metric::timer!(NATIVE_FF.encode_time_ns);
-                    ir.encode().map_err(|e| SolverError::Internal(e))?
+                    ir.encode().map_err(SolverError::from)?
                 };
                 metric::add!(NATIVE_FF.encoded_polys_total, encoded.polynomials.len() as u64);
                 metric::max!(NATIVE_FF.encoded_polys_max, encoded.polynomials.len() as u64);

@@ -462,7 +462,6 @@ fn make_partial_build(cs: &ConstraintSystem) -> PartialBuild {
     );
     let ring = ring_for_order(&encoded.poly_ring, MonomialOrder::DegRevLex);
     let bcfg = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: true,
         use_f4: false,
@@ -635,7 +634,6 @@ fn hand_partial(
 ) -> PartialBuild {
     let ring = ring_for_order(&poly_ring, MonomialOrder::DegRevLex);
     let cfg = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: true,
         use_f4: false,

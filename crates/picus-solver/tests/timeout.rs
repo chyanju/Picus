@@ -8,10 +8,10 @@
 
 use std::time::Duration;
 
-use picus_solver::core::{solve_encoded_with_cancel, SolveOutcome};
+use picus_solver::solve::{solve_encoded_with_cancel, SolveOutcome};
 mod common;
 use common::{NamedSystem, NamedTerm};
-use picus_solver::gb::incremental::IncrementalSolver;
+use picus_solver::push_pop::RebuildOnCheckSolver;
 use picus_core::timeout::CancelToken;
 use num_bigint::BigUint;
 use num_traits::One;
@@ -127,7 +127,7 @@ fn test_generous_timeout_completes() {
 // =============================================================================
 #[test]
 fn test_incremental_check_with_cancel_sat() {
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     solver.assert_assignment("x", BigUint::from(2u32));
     let cancel = CancelToken::none();
     match solver.check_with_cancel(&cancel) {
@@ -140,7 +140,7 @@ fn test_incremental_check_with_cancel_sat() {
 
 #[test]
 fn test_incremental_check_with_timeout() {
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     solver.assert_assignment("x", BigUint::from(2u32));
     match solver.check_with_timeout(Duration::from_secs(5)) {
         SolveOutcome::Sat(m) => {
@@ -152,7 +152,7 @@ fn test_incremental_check_with_timeout() {
 
 #[test]
 fn test_incremental_check_pre_cancelled() {
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     solver.assert_equality(vec![vt("x"), vt("y"), ct(4)]);
     let cancel = CancelToken::cancelled();
     match solver.check_with_cancel(&cancel) {

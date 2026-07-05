@@ -55,6 +55,14 @@ pub enum SolverError {
     Internal(String),
 }
 
+/// Single typed crossing point for solver-engine errors reaching the
+/// backend seam (message text preserved verbatim).
+impl From<picus_solver::EngineError> for SolverError {
+    fn from(e: picus_solver::EngineError) -> Self {
+        SolverError::Internal(e.to_string())
+    }
+}
+
 /// Trait for solver backends.
 ///
 /// Backends consume a [`PolySystem`] constraint system and decide it: they assert

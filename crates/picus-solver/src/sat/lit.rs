@@ -2,10 +2,10 @@
 
 /// A propositional variable, indexed from 0.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Ord, PartialOrd)]
-pub struct Var(pub u32);
+pub(crate) struct Var(pub u32);
 
 impl Var {
-    pub fn index(self) -> usize {
+    pub(crate) fn index(self) -> usize {
         self.0 as usize
     }
 }
@@ -17,43 +17,44 @@ impl Var {
 /// negation a single XOR and lets a `Lit` index directly into per-
 /// literal arrays sized `2 * n_vars`.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Ord, PartialOrd)]
-pub struct Lit(u32);
+pub(crate) struct Lit(u32);
 
 impl Lit {
-    pub fn new(var: Var, positive: bool) -> Self {
+    pub(crate) fn new(var: Var, positive: bool) -> Self {
         Lit((var.0 << 1) | (!positive as u32))
     }
 
-    pub fn pos(var: Var) -> Self {
+    pub(crate) fn pos(var: Var) -> Self {
         Self::new(var, true)
     }
 
-    pub fn neg(var: Var) -> Self {
+    pub(crate) fn neg(var: Var) -> Self {
         Self::new(var, false)
     }
 
-    pub fn var(self) -> Var {
+    pub(crate) fn var(self) -> Var {
         Var(self.0 >> 1)
     }
 
-    pub fn is_positive(self) -> bool {
+    pub(crate) fn is_positive(self) -> bool {
         (self.0 & 1) == 0
     }
 
-    pub fn is_negative(self) -> bool {
+    pub(crate) fn is_negative(self) -> bool {
         !self.is_positive()
     }
 
-    pub fn raw(self) -> u32 {
+    pub(crate) fn raw(self) -> u32 {
         self.0
     }
 
-    pub fn from_raw(raw: u32) -> Self {
+    #[cfg(test)]
+    pub(crate) fn from_raw(raw: u32) -> Self {
         Lit(raw)
     }
 
     /// Index suitable for per-literal arrays (`watches[lit.index()]`).
-    pub fn index(self) -> usize {
+    pub(crate) fn index(self) -> usize {
         self.0 as usize
     }
 }
@@ -77,14 +78,14 @@ impl std::fmt::Display for Lit {
 
 /// Three-valued logic: `True`, `False`, or `Undef`.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum LBool {
+pub(crate) enum LBool {
     Undef,
     True,
     False,
 }
 
 impl LBool {
-    pub fn from_bool(b: bool) -> Self {
+    pub(crate) fn from_bool(b: bool) -> Self {
         if b {
             LBool::True
         } else {
@@ -92,19 +93,22 @@ impl LBool {
         }
     }
 
-    pub fn is_defined(self) -> bool {
+    #[cfg(test)]
+    pub(crate) fn is_defined(self) -> bool {
         !matches!(self, LBool::Undef)
     }
 
-    pub fn is_true(self) -> bool {
+    #[cfg(test)]
+    pub(crate) fn is_true(self) -> bool {
         matches!(self, LBool::True)
     }
 
-    pub fn is_false(self) -> bool {
+    #[cfg(test)]
+    pub(crate) fn is_false(self) -> bool {
         matches!(self, LBool::False)
     }
 
-    pub fn negate(self) -> LBool {
+    pub(crate) fn negate(self) -> LBool {
         match self {
             LBool::Undef => LBool::Undef,
             LBool::True => LBool::False,

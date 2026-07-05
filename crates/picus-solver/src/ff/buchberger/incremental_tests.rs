@@ -14,7 +14,6 @@ fn ring2() -> Arc<PolyRing> {
 
 fn cfg() -> BuchbergerConfig {
     BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: true,
         use_f4: false,

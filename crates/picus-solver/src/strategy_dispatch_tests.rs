@@ -23,7 +23,7 @@ use num_bigint::BigUint;
 use picus_core::config::{ConfigGuard, GbStrategy, ReprKind, RuntimeConfig};
 use picus_core::ff::field::PrimeField;
 use picus_core::ff::monomial::MonomialOrder;
-use picus_solver::gb::ideal::{compute_gb_with_order, last_dispatched_algorithm, Ideal};
+use crate::gb::ideal::{compute_gb_with_order, last_dispatched_algorithm, Ideal};
 use picus_core::poly::FfPolyRing;
 use picus_core::timeout::CancelToken;
 

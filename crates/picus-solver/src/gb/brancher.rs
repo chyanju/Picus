@@ -19,7 +19,7 @@ use std::collections::HashMap;
 ///   branch). Distinct from `Roots(Vec::new())` only in intent and in
 ///   diagnostics; the search loop treats it identically (next ⇒ None,
 ///   is_exhaustive ⇒ true ⇒ backtrack contributes to Unsat verdict).
-pub enum Brancher {
+pub(crate) enum Brancher {
     /// Pre-computed root list: iterate from back via `pop()`.
     Roots(Vec<(usize, FieldElem)>),
     /// Round-robin: lazily generates (var, val) from index counter.
@@ -56,7 +56,7 @@ impl Brancher {
         Brancher::RoundRobin { unassigned, idx: 0, total, exhaustive }
     }
 
-    pub fn next(&mut self, field: &PrimeField) -> Option<(usize, FieldElem)> {
+    pub(crate) fn next(&mut self, field: &PrimeField) -> Option<(usize, FieldElem)> {
         match self {
             Brancher::Roots(v) => v.pop(),
             Brancher::RoundRobin { unassigned, idx, total, .. } => {
@@ -78,7 +78,7 @@ impl Brancher {
     /// every root over F_p); `RoundRobin` is exhaustive only when the
     /// per-variable cap covers F_p (i.e. small primes); `ProvedUnsat`
     /// is exhaustive by construction.
-    pub fn is_exhaustive(&self) -> bool {
+    pub(crate) fn is_exhaustive(&self) -> bool {
         match self {
             Brancher::Roots(_) => true,
             Brancher::RoundRobin { exhaustive, .. } => *exhaustive,

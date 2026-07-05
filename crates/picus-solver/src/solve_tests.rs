@@ -304,7 +304,7 @@ fn bit_prop_derived_eq_unsat_core_is_sound() {
 fn populate_bitprop_detects_bit_constraint_and_bitsum() {
     // p0 = x*(x-1) = x^2 - x  → bit constraint on x (var 0).
     // p1 = y + 2*z            → bitsum [y, z] (vars 1, 2): coeff run 1, 2.
-    // populate_bitprop must register var 0 in `bits` and the [1, 2] bitsum.
+    // scan_polys must register var 0 in `bits` and the [1, 2] bitsum.
     let pr = FfPolyRing::new(ff(7), vec!["x".into(), "y".into(), "z".into()]);
     let f = pr.field();
     let x = pr.var(0);
@@ -313,7 +313,7 @@ fn populate_bitprop_detects_bit_constraint_and_bitsum() {
     let two_z = pr.scale(f.from_int(2), pr.var(2));
     let p1 = pr.add(pr.var(1), two_z); // y + 2z
     let mut bp = BitProp::new(&pr);
-    populate_bitprop(&pr, &[p0, p1], &mut bp);
+    bp.scan_polys(&[p0, p1]);
     assert!(bp.bits.contains(&0), "x must be registered as a bit");
     assert!(
         bp.bitsums.iter().any(|bs| bs == &vec![1usize, 2usize]),
@@ -349,7 +349,7 @@ fn populate_bitprop_registers_two_bitsums_from_one_poly() {
         p = pr.add(p, t);
     }
     let mut bp = BitProp::new(&pr);
-    populate_bitprop(&pr, &[p], &mut bp);
+    bp.scan_polys(&[p]);
     assert!(
         bp.bitsums.iter().any(|bs| bs == &vec![0usize, 1usize]),
         "bitsum [a, b] must register; got {:?}",
@@ -371,7 +371,7 @@ fn populate_bitprop_ignores_non_bit_non_bitsum_polys() {
     let f = pr.field();
     let p = pr.sub(pr.var(0), pr.constant(f.from_int(3))); // x - 3
     let mut bp = BitProp::new(&pr);
-    populate_bitprop(&pr, &[p], &mut bp);
+    bp.scan_polys(&[p]);
     assert!(bp.bits.is_empty(), "no quadratic term ⇒ no bit constraint");
     assert!(bp.bitsums.is_empty(), "single linear monomial ⇒ no bitsum");
 }

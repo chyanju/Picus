@@ -27,7 +27,7 @@ use super::sparse_polynomial::SparsePolynomial;
 
 /// Monic-normalised S-polynomial of two nonzero polynomials:
 /// `(1/lc(f))·(L/lm(f))·f − (1/lc(g))·(L/lm(g))·g`, `L = lcm(lm(f), lm(g))`.
-pub fn s_polynomial(
+pub(crate) fn s_polynomial(
     f: &SparsePolynomial,
     g: &SparsePolynomial,
     ring: &PolyRing,
@@ -313,7 +313,7 @@ impl<'a> Buchberger<'a> {
 /// which generates a **sub-ideal** of the input (unprocessed generators are
 /// dropped and any in-flight reduction halts mid-step); the caller must
 /// check `is_cancelled()` before relying on the result.
-pub fn groebner_basis(
+pub(crate) fn groebner_basis(
     gens: Vec<SparsePolynomial>,
     ring: &PolyRing,
     cancel: Option<&CancelToken>,
@@ -333,7 +333,7 @@ pub fn groebner_basis(
 /// On `cancel`, returns the basis built so far, which generates a sub-ideal
 /// of the combined ideal; the caller must check `is_cancelled()` before
 /// relying on the result.
-pub fn groebner_basis_incremental(
+pub(crate) fn groebner_basis_incremental(
     known_gb: Vec<SparsePolynomial>,
     new_gens: Vec<SparsePolynomial>,
     ring: &PolyRing,
@@ -352,7 +352,7 @@ pub fn groebner_basis_incremental(
 /// another's, and tail-reduce each survivor by the others. Mirrors the
 /// dense `buchberger::interreduce`. Returns the partially-reduced basis on
 /// cancellation (still a valid generating set).
-pub fn interreduce(
+pub(crate) fn interreduce(
     mut basis: Vec<SparsePolynomial>,
     ring: &PolyRing,
     cancel: Option<&CancelToken>,

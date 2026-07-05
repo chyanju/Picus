@@ -1458,7 +1458,7 @@ fn audit_p2_parse_boolean_multi_rejects_cross_prime_assert() {
 #[test]
 fn audit_p2_two_primes_one_unsat_other_sat() {
     use crate::cdclt::orchestrator::solve_formula_multi;
-    use crate::core::SolveOutcome;
+    use crate::solve::SolveOutcome;
     use crate::timeout::CancelToken;
 
     // GF(7) sub: (x = 3) ∧ (x = 4) — UNSAT; GF(11) sub: (y = 5) — SAT.
@@ -1493,7 +1493,7 @@ fn audit_p2_literal_routed_to_correct_prime() {
     // the verdict is Sat with the values matching the per-prime
     // reductions.
     use crate::cdclt::orchestrator::solve_formula_multi;
-    use crate::core::SolveOutcome;
+    use crate::solve::SolveOutcome;
     use crate::timeout::CancelToken;
     let src = "
         (declare-fun x () (_ FiniteField 7))
@@ -1535,7 +1535,7 @@ fn audit_p2_aux_var_does_not_trip_degraded_in_router() {
     // `degraded`, so the overall verdict is Sat — a degraded path
     // would surface Unknown.
     use crate::cdclt::orchestrator::solve_formula_multi;
-    use crate::core::SolveOutcome;
+    use crate::solve::SolveOutcome;
     use crate::timeout::CancelToken;
     let src = "
         (declare-fun x () (_ FiniteField 7))
@@ -1559,7 +1559,7 @@ fn audit_p2_aux_var_does_not_trip_degraded_in_router() {
 #[test]
 fn audit_p2_solve_formula_multi_two_primes_both_sat() {
     use crate::cdclt::orchestrator::solve_formula_multi;
-    use crate::core::SolveOutcome;
+    use crate::solve::SolveOutcome;
     use crate::timeout::CancelToken;
 
     let src = "

@@ -4,8 +4,8 @@
 //! [`picus_core::ff`]'s GF(p) data types; this `gb` module groups the
 //! work that drives them — the ideal API ([`ideal`]), model construction
 //! ([`model`]), root extraction ([`roots`]), the FGLM order change
-//! ([`fglm`]), homogenisation ([`gb_homog`] / [`homog_ring`]), incremental
-//! push/pop ([`incremental`]), and UNSAT-core tracing ([`tracer`]). Both
+//! ([`fglm`]), homogenisation ([`gb_homog`] / [`homog_ring`]), and
+//! UNSAT-core tracing ([`tracer`]). Both
 //! are named for GF(p) algebra but sit at different layers.
 
 
@@ -14,9 +14,8 @@ mod tests;
 
 // Submodules: ideal operations, incremental GB, root finding, homogenization
 // pipeline, model construction, branching, and UNSAT-core tracing.
-pub mod fglm;
+pub(crate) mod fglm;
 pub mod ideal;
-pub mod incremental;
 pub mod linsolve;
 pub mod roots;
 pub(crate) mod gb_homog;

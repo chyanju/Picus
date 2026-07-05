@@ -192,7 +192,8 @@ thread_local! {
 /// thread, or `None` if no GB call has run yet. The dense path records the
 /// dispatched [`GbAlgorithm`] (`"buchberger-direct"` / `"buchberger-by-homog"`);
 /// the sparse path records `"sparse-buchberger"` / `"sparse-by-homog"`.
-pub fn last_dispatched_algorithm() -> Option<&'static str> {
+#[cfg(test)]
+pub(crate) fn last_dispatched_algorithm() -> Option<&'static str> {
     LAST_DISPATCHED.with(|c| *c.borrow())
 }
 
@@ -477,7 +478,6 @@ pub(crate) fn compute_gb_buchberger(
     }
     let ring = ring_for_order(poly_ring, order);
     let cfg = BuchbergerConfig {
-        order,
         cancel_token: Some(cancel.clone()),
         abort_on_trivial: true,
         use_f4: crate::ff::buchberger::use_f4_default(),
@@ -552,7 +552,6 @@ pub fn compute_gb_incremental_with_order(
     }
     let ring = ring_for_order(poly_ring, order);
     let cfg = BuchbergerConfig {
-        order,
         cancel_token: Some(cancel.clone()),
         abort_on_trivial: true,
         // Incremental extends are tiny-batch (a few new S-pairs per call), so
@@ -623,7 +622,6 @@ pub(crate) fn compute_gb_buchberger_traced(
     }
     let ring = ring_for_order(poly_ring, order);
     let cfg = BuchbergerConfig {
-        order,
         cancel_token: Some(cancel.clone()),
         abort_on_trivial: true,
         use_f4: crate::ff::buchberger::use_f4_default(),
@@ -661,7 +659,6 @@ pub fn compute_gb_incremental_with_order_traced(
     }
     let ring = ring_for_order(poly_ring, order);
     let cfg = BuchbergerConfig {
-        order,
         cancel_token: Some(cancel.clone()),
         abort_on_trivial: true,
         // See `compute_gb_incremental_with_order`: incremental extends are

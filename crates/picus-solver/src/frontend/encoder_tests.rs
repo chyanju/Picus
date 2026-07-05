@@ -171,7 +171,7 @@ fn auto_bitsum_preserves_user_provided() {
 /// 3 bits, the unique solution is b0=1, b1=0, b2=1.
 #[test]
 fn auto_bitsum_solve_extracts_unique_decomp_gf11() {
-    use crate::core::{SolveOutcome, solve_encoded};
+    use crate::solve::{SolveOutcome, solve_encoded};
     let prime: u32 = 11;
     let p = BigUint::from(prime);
     let pm1 = &p - BigUint::from(1u32);
@@ -270,7 +270,7 @@ fn encode_bitsum_routing() {
 /// tests never exercise that offset.
 #[test]
 fn encode_bitsum_with_diseq_solves_unique_decomp() {
-    use crate::core::{solve_encoded, SolveOutcome};
+    use crate::solve::{solve_encoded, SolveOutcome};
     let prime: u32 = 11;
     let p = BigUint::from(prime);
     let pm1 = &p - BigUint::from(1u32);
@@ -533,7 +533,7 @@ fn encode_impl_rejects_too_many_vars() {
         add_field_polys: false,
     };
     match encode_impl(&sys, true) {
-        Err(msg) => assert!(msg.contains("too many variables")),
+        Err(e) => assert!(e.to_string().contains("too many variables")),
         Ok(_) => panic!("expected too-many-variables rejection"),
     }
 }
@@ -552,7 +552,8 @@ fn encode_impl_rejects_equality_var_out_of_range() {
         add_field_polys: false,
     };
     match encode_impl(&sys, true) {
-        Err(msg) => {
+        Err(e) => {
+            let msg = e.to_string();
             assert!(msg.contains("equality term references var_idx 5"));
             assert!(msg.contains("ring has only 1 vars"));
         }
@@ -575,7 +576,8 @@ fn encode_impl_rejects_assignment_var_out_of_range() {
         add_field_polys: false,
     };
     match encode_impl(&sys, true) {
-        Err(msg) => {
+        Err(e) => {
+            let msg = e.to_string();
             assert!(msg.contains("assignment references var_idx 3"));
             assert!(msg.contains("only 1 user vars"));
         }
@@ -597,7 +599,8 @@ fn encode_impl_rejects_disequality_var_out_of_range() {
         add_field_polys: false,
     };
     match encode_impl(&sys, true) {
-        Err(msg) => {
+        Err(e) => {
+            let msg = e.to_string();
             assert!(msg.contains("disequality references var_idx"));
             assert!(msg.contains("only 2 user vars"));
         }
@@ -618,7 +621,8 @@ fn encode_impl_rejects_bitsum_var_out_of_range() {
         add_field_polys: false,
     };
     match encode_impl(&sys, true) {
-        Err(msg) => {
+        Err(e) => {
+            let msg = e.to_string();
             assert!(msg.contains("bitsum references var_idx 7"));
             assert!(msg.contains("only 2 user vars"));
         }

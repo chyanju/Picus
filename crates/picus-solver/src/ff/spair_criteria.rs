@@ -26,7 +26,7 @@ use picus_core::ff::repr::MonomialRepr;
 
 /// What the GM / B criteria need from an S-pair, independent of the
 /// monomial representation.
-pub trait CriterionPair {
+pub(crate) trait CriterionPair {
     type Mono: MonomialRepr;
     /// `lcm(LT_i, LT_j)`.
     fn lcm(&self) -> &Self::Mono;
@@ -47,7 +47,7 @@ pub trait CriterionPair {
 }
 
 /// A basis exposing each element's leading monomial, for the B-criterion.
-pub trait LeadingTerms {
+pub(crate) trait LeadingTerms {
     type Mono: MonomialRepr;
     fn lt_at(&self, idx: usize) -> &Self::Mono;
 }
@@ -65,7 +65,7 @@ pub trait LeadingTerms {
 ///   * Else if `LCM(P) | LCM(existing)`: P dominates existing, erase existing.
 ///
 /// On exit the list is left in arbitrary order; callers sort it before merging.
-pub fn gm_insert<P: CriterionPair>(list: &mut Vec<P>, pair: P) {
+pub(crate) fn gm_insert<P: CriterionPair>(list: &mut Vec<P>, pair: P) {
     let mut to_insert = Some(pair);
     let mut dominated = false;
     let mut idx = 0;
@@ -124,7 +124,7 @@ pub fn gm_insert<P: CriterionPair>(list: &mut Vec<P>, pair: P) {
 /// skipped conditions 2 and 3 would break that invariant.
 ///
 /// The retain preserves the descending-sort invariant of `pairs`.
-pub fn b_criterion_kill<P, B>(
+pub(crate) fn b_criterion_kill<P, B>(
     pairs: &mut Vec<P>,
     new_lt: &P::Mono,
     new_lt_divmask: DivMask,
@@ -156,7 +156,7 @@ pub fn b_criterion_kill<P, B>(
 
 /// Merge `incoming` (sorted descending by [`CriterionPair::cmp_key`]) into
 /// `dst` (also sorted descending), preserving descending order. O(n + m).
-pub fn merge_sorted_descending<P: CriterionPair>(dst: &mut Vec<P>, incoming: Vec<P>) {
+pub(crate) fn merge_sorted_descending<P: CriterionPair>(dst: &mut Vec<P>, incoming: Vec<P>) {
     if incoming.is_empty() {
         return;
     }

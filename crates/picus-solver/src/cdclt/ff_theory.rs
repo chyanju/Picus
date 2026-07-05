@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use num_bigint::BigUint;
 use num_traits::Zero;
 
-use crate::core::{solve_encoded_with_cancel, SolveOutcome};
+use crate::solve::{solve_encoded_with_cancel, SolveOutcome};
 use crate::frontend::encoder::{encode, ConstraintSystemBuilder, EncodedSystem, PolySource, PolyTerm};
 use crate::sat::Var;
 use crate::timeout::CancelToken;
@@ -24,7 +24,7 @@ use super::theory::{CheckOutcome, Theory};
 
 /// FF theory plug-in: maintains an asserted-fact trail and dispatches
 /// `post_check` to [`solve_encoded_with_cancel`].
-pub struct FfTheory<'a> {
+pub(crate) struct FfTheory<'a> {
     atoms: &'a AtomTable,
     cancel: &'a CancelToken,
     /// `(atom_var, polarity)` in trail order. `levels[k]` snapshots
@@ -40,7 +40,7 @@ pub struct FfTheory<'a> {
 }
 
 impl<'a> FfTheory<'a> {
-    pub fn new(atoms: &'a AtomTable, cancel: &'a CancelToken) -> Self {
+    pub(crate) fn new(atoms: &'a AtomTable, cancel: &'a CancelToken) -> Self {
         FfTheory {
             atoms,
             cancel,

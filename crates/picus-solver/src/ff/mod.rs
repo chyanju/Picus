@@ -11,20 +11,14 @@
 // `crate::ff::*`.
 pub(crate) use picus_core::ff::*;
 
-pub mod buchberger;
-pub mod f4;
-pub mod hilbert;
-pub mod spair;
+pub(crate) mod buchberger;
+pub(crate) mod f4;
+pub(crate) mod hilbert;
+pub(crate) mod spair;
 pub(crate) mod spair_criteria;
-pub mod sparse_gb;
-pub mod univariate;
+pub(crate) mod sparse_gb;
+pub(crate) mod univariate;
 
 #[cfg(test)]
 mod repr_oracle;
 
-pub use buchberger::{
-    groebner_basis, groebner_basis_incremental, groebner_basis_observed, interreduce,
-    BuchbergerConfig, BuchbergerObserver, GBasis, IncrementalGB, NoObserver,
-};
-pub use spair::SPair;
-pub use univariate::{find_roots, UnivariatePoly};

@@ -19,7 +19,7 @@
 use num_bigint::BigUint;
 use num_traits::Zero;
 
-use crate::core::{solve_encoded_with_cancel, SolveOutcome};
+use crate::solve::{solve_encoded_with_cancel, SolveOutcome};
 use crate::frontend::encoder::{
     encode, ConstraintSystemBuilder, ConstraintSystem, PolyTerm, VarIdx,
 };

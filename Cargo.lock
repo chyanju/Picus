@@ -720,15 +720,12 @@ name = "picus-solver"
 version = "1.8.27"
 dependencies = [
  "criterion",
- "env_logger",
  "log",
  "num-bigint",
- "num-integer",
  "num-traits",
  "oorandom",
  "picus-core",
  "picus-metric-macros",
- "rug",
  "thiserror",
 ]
 

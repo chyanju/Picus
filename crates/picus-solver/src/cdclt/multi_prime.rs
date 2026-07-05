@@ -21,7 +21,7 @@ use super::ff_theory::check_full_with_atoms;
 use super::theory::{CheckOutcome, Theory};
 
 /// Per-prime slot in the router. Owns the prime's atom table and trail.
-pub struct PrimeSlot {
+pub(crate) struct PrimeSlot {
     pub atoms: AtomTable,
     facts: Vec<(Var, bool)>,
     levels: Vec<usize>,
@@ -30,8 +30,9 @@ pub struct PrimeSlot {
 }
 
 /// Multi-prime FF theory router. One [`PrimeSlot`] per distinct GF(p).
-pub struct FfTheoryRouter<'a> {
+pub(crate) struct FfTheoryRouter<'a> {
     slots: Vec<PrimeSlot>,
+    #[allow(dead_code)] // parked with the multi-prime pipeline
     prime_to_idx: HashMap<BigUint, usize>,
     /// Atom variable → slot index (the prime its atom belongs to).
     /// Populated by the caller via [`FfTheoryRouter::assign_var`].
@@ -54,7 +55,7 @@ impl<'a> FfTheoryRouter<'a> {
     /// Construct a router from a list of per-prime atom tables. Each
     /// table must use a distinct prime; later duplicates overwrite the
     /// `prime → idx` mapping but the slot itself stays separate.
-    pub fn new(atoms_by_prime: Vec<AtomTable>, cancel: &'a CancelToken) -> Self {
+    pub(crate) fn new(atoms_by_prime: Vec<AtomTable>, cancel: &'a CancelToken) -> Self {
         let mut prime_to_idx = HashMap::new();
         let mut slots = Vec::with_capacity(atoms_by_prime.len());
         for (i, at) in atoms_by_prime.into_iter().enumerate() {
@@ -77,17 +78,19 @@ impl<'a> FfTheoryRouter<'a> {
         }
     }
 
-    pub fn n_primes(&self) -> usize {
+    #[cfg(test)]
+    pub(crate) fn n_primes(&self) -> usize {
         self.slots.len()
     }
 
     /// Return the slot index for a given prime, or `None` if not registered.
-    pub fn slot_idx_for(&self, prime: &BigUint) -> Option<usize> {
+    #[cfg(test)]
+    pub(crate) fn slot_idx_for(&self, prime: &BigUint) -> Option<usize> {
         self.prime_to_idx.get(prime).copied()
     }
 
     /// Mutable borrow of a slot's atom table for atom interning by the caller.
-    pub fn slot_atoms_mut(&mut self, slot_idx: usize) -> &mut AtomTable {
+    pub(crate) fn slot_atoms_mut(&mut self, slot_idx: usize) -> &mut AtomTable {
         &mut self.slots[slot_idx].atoms
     }
 
@@ -95,7 +98,7 @@ impl<'a> FfTheoryRouter<'a> {
     /// `slot_idx`. A [`Theory::notify_fact`] for a `var` without prior
     /// registration trips the `degraded` flag (a per-slot mis-routing
     /// would silently change the verdict union).
-    pub fn assign_var(&mut self, var: Var, slot_idx: usize) {
+    pub(crate) fn assign_var(&mut self, var: Var, slot_idx: usize) {
         self.var_to_slot.insert(var, slot_idx);
     }
 }

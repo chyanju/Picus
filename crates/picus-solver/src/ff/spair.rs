@@ -5,7 +5,7 @@ use super::monomial::Monomial;
 
 /// A critical S-pair to be processed in Buchberger's algorithm.
 #[derive(Clone, Debug)]
-pub struct SPair {
+pub(crate) struct SPair {
     pub i: usize,
     pub j: usize,
     pub sugar: u32,
@@ -28,7 +28,7 @@ impl SPair {
     /// Tuple used for ordering in the priority queue: `(sugar, lcm_deg, age)`.
     /// Smaller is better (so `BinaryHeap` users wrap with `Reverse`).
     #[inline]
-    pub fn ordering_key(&self) -> (u32, u32, u64) {
+    pub(crate) fn ordering_key(&self) -> (u32, u32, u64) {
         (self.sugar, self.lcm_deg, self.age)
     }
 }

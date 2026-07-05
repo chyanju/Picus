@@ -7,7 +7,6 @@
 //! - [`bench_fixtures`]: SMT-LIB QF_FF source builders for benches/tools.
 
 pub mod bench_fixtures;
-pub mod bitprop;
 pub mod encoder;
-pub mod parse;
+pub(crate) mod parse;
 pub(crate) mod rewriter;

@@ -13,8 +13,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::frontend::bitprop::{BitProp, BitPropState};
-use crate::core::{populate_bitprop, SolveOutcome};
+use crate::split_gb::bitprop::{BitProp, BitPropState};
+use crate::solve::SolveOutcome;
 use crate::frontend::encoder::{
     encode, encode_constraint_side, ConstraintSystem,
 };
@@ -33,7 +33,7 @@ use crate::timeout::CancelToken;
 
 /// Cached state computed from the constraint side of one
 /// [`ConstraintSystem`] (everything except `disequalities`).
-pub struct CachedBase {
+pub(crate) struct CachedBase {
     pub poly_ring: Arc<FfPolyRing>,
     pub var_map: HashMap<String, usize>,
     /// Polynomials encoded from equalities, assignments, bitsum-defs,
@@ -199,7 +199,7 @@ impl IncrementalSolverContext {
             build_partitions(&encoded.poly_ring, &encoded.polynomials, &encoded.bitsum_polys);
 
         let mut bit_prop = BitProp::new(&encoded.poly_ring);
-        populate_bitprop(&encoded.poly_ring, &encoded.polynomials, &mut bit_prop);
+        bit_prop.scan_polys(&encoded.polynomials);
 
         // Fast-path build. On cancel, `split_gb_cancel` returns
         // `Cancelled` and we transition to the resumable path.
@@ -236,7 +236,6 @@ impl IncrementalSolverContext {
                 // calls accumulate progress.
                 let ring = ring_for_order(&encoded.poly_ring, MonomialOrder::DegRevLex);
                 let cfg = BuchbergerConfig {
-                    order: MonomialOrder::DegRevLex,
                     cancel_token: None,
                     abort_on_trivial: true,
                     use_f4: crate::ff::buchberger::use_f4_default(),
@@ -629,7 +628,7 @@ fn solve_with_cached(
             .chain(query_polys.iter())
             .map(|p| poly_ring.ring.clone_el(p))
             .collect();
-        if let Some(outcome) = crate::core::radical_membership_unsat(
+        if let Some(outcome) = crate::solve::radical_membership_unsat(
             poly_ring,
             combined,
             cached.constraint_polys.len() + query_polys.len(),
@@ -728,7 +727,7 @@ fn solve_with_cached(
 
 fn stateless_solve(cs: &ConstraintSystem, cancel: &CancelToken) -> SolveOutcome {
     match encode(cs) {
-        Ok(encoded) => crate::core::solve_encoded_with_cancel(&encoded, cancel),
+        Ok(encoded) => crate::solve::solve_encoded_with_cancel(&encoded, cancel),
         Err(_) => SolveOutcome::Unknown,
     }
 }

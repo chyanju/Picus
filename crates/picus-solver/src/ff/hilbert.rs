@@ -42,25 +42,25 @@ use super::monomial::Monomial;
 /// trimmed by [`HilbertNum::trim`] after every mutating operation so
 /// `degree` and equality match the mathematical polynomial.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HilbertNum {
+pub(crate) struct HilbertNum {
     coeffs: Vec<i64>,
 }
 
 impl HilbertNum {
     /// The zero polynomial.
-    pub fn zero() -> Self {
+    pub(crate) fn zero() -> Self {
         Self { coeffs: Vec::new() }
     }
 
     /// The constant polynomial `1`.
-    pub fn one() -> Self {
+    pub(crate) fn one() -> Self {
         Self { coeffs: vec![1] }
     }
 
     /// The polynomial `1 - t^d`. `d = 0` collapses to `0` (since
     /// `1 - t^0 = 0`); the rest are the building blocks of the
     /// coprime-product path in [`hilbert_numerator`].
-    pub fn one_minus_t_pow(d: u32) -> Self {
+    pub(crate) fn one_minus_t_pow(d: u32) -> Self {
         if d == 0 {
             return Self::zero();
         }
@@ -70,13 +70,13 @@ impl HilbertNum {
         Self { coeffs }
     }
 
-    pub fn is_zero(&self) -> bool {
+    pub(crate) fn is_zero(&self) -> bool {
         self.coeffs.iter().all(|&c| c == 0)
     }
 
     /// Degree of the leading nonzero coefficient; `None` for the zero
     /// polynomial.
-    pub fn degree(&self) -> Option<u32> {
+    pub(crate) fn degree(&self) -> Option<u32> {
         self.coeffs
             .iter()
             .rposition(|&c| c != 0)
@@ -85,13 +85,13 @@ impl HilbertNum {
 
     /// Coefficient of `t^d`. Returns `0` for any `d` past the trailing
     /// nonzero term.
-    pub fn coeff(&self, d: u32) -> i64 {
+    pub(crate) fn coeff(&self, d: u32) -> i64 {
         self.coeffs.get(d as usize).copied().unwrap_or(0)
     }
 
     /// Add `other` into `self` in place. Per-coefficient
     /// `i64::saturating_add` clamps to `i64::{MIN, MAX}` on overflow.
-    pub fn add_assign(&mut self, other: &Self) {
+    pub(crate) fn add_assign(&mut self, other: &Self) {
         if other.coeffs.len() > self.coeffs.len() {
             self.coeffs.resize(other.coeffs.len(), 0);
         }
@@ -103,7 +103,7 @@ impl HilbertNum {
 
     /// Subtract `other` from `self` in place. Per-coefficient
     /// `i64::saturating_sub`.
-    pub fn sub_assign(&mut self, other: &Self) {
+    pub(crate) fn sub_assign(&mut self, other: &Self) {
         if other.coeffs.len() > self.coeffs.len() {
             self.coeffs.resize(other.coeffs.len(), 0);
         }
@@ -114,7 +114,7 @@ impl HilbertNum {
     }
 
     /// Multiply in place by `t^d` (shift coefficients up by `d`).
-    pub fn mul_t_pow_assign(&mut self, d: u32) {
+    pub(crate) fn mul_t_pow_assign(&mut self, d: u32) {
         if d == 0 || self.is_zero() {
             return;
         }
@@ -129,7 +129,7 @@ impl HilbertNum {
     /// Polynomial multiplication: returns `self * other`. Per-pair
     /// `i64::saturating_mul` followed by per-cell
     /// `i64::saturating_add`.
-    pub fn mul(&self, other: &Self) -> Self {
+    pub(crate) fn mul(&self, other: &Self) -> Self {
         if self.is_zero() || other.is_zero() {
             return Self::zero();
         }
@@ -151,7 +151,8 @@ impl HilbertNum {
 
     /// Slice view of the coefficient vector after trimming. Exposed for
     /// tests and diagnostic comparisons.
-    pub fn coeffs(&self) -> &[i64] {
+    #[cfg(test)]
+    pub(crate) fn coeffs(&self) -> &[i64] {
         &self.coeffs
     }
 
@@ -165,7 +166,7 @@ impl HilbertNum {
     /// For a genuine monomial ideal this is a non-negative integer; the
     /// saturating arithmetic only guards a pathological (overflowing)
     /// input from panicking.
-    pub fn hf_at(&self, d: u32, n_vars: usize) -> i128 {
+    pub(crate) fn hf_at(&self, d: u32, n_vars: usize) -> i128 {
         if n_vars == 0 {
             return self.coeff(d) as i128;
         }
@@ -233,7 +234,7 @@ impl HilbertNum {
     /// `HilbertNum` itself — would make every `HilbertNum::clone` /
     /// `add_assign` carry a Vec<Monomial> through the BCR pivot
     /// recursion and is the wrong place to hold the invariant.
-    pub fn add_generators_incremental(
+    pub(crate) fn add_generators_incremental(
         &self,
         existing_gens: &[Monomial],
         new_gens: &[Monomial],
@@ -272,7 +273,7 @@ impl HilbertNum {
     }
 }
 
-pub fn hilbert_numerator(gens: &[Monomial]) -> HilbertNum {
+pub(crate) fn hilbert_numerator(gens: &[Monomial]) -> HilbertNum {
     if gens.is_empty() {
         return HilbertNum::one();
     }
@@ -406,7 +407,7 @@ const QUOT_DIM_DEGREE_CAP: u32 = 1 << 16;
 ///
 /// Sound and verdict-neutral by construction: pure combinatorics on the
 /// exponent vectors of an already-computed basis, no field arithmetic.
-pub fn quotient_dimension(gens: &[Monomial], n_vars: usize) -> Option<u128> {
+pub(crate) fn quotient_dimension(gens: &[Monomial], n_vars: usize) -> Option<u128> {
     // Unit ideal `I = (1)`: `S/I = 0`.
     if gens.iter().any(|m| m.is_one()) {
         return Some(0);

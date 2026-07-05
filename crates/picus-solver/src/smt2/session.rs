@@ -389,13 +389,13 @@ impl SmtSession {
         };
         let outcome = crate::cdclt::solve_formula(prime, self.builder.var_names(), &combined, &cancel);
         match outcome {
-            crate::core::SolveOutcome::Sat(model) => {
+            crate::solve::SolveOutcome::Sat(model) => {
                 self.last_check = Some(SessionVerdict::Sat);
                 self.last_model = Some(model);
                 self.last_unsat_core_names.clear();
                 SessionVerdict::Sat
             }
-            crate::core::SolveOutcome::Unsat(_) => {
+            crate::solve::SolveOutcome::Unsat(_) => {
                 self.last_check = Some(SessionVerdict::Unsat);
                 self.last_model = None;
                 // SMT-LIB allows any sufficient subset; report every
@@ -409,7 +409,7 @@ impl SmtSession {
                     .collect();
                 SessionVerdict::Unsat
             }
-            crate::core::SolveOutcome::Unknown => {
+            crate::solve::SolveOutcome::Unknown => {
                 self.last_check = Some(SessionVerdict::Unknown);
                 self.last_model = None;
                 self.last_unsat_core_names.clear();

@@ -22,7 +22,7 @@ use crate::poly::{FfPolyRing, Poly};
 /// with one extra "homogenizing" variable.
 ///
 /// The extra variable `h` lives at index [`Self::h_idx`] (== `base.n_vars()`).
-pub struct HomogRing<'r> {
+pub(crate) struct HomogRing<'r> {
     /// The base ring `P` (n vars).
     pub base: &'r FfPolyRing,
     /// The extended ring `Ph = P[h]` (n+1 vars; the last one is `h`).
@@ -41,7 +41,7 @@ impl<'r> HomogRing<'r> {
     /// `ext.ring` are sound because `FieldElem` arithmetic dispatches
     /// on the `PrimeField` passed to each op — the field identity
     /// itself is irrelevant once the prime matches.
-    pub fn new(base: &'r FfPolyRing) -> Self {
+    pub(crate) fn new(base: &'r FfPolyRing) -> Self {
         let n = base.n_vars();
         let mut var_names = base.var_names().to_vec();
         var_names.push("__h".to_string());
@@ -61,7 +61,7 @@ impl<'r> HomogRing<'r> {
     /// `PrimeField` instance identity (the two rings carry distinct but
     /// structurally-equal `Zn` rings over the same prime — see
     /// [`Self::new`]).
-    pub fn lift(&self, p: &Poly) -> Poly {
+    pub(crate) fn lift(&self, p: &Poly) -> Poly {
         let base_ring = &self.base.ring;
         let ext_ring = &self.ext.ring;
         let n = self.base.n_vars();
@@ -87,7 +87,7 @@ impl<'r> HomogRing<'r> {
     /// For every term `(c, m)` with total deg `e`, replace it with
     /// `(c, m · h^{d-e})` where `d = max_e`.  Result is total-degree-`d`
     /// homogeneous in all `n+1` variables.
-    pub fn homogenize(&self, q_lifted: &Poly) -> Poly {
+    pub(crate) fn homogenize(&self, q_lifted: &Poly) -> Poly {
         let ext_ring = &self.ext.ring;
         let n_plus_1 = self.ext.n_vars();
         let field = &self.ext.field();
@@ -114,7 +114,7 @@ impl<'r> HomogRing<'r> {
     }
 
     /// Convenience: lift then homogenize in one shot.
-    pub fn lift_and_homogenize(&self, p: &Poly) -> Poly {
+    pub(crate) fn lift_and_homogenize(&self, p: &Poly) -> Poly {
         let lifted = self.lift(p);
         self.homogenize(&lifted)
     }
@@ -131,7 +131,7 @@ impl<'r> HomogRing<'r> {
     /// must therefore *accumulate* coefficients per base-monomial via
     /// `add_assign`, not just emit terms blindly.  `add_assign` on
     /// `MultivariatePolyRingImpl` already merges like-monomials.
-    pub fn dehom(&self, q: &Poly) -> Poly {
+    pub(crate) fn dehom(&self, q: &Poly) -> Poly {
         let base_ring = &self.base.ring;
         let ext_ring = &self.ext.ring;
         let n = self.base.n_vars();

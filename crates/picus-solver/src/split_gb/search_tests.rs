@@ -1,6 +1,6 @@
 use super::*;
 use crate::ff::field::PrimeField;
-use crate::frontend::bitprop::BitProp;
+use crate::split_gb::bitprop::BitProp;
 use crate::gb::ideal::Ideal;
 use crate::poly::FfPolyRing;
 use crate::split_gb::ZeroExtendResult;

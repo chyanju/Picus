@@ -5,9 +5,9 @@
 //! analysis with clause learning, VSIDS variable-order heap with phase
 //! saving, and Luby restarts (base 100). Learnt clauses are not deleted.
 
-pub mod clause;
-pub mod lit;
-pub mod solver;
+pub(crate) mod clause;
+pub(crate) mod lit;
+pub(crate) mod solver;
 
-pub use lit::{LBool, Lit, Var};
-pub use solver::Solver;
+pub(crate) use lit::{LBool, Lit, Var};
+pub(crate) use solver::Solver;

@@ -32,7 +32,7 @@ use super::theory::{CheckOutcome, Theory};
 /// the maximum distinct (user + witness) variables. Disequalities use the
 /// Rabinowitsch trick `(lhs)*w − 1 = 0` with one fresh witness slot per
 /// disequality.
-pub struct IncrementalFfTheoryState<'a> {
+pub(crate) struct IncrementalFfTheoryState<'a> {
     atoms: &'a AtomTable,
     cancel: &'a CancelToken,
     field: PrimeField,
@@ -92,7 +92,7 @@ enum ModelExtraction {
 }
 
 impl<'a> IncrementalFfTheoryState<'a> {
-    pub fn new(atoms: &'a AtomTable, cancel: &'a CancelToken, max_vars: usize) -> Self {
+    pub(crate) fn new(atoms: &'a AtomTable, cancel: &'a CancelToken, max_vars: usize) -> Self {
         let prime = atoms.prime().clone();
         let field = PrimeField::new(prime.clone());
         let names: Vec<String> = (0..max_vars).map(|i| format!("__slot_{}", i)).collect();
@@ -150,7 +150,8 @@ impl<'a> IncrementalFfTheoryState<'a> {
     /// in production (a no-op when off, so this getter is safe to
     /// call unconditionally — callers must enable `gb_stats` to read
     /// non-zero counters).
-    pub fn engine_stats(&self) -> &crate::ff::buchberger::GbProfileCounters {
+    #[cfg(test)]
+    pub(crate) fn engine_stats(&self) -> &crate::ff::buchberger::GbProfileCounters {
         self.igb.engine_stats()
     }
 

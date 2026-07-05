@@ -1,6 +1,6 @@
 use super::*;
 use crate::ff::field::PrimeField;
-use crate::frontend::bitprop::BitProp;
+use crate::split_gb::bitprop::BitProp;
 use crate::gb::ideal::Ideal;
 use num_bigint::BigUint;
 use oorandom::Rand64;

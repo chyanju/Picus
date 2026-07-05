@@ -1,6 +1,6 @@
 use super::*;
 use crate::ff::field::PrimeField;
-use crate::frontend::bitprop::BitProp;
+use crate::split_gb::bitprop::BitProp;
 use num_bigint::BigUint;
 
 fn ff(p: u32) -> PrimeField {

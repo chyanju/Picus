@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use num_bigint::BigUint;
 
 use crate::boolean::Formula;
-use crate::core::SolveOutcome;
+use crate::solve::SolveOutcome;
 use crate::sat::{LBool, Lit, Solver, Var};
 use crate::timeout::CancelToken;
 
@@ -137,7 +137,8 @@ pub fn solve_formula(
 ///
 /// PARKED: no production caller — see `smt2::parse_boolean_multi`.
 #[doc(hidden)]
-pub fn solve_formula_multi(
+#[allow(dead_code)] // parked: no production caller yet
+pub(crate) fn solve_formula_multi(
     primes_subs: Vec<(BigUint, Vec<String>, crate::boolean::Formula)>,
     cancel: &CancelToken,
 ) -> SolveOutcome {
@@ -191,7 +192,7 @@ pub fn solve_formula_multi(
 
 /// Max CDCL(T) main-loop iterations before [`cdclt_loop`] returns
 /// `Unknown`. Configured via [`crate::config::RuntimeConfig::cdclt_iter_cap`].
-pub fn iter_cap() -> u64 {
+pub(crate) fn iter_cap() -> u64 {
     crate::config::with(|c| c.cdclt_iter_cap)
 }
 

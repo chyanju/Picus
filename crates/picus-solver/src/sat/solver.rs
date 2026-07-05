@@ -15,14 +15,15 @@ use super::lit::{LBool, Lit, Var};
 
 /// Outcome of a top-level `solve` call.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum SolveResult {
+#[cfg(test)]
+pub(crate) enum SolveResult {
     Sat,
     Unsat,
     Unknown,
 }
 
 /// CDCL solver state.
-pub struct Solver {
+pub(crate) struct Solver {
     /// Number of allocated propositional variables.
     n_vars: usize,
     /// Per-variable current value (`assigns[var.index()]`).
@@ -86,7 +87,7 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Solver {
             n_vars: 0,
             assigns: Vec::new(),
@@ -113,7 +114,7 @@ impl Solver {
     }
 
     /// Allocate a fresh propositional variable.
-    pub fn new_var(&mut self) -> Var {
+    pub(crate) fn new_var(&mut self) -> Var {
         let v = Var(self.n_vars as u32);
         self.n_vars += 1;
         self.assigns.push(LBool::Undef);
@@ -221,20 +222,21 @@ impl Solver {
     }
 
     /// Cumulative conflict count.
-    pub fn n_conflicts(&self) -> u64 {
+    #[cfg(test)]
+    pub(crate) fn n_conflicts(&self) -> u64 {
         self.n_conflicts
     }
 
     /// `true` iff the conflict count has reached the next Luby
     /// restart threshold.
-    pub fn should_restart(&self) -> bool {
+    pub(crate) fn should_restart(&self) -> bool {
         self.n_conflicts >= self.restart_step
     }
 
     /// Backtrack to level 0 and bump the next Luby restart threshold.
     /// Callers in CDCL(T) must also pop any theory-level state down
     /// to match the new decision level.
-    pub fn perform_restart(&mut self) {
+    pub(crate) fn perform_restart(&mut self) {
         self.backtrack_to(0);
         let factor = luby(self.luby_idx);
         self.luby_idx += 1;
@@ -259,27 +261,28 @@ fn luby(mut i: u64) -> u64 {
 
 impl Solver {
 
-    pub fn n_vars(&self) -> usize {
+    #[cfg(test)]
+    pub(crate) fn n_vars(&self) -> usize {
         self.n_vars
     }
 
     /// Current value of a variable.
-    pub fn value(&self, v: Var) -> LBool {
+    pub(crate) fn value(&self, v: Var) -> LBool {
         self.assigns[v.index()]
     }
 
     /// Current decision level (0 = root).
-    pub fn decision_level(&self) -> i32 {
+    pub(crate) fn decision_level(&self) -> i32 {
         self.trail_lim.len() as i32
     }
 
     /// Has the formula been proved UNSAT at the root?
-    pub fn is_unsat(&self) -> bool {
+    pub(crate) fn is_unsat(&self) -> bool {
         self.unsat
     }
 
     /// Value of a literal under the current assignment.
-    pub fn lit_value(&self, lit: Lit) -> LBool {
+    pub(crate) fn lit_value(&self, lit: Lit) -> LBool {
         let v = self.value(lit.var());
         if lit.is_positive() {
             v
@@ -295,7 +298,7 @@ impl Solver {
     ///
     /// Assumes the solver is at decision level 0 and propagation is
     /// quiet (post-`new` or post-clean restart).
-    pub fn add_clause(&mut self, mut lits: Vec<Lit>) -> bool {
+    pub(crate) fn add_clause(&mut self, mut lits: Vec<Lit>) -> bool {
         if self.unsat {
             return false;
         }
@@ -367,7 +370,7 @@ impl Solver {
     /// Decide a fresh literal: open a new decision level and enqueue
     /// `lit` as a decision (no reason). Returns `false` when the
     /// literal is already assigned to the opposite value.
-    pub fn decide(&mut self, lit: Lit) -> bool {
+    pub(crate) fn decide(&mut self, lit: Lit) -> bool {
         let v = lit.var();
         match self.assigns[v.index()] {
             LBool::Undef => {
@@ -403,7 +406,7 @@ impl Solver {
     /// Watched-literal unit propagation. Returns `Some(conflict)` for
     /// the first clause whose literals are all False under the current
     /// assignment, or `None` when the queue drains without conflict.
-    pub fn propagate(&mut self) -> Option<ClauseRef> {
+    pub(crate) fn propagate(&mut self) -> Option<ClauseRef> {
         while self.qhead < self.trail.len() {
             let p = self.trail[self.qhead];
             self.qhead += 1;
@@ -502,7 +505,7 @@ impl Solver {
     /// Number of clauses in the arena. Test-only helper for SAT-layer
     /// assertions; production code uses observer hooks for counting.
     #[cfg(test)]
-    pub fn n_clauses(&self) -> usize {
+    pub(crate) fn n_clauses(&self) -> usize {
         self.arena.len()
     }
 
@@ -512,7 +515,7 @@ impl Solver {
     }
 
     /// View of the trail (in commit order).
-    pub fn trail(&self) -> &[Lit] {
+    pub(crate) fn trail(&self) -> &[Lit] {
         &self.trail
     }
 
@@ -526,7 +529,7 @@ impl Solver {
     /// thread this through their `notified` pointer so the asserting
     /// literal is included in the next theory-notify pass. Returns `None`
     /// when the lemma forces root-level UNSAT.
-    pub fn add_theory_lemma_with_trail(&mut self, mut lits: Vec<Lit>) -> Option<usize> {
+    pub(crate) fn add_theory_lemma_with_trail(&mut self, mut lits: Vec<Lit>) -> Option<usize> {
         if lits.is_empty() {
             self.unsat = true;
             return None;
@@ -594,7 +597,7 @@ impl Solver {
 
     /// `true` iff a theory-conflict resolution bailed out (see
     /// [`Self::give_up`]). Callers must treat this as Unknown, not UNSAT.
-    pub fn gave_up(&self) -> bool {
+    pub(crate) fn gave_up(&self) -> bool {
         self.give_up
     }
 
@@ -603,18 +606,18 @@ impl Solver {
     /// unassigned in SAT, indicating theory/SAT trail divergence): reporting
     /// UNSAT or SAT would then be unsound, so the only safe outcome is
     /// Unknown. The CDCL(T) caller observes this via [`Self::gave_up`].
-    pub fn mark_give_up(&mut self) {
+    pub(crate) fn mark_give_up(&mut self) {
         self.give_up = true;
     }
 
     /// Number of literals on the trail.
-    pub fn trail_len(&self) -> usize {
+    pub(crate) fn trail_len(&self) -> usize {
         self.trail.len()
     }
 
     /// `true` iff every variable has a defined value (no decision
     /// variable remains).
-    pub fn all_assigned(&self) -> bool {
+    pub(crate) fn all_assigned(&self) -> bool {
         self.trail.len() == self.n_vars
     }
 
@@ -622,7 +625,7 @@ impl Solver {
     /// `learnt[0]` is the asserting literal (negated 1-UIP), `learnt[1..]`
     /// are lower-level literals, and `bt_level` is the second-highest
     /// decision level among the learnt clause (0 if length 1).
-    pub fn analyze(&mut self, conflict: ClauseRef) -> Option<(Vec<Lit>, i32)> {
+    pub(crate) fn analyze(&mut self, conflict: ClauseRef) -> Option<(Vec<Lit>, i32)> {
         let cur_level = self.decision_level();
         debug_assert!(cur_level > 0, "analyze called at root level");
         self.n_conflicts += 1;
@@ -723,7 +726,7 @@ impl Solver {
     /// to the current trail length so propagation re-examines the
     /// surviving prefix. Any variable unassigned here is re-inserted
     /// into the activity heap so [`Self::pick_decision`] can pick it.
-    pub fn backtrack_to(&mut self, level: i32) {
+    pub(crate) fn backtrack_to(&mut self, level: i32) {
         debug_assert!(level >= 0);
         debug_assert!(level <= self.decision_level());
         if level >= self.decision_level() {
@@ -748,7 +751,8 @@ impl Solver {
     ///
     /// Decision strategy: lowest-index Undef variable, positive
     /// polarity. Replace [`Self::pick_decision`] for a richer heuristic.
-    pub fn solve(&mut self) -> SolveResult {
+    #[cfg(test)]
+    pub(crate) fn solve(&mut self) -> SolveResult {
         if self.unsat {
             return SolveResult::Unsat;
         }
@@ -803,7 +807,7 @@ impl Solver {
 
     /// Pop the highest-activity Undef variable from the heap, applying
     /// the saved phase (positive when none was saved).
-    pub fn pick_decision(&mut self) -> Option<Lit> {
+    pub(crate) fn pick_decision(&mut self) -> Option<Lit> {
         while let Some(v) = self.heap_remove_max() {
             if matches!(self.assigns[v.index()], LBool::Undef) {
                 let lit = match self.saved_phase[v.index()] {
@@ -820,7 +824,7 @@ impl Solver {
     /// `(lit ∨ ¬r_i …)` added (learnt) and watched. Requires `lit` Undef
     /// and `reason_facts` non-empty (each currently True); returns
     /// `false` otherwise.
-    pub fn enqueue_theory(&mut self, lit: Lit, reason_facts: Vec<Lit>) -> bool {
+    pub(crate) fn enqueue_theory(&mut self, lit: Lit, reason_facts: Vec<Lit>) -> bool {
         if !matches!(self.value(lit.var()), LBool::Undef) {
             return false;
         }
@@ -857,7 +861,7 @@ impl Solver {
     /// Assumes the solver has already backtracked to the asserting
     /// level (i.e. all literals in `lits[1..]` are currently False and
     /// `lits[0]` is currently Undef).
-    pub fn learn_clause(&mut self, lits: Vec<Lit>) -> ClauseRef {
+    pub(crate) fn learn_clause(&mut self, lits: Vec<Lit>) -> ClauseRef {
         // An empty clause would index-panic at `lits[0]` below. `analyze`
         // always yields a non-empty learnt clause (its resolution-bail `None`
         // path routes to `give_up`), so this assert never fires; a panic here

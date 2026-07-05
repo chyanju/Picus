@@ -2,9 +2,9 @@
 //!
 //! Each test encodes a mathematical problem as a polynomial system
 //! and checks the SAT / UNSAT verdict via
-//! [`picus_solver::core::solve_encoded`].
+//! [`picus_solver::solve::solve_encoded`].
 
-use picus_solver::core::{solve_encoded, SolveOutcome};
+use picus_solver::solve::{solve_encoded, SolveOutcome};
 mod common;
 use common::{NamedSystem, NamedTerm};
 use num_bigint::BigUint;

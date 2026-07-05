@@ -26,7 +26,7 @@ use super::divmask::DivMask;
 use super::field::FieldElem;
 #[cfg(test)]
 use super::field::PrimeField;
-use super::monomial::{Monomial, MonomialOrder};
+use super::monomial::Monomial;
 use super::polynomial::{PolyRing, DensePoly, ReducerIndex};
 use super::spair::SPair;
 
@@ -38,8 +38,7 @@ use super::spair::SPair;
 /// config change between construction and `run` — or mid-run — never
 /// switches algorithm selection between S-pair batches.
 #[derive(Clone)]
-pub struct BuchbergerConfig {
-    pub order: MonomialOrder,
+pub(crate) struct BuchbergerConfig {
     pub cancel_token: Option<CancelToken>,
     /// Stop early if the basis contains a nonzero constant (i.e. the ideal is the whole ring).
     pub abort_on_trivial: bool,
@@ -61,7 +60,6 @@ pub struct BuchbergerConfig {
 impl Default for BuchbergerConfig {
     fn default() -> Self {
         crate::config::with(|c| BuchbergerConfig {
-            order: MonomialOrder::DegRevLex,
             cancel_token: None,
             abort_on_trivial: true,
             use_f4: c.use_f4,
@@ -76,19 +74,18 @@ impl Default for BuchbergerConfig {
 /// [`crate::config::RuntimeConfig::use_f4`]. Used by all default
 /// `BuchbergerConfig` construction sites so the F4 path is consistently
 /// enabled or disabled across the solver.
-pub fn use_f4_default() -> bool {
+pub(crate) fn use_f4_default() -> bool {
     crate::config::with(|c| c.use_f4)
 }
 
 /// A computed Groebner basis.
 #[derive(Clone, Debug)]
-pub struct GBasis {
+pub(crate) struct GBasis {
     pub basis: Vec<DensePoly>,
-    pub order: MonomialOrder,
 }
 
 /// Observer hook for tracking the polynomial dependency DAG (used by the UNSAT-core tracer).
-pub trait BuchbergerObserver {
+pub(crate) trait BuchbergerObserver {
     /// Called immediately before [`on_initial_basis`] to report the indices
     /// of basis elements that were potentially used as reducers when the
     /// new generator was reduced into normal form. Observers that wish to
@@ -115,7 +112,7 @@ pub trait BuchbergerObserver {
 }
 
 /// No-op observer.
-pub struct NoObserver;
+pub(crate) struct NoObserver;
 impl BuchbergerObserver for NoObserver {}
 
 /// Internal basis element. Visible to the `incremental` submodule and
@@ -144,7 +141,7 @@ pub(super) struct BasisElement {
 // ─────────────────────────── Public entry points ───────────────────────────
 
 /// Compute a Groebner basis of `generators` from scratch.
-pub fn groebner_basis(
+pub(crate) fn groebner_basis(
     generators: Vec<DensePoly>,
     ring: &Arc<PolyRing>,
     config: &BuchbergerConfig,
@@ -154,11 +151,11 @@ pub fn groebner_basis(
     state.add_generators(generators, &mut obs)?;
     state.run(&mut obs)?;
     let basis = state.finalize_basis();
-    Ok(GBasis { basis, order: ring.order })
+    Ok(GBasis { basis })
 }
 
 /// Run Buchberger with an observer (for UNSAT-core tracing).
-pub fn groebner_basis_observed<O: BuchbergerObserver>(
+pub(crate) fn groebner_basis_observed<O: BuchbergerObserver>(
     generators: Vec<DensePoly>,
     ring: &Arc<PolyRing>,
     config: &BuchbergerConfig,
@@ -168,11 +165,12 @@ pub fn groebner_basis_observed<O: BuchbergerObserver>(
     state.add_generators(generators, observer)?;
     state.run(observer)?;
     let basis = state.finalize_basis();
-    Ok(GBasis { basis, order: ring.order })
+    Ok(GBasis { basis })
 }
 
 /// Extend an existing GB with new generators (re-run Buchberger from the existing basis).
-pub fn groebner_basis_incremental(
+#[cfg(test)]
+pub(crate) fn groebner_basis_incremental(
     existing: GBasis,
     new_generators: Vec<DensePoly>,
     ring: &Arc<PolyRing>,
@@ -184,13 +182,13 @@ pub fn groebner_basis_incremental(
 }
 
 /// Inter-reduce a basis (make every element's tail reduced w.r.t. all others; make monic).
-pub fn interreduce(basis: Vec<DensePoly>, ring: &Arc<PolyRing>) -> Vec<DensePoly> {
+pub(crate) fn interreduce(basis: Vec<DensePoly>, ring: &Arc<PolyRing>) -> Vec<DensePoly> {
     interreduce_with_cancel(basis, ring, None)
 }
 
 /// Inter-reduce with cooperative cancellation. Returns the partially-reduced
 /// basis (still valid generators, just not yet inter-reduced) on cancel.
-pub fn interreduce_with_cancel(
+pub(crate) fn interreduce_with_cancel(
     mut basis: Vec<DensePoly>,
     ring: &Arc<PolyRing>,
     cancel: Option<&crate::timeout::CancelToken>,
@@ -289,7 +287,7 @@ impl crate::ff::spair_criteria::LeadingTerms for Vec<BasisElement> {
 /// separate logic field [`BuchbergerState::useful_reductions`] so that
 /// disabling profiling cannot perturb the schedule.
 #[derive(Clone, Debug, Default)]
-pub struct GbProfileCounters {
+pub(crate) struct GbProfileCounters {
     pub pairs_generated: u64,
     pub pairs_killed_coprime: u64,
     pub pairs_killed_gm: u64,
@@ -636,6 +634,7 @@ impl BuchbergerState {
             .collect()
     }
 
+    #[cfg(test)]
     pub(super) fn active_poly_refs(&self) -> Vec<&DensePoly> {
         self.basis
             .iter()
@@ -1466,7 +1465,7 @@ impl BuchbergerState {
 }
 
 mod incremental;
-pub use incremental::IncrementalGB;
+pub(crate) use incremental::IncrementalGB;
 
 
 // ─── DensePoly coefficient lookup ─────────────────────────────────────────
@@ -1501,3 +1500,7 @@ pub(crate) fn poly_coefficient_at(p: &DensePoly, mon: &Monomial, ring: &PolyRing
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "perf_tests.rs"]
+mod perf_tests;

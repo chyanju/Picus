@@ -1,4 +1,5 @@
 use super::*;
+use crate::ff::monomial::MonomialOrder;
 use num_bigint::BigUint;
 
 fn ring(n_vars: usize) -> Arc<PolyRing> {
@@ -18,7 +19,7 @@ fn incremental_push_pop() {
         ],
         &r,
     );
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut igb = IncrementalGB::new(r.clone(), cfg);
     igb.add_generators(vec![p1]).unwrap();
     let basis_pre = igb.basis().len();
@@ -60,7 +61,7 @@ fn incremental_pop_restores_rewritten_bodies() {
         ],
         &r,
     );
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut igb = IncrementalGB::new(r.clone(), cfg);
     igb.add_generators(vec![p0.clone()]).unwrap();
     let len_pre = igb.basis().len();
@@ -327,7 +328,7 @@ fn f4_path_detects_inconsistent_system() {
     // x0 - 1 and x0 - 2 over GF(101): S-poly reduces to a nonzero constant.
     // The F4 batch must surface the constant and mark the basis trivial.
     let r = ring(1);
-    let f4 = BuchbergerConfig { order: r.order, use_f4: true, ..Default::default() };
+    let f4 = BuchbergerConfig { use_f4: true, ..Default::default() };
     let gb = groebner_basis(
         vec![
             poly(&r, &[(vec![1], 1), (vec![0], -1)]),
@@ -349,7 +350,6 @@ fn per_pair_run_cancelled_at_loop_top_with_stats_returns_timeout() {
     let _g = crate::config::ConfigGuard::with_override(|c| c.gb_stats_enabled = true);
     let r = ring(2);
     let cfg = BuchbergerConfig {
-        order: r.order,
         use_f4: false,
         cancel_token: Some(crate::timeout::CancelToken::cancelled()),
         ..Default::default()
@@ -375,7 +375,7 @@ fn per_pair_run_cancelled_mid_run_with_pending_pairs_and_stats() {
     // CANCELLED stats block runs before the error is returned.
     let _g = crate::config::ConfigGuard::with_override(|c| c.gb_stats_enabled = true);
     let r = ring(2);
-    let cfg = BuchbergerConfig { order: r.order, use_f4: false, ..Default::default() };
+    let cfg = BuchbergerConfig { use_f4: false, ..Default::default() };
     let mut state = BuchbergerState::new(r.clone(), cfg);
     let mut obs = NoObserver;
     // Non-coprime leading terms (x0^2, x0·x1) ⇒ at least one S-pair.
@@ -409,7 +409,7 @@ fn tail_reduce_active_deactivates_element_reduced_to_zero() {
     // zero, so `others` is empty and that index is skipped. The surviving
     // element stays active.
     let r = ring(1);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut state = BuchbergerState::new(r.clone(), cfg);
     let x0 = poly(&r, &[(vec![1], 1)]); // x0
     let lt = x0.leading_monomial(&r).unwrap();
@@ -478,7 +478,7 @@ fn interreduce_makes_nonzero_tail_result_monic() {
 /// generators x0..x_{n-1}. They are mutually coprime, so none deactivates
 /// another and all `n` stay active. `ring` must have >= n variables.
 fn seeded_state(ring: &Arc<PolyRing>, n: usize) -> BuchbergerState {
-    let cfg = BuchbergerConfig { order: ring.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut state = BuchbergerState::new(ring.clone(), cfg);
     let gens: Vec<DensePoly> = (0..n).map(|i| DensePoly::variable(i, ring)).collect();
     state.seed_with_reduced_basis(gens);
@@ -490,7 +490,7 @@ fn seed_with_reduced_basis_skips_zero_polys() {
     // A zero poly is silently dropped (continue at the is_zero guard);
     // the nonzero x0^2 is seeded. Resulting basis length is 1.
     let r = ring(1);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut state = BuchbergerState::new(r.clone(), cfg);
     let xsq = poly(&r, &[(vec![2], 1)]); // x0^2
     state.seed_with_reduced_basis(vec![DensePoly::zero(), xsq]);
@@ -539,7 +539,7 @@ fn tail_reduce_active_tracked_records_reducers() {
     // for affected basis index 0. x1 is irreducible by x0, so it logs
     // nothing. Expected log = [(0, [1])].
     let r = ring(2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut state = BuchbergerState::new(r.clone(), cfg);
     state.seed_with_reduced_basis(vec![
         poly(&r, &[(vec![1, 0], 1), (vec![0, 1], 1)]), // x0 + x1
@@ -605,7 +605,6 @@ fn process_pair_geobucket_with_live_cancel_token_reduces() {
     // zero against the basis, returning Ok without growing the basis.
     let r = ring(2);
     let cfg = BuchbergerConfig {
-        order: r.order,
         cancel_token: Some(crate::timeout::CancelToken::none()),
         ..Default::default()
     };
@@ -632,7 +631,6 @@ fn process_pair_geobucket_precancelled_token_returns_timeout() {
     // Timeout error.
     let r = ring(2);
     let cfg = BuchbergerConfig {
-        order: r.order,
         cancel_token: Some(crate::timeout::CancelToken::cancelled()),
         ..Default::default()
     };
@@ -663,7 +661,6 @@ fn run_f4_matrix_path_constant_output_continues_when_not_aborting() {
     // the matrix path, and F4 emits a single constant generator.
     let r = ring(2);
     let cfg = BuchbergerConfig {
-        order: r.order,
         use_f4: true,
         abort_on_trivial: false,
         ..Default::default()
@@ -695,7 +692,6 @@ fn run_f4_matrix_path_constant_output_aborts_when_requested() {
     // `trivial`, run_f4 returns immediately (the early-return arm).
     let r = ring(2);
     let cfg = BuchbergerConfig {
-        order: r.order,
         use_f4: true,
         abort_on_trivial: true,
         ..Default::default()
@@ -723,7 +719,7 @@ fn run_f4_skips_earlier_generation_pairs() {
     // exits cleanly. The pair's parents are never dereferenced because the
     // generation check precedes build_spoly.
     let r = ring(3);
-    let cfg = BuchbergerConfig { order: r.order, use_f4: true, ..Default::default() };
+    let cfg = BuchbergerConfig { use_f4: true, ..Default::default() };
     let mut state = BuchbergerState::new(r.clone(), cfg);
     state.generation = 1;
     // mk_pair builds an SPair at generation 0 (< state.generation = 1).
@@ -782,7 +778,7 @@ fn prop_every_input_generator_reduces_to_zero_against_gb_across_primes() {
             poly_in(&r, &[(vec![1, 1, 0], 1), (vec![0, 0, 1], -1)]), // x0*x1 - x2
             poly_in(&r, &[(vec![0, 2, 0], 1), (vec![1, 0, 0], -1)]), // x1^2 - x0
         ];
-        let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+        let cfg = BuchbergerConfig { ..Default::default() };
         let gb = groebner_basis(gens.clone(), &r, &cfg).unwrap();
         let refs: Vec<&DensePoly> = gb.basis.iter().collect();
         for g in &gens {
@@ -805,7 +801,7 @@ fn prop_every_input_generator_reduces_to_zero_against_gb_across_primes() {
 #[test]
 fn prop_empty_input_yields_empty_gb() {
     let r = ring_p(101, 2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let gb = groebner_basis(vec![], &r, &cfg).unwrap();
     assert!(gb.basis.is_empty(), "spec: GB of the zero ideal is empty");
 }
@@ -813,7 +809,7 @@ fn prop_empty_input_yields_empty_gb() {
 #[test]
 fn prop_all_zero_input_yields_empty_gb() {
     let r = ring_p(7, 2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let gb = groebner_basis(
         vec![DensePoly::zero(), DensePoly::zero(), DensePoly::zero()],
         &r,
@@ -839,7 +835,7 @@ fn prop_inconsistent_linear_system_yields_constant_gb_prime_sweep() {
     // inconsistent ⇒ 1 ∈ ideal ⇒ trivial GB containing a constant.
     for (prime, c1, c2) in [(101u64, 1i64, 2i64), (7, 3, 5)] {
         let r = ring_p(prime, 1);
-        let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+        let cfg = BuchbergerConfig { ..Default::default() };
         let gb = groebner_basis(
             vec![
                 poly_in(&r, &[(vec![1], 1), (vec![0], -c1)]),
@@ -908,7 +904,7 @@ fn prop_interreduce_is_idempotent_across_primes() {
 #[test]
 fn prop_gb_of_gb_generates_same_ideal_gf101() {
     let r = ring_p(101, 2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let g = vec![
         poly_in(&r, &[(vec![2, 0], 1), (vec![0, 0], -1)]),
         poly_in(&r, &[(vec![1, 1], 1), (vec![0, 0], -1)]),
@@ -933,7 +929,7 @@ fn prop_gb_of_gb_generates_same_ideal_gf101() {
 #[test]
 fn prop_gb_invariant_under_duplication_gf101() {
     let r = ring_p(101, 2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let g = vec![
         poly_in(&r, &[(vec![2, 0], 1), (vec![0, 1], -1)]),
         poly_in(&r, &[(vec![1, 1], 1), (vec![0, 0], -1)]),
@@ -969,7 +965,7 @@ fn prop_groebner_basis_is_deterministic() {
     // bug surfaces over the same property.
     for &p in &[7u64, 101] {
         let r = ring_p(p, 3);
-        let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+        let cfg = BuchbergerConfig { ..Default::default() };
         let g = || vec![
             poly_in(&r, &[(vec![2, 0, 0], 1), (vec![0, 1, 0], -1)]),
             poly_in(&r, &[(vec![1, 1, 0], 1), (vec![0, 0, 1], -1)]),
@@ -991,7 +987,7 @@ fn prop_groebner_basis_is_deterministic() {
 #[test]
 fn prop_incremental_gb_matches_full_gb_on_union_gf101() {
     let r = ring_p(101, 2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let g1 = vec![poly_in(&r, &[(vec![2, 0], 1), (vec![0, 0], -1)])];
     let g2 = vec![poly_in(&r, &[(vec![1, 1], 1), (vec![0, 0], -1)])];
     let b_full = groebner_basis(
@@ -1027,7 +1023,7 @@ fn prop_single_linear_gen_is_already_a_gb_small_prime_sweep() {
     // (GF(2)/3/5) exercise bit-width and bitprop edge cases.
     for (prime, a, c) in [(2u64, 1i64, 1i64), (3, 2, 1), (5, 3, 2)] {
         let r = ring_p(prime, 1);
-        let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+        let cfg = BuchbergerConfig { ..Default::default() };
         let gb = groebner_basis(
             vec![poly_in(&r, &[(vec![1], a), (vec![0], -c)])],
             &r,
@@ -1121,7 +1117,7 @@ fn assert_gb_characterisation(
     gens_fn: &dyn Fn(&Arc<PolyRing>) -> Vec<DensePoly>,
 ) {
     let r = ring_p(prime, 3);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let gens = gens_fn(&r);
     let gb = groebner_basis(gens.clone(), &r, &cfg).unwrap();
     let refs: Vec<&DensePoly> = gb.basis.iter().collect();
@@ -1206,8 +1202,8 @@ fn diff_run_f4_vs_pp_above_min_batch_bn254() {
             c += 1;
         }
     }
-    let cfg_pp = BuchbergerConfig { order: r.order, use_f4: false, ..Default::default() };
-    let cfg_f4 = BuchbergerConfig { order: r.order, use_f4: true, ..Default::default() };
+    let cfg_pp = BuchbergerConfig { use_f4: false, ..Default::default() };
+    let cfg_f4 = BuchbergerConfig { use_f4: true, ..Default::default() };
     let gb_pp = interreduce(groebner_basis(gens.clone(), &r, &cfg_pp).unwrap().basis, &r);
     let gb_f4 = interreduce(groebner_basis(gens.clone(), &r, &cfg_f4).unwrap().basis, &r);
     assert!(ideals_equal_dense(&gb_pp, &gb_f4, &r),
@@ -1231,7 +1227,6 @@ fn diff_groebner_basis_precancelled_token_both_paths() {
     for &use_f4 in &[false, true] {
         let token = crate::timeout::CancelToken::cancelled();
         let cfg = BuchbergerConfig {
-            order: r.order,
             use_f4,
             cancel_token: Some(token),
             ..Default::default()
@@ -1241,8 +1236,7 @@ fn diff_groebner_basis_precancelled_token_both_paths() {
             Ok(gb) => {
                 // Spec: every output element must lie in the input ideal,
                 // checked against the uncancelled reference GB.
-                let cfg_ref = BuchbergerConfig {
-                    order: r.order, use_f4: false, ..Default::default()
+                let cfg_ref = BuchbergerConfig { ..Default::default()
                 };
                 let ref_gb = interreduce(
                     groebner_basis(gens.clone(), &r, &cfg_ref).unwrap().basis,
@@ -1276,8 +1270,8 @@ fn diff_one_variable_ring_univariate_relation() {
     // 1-var ring over GF(101). GB({x^2 - 1}) = {x^2 - 1}.
     let r = ring_p(101, 1);
     let p = poly_in(&r, &[(vec![2], 1), (vec![0], -1)]);
-    let cfg_pp = BuchbergerConfig { order: r.order, use_f4: false, ..Default::default() };
-    let cfg_f4 = BuchbergerConfig { order: r.order, use_f4: true, ..Default::default() };
+    let cfg_pp = BuchbergerConfig { use_f4: false, ..Default::default() };
+    let cfg_f4 = BuchbergerConfig { use_f4: true, ..Default::default() };
     let gb_pp = interreduce(groebner_basis(vec![p.clone()], &r, &cfg_pp).unwrap().basis, &r);
     let gb_f4 = interreduce(groebner_basis(vec![p.clone()], &r, &cfg_f4).unwrap().basis, &r);
     assert!(ideals_equal_dense(&gb_pp, &gb_f4, &r),
@@ -1296,7 +1290,7 @@ fn diff_zero_variable_ring_constant_input() {
         MonomialOrder::DegRevLex,
     );
     let one = DensePoly::constant(r.field.one(), &r);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let gb = interreduce(groebner_basis(vec![one], &r, &cfg).unwrap().basis, &r);
     assert!(gb.iter().any(|p| p.is_constant() && !p.is_zero()),
         "0-var ring with unit: GB = {{1}}");
@@ -1309,7 +1303,7 @@ fn audit_p3_hilbert_select_returns_lowest_sugar_on_empty_open_list() {
     // candidate sugars to score and the caller already supplied the
     // sentinel via the pop attempt.
     let r = ring(2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let state = BuchbergerState::new(r.clone(), cfg);
     assert_eq!(state.select_sugar_hilbert(7), 7);
 }
@@ -1321,7 +1315,7 @@ fn audit_p3_hilbert_select_returns_lowest_sugar_on_single_candidate() {
     // `lowest_sugar` instead of paying for `hilbert_numerator`
     // recomputation.
     let r = ring(2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut state = BuchbergerState::new(r.clone(), cfg);
     state.basis.push(BasisElement {
         poly: DensePoly::variable(0, &r),
@@ -1353,7 +1347,7 @@ fn audit_p3_hilbert_select_falls_back_to_sugar_when_no_strictly_positive_drop() 
     // and returns the seed `lowest_sugar` rather than picking
     // arbitrarily among tied-zero candidates.
     let r = ring(2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut state = BuchbergerState::new(r.clone(), cfg);
     // Empty basis (current_lts empty) ⇒ early return lowest_sugar.
     state.open.push(SPair {
@@ -1391,7 +1385,7 @@ fn audit_p3_hilbert_select_picks_steepest_drop_degree_with_multiple_candidates()
     // sugar 5 introduces only a LCM already divisible by an existing
     // leading term (zero drop). The oracle must pick sugar 2.
     let r = ring(2);
-    let cfg = BuchbergerConfig { order: r.order, ..Default::default() };
+    let cfg = BuchbergerConfig { ..Default::default() };
     let mut state = BuchbergerState::new(r.clone(), cfg);
     // Basis: just x_0 (leading monomial x_0). Standard monomials at
     // each degree are then just powers of x_1 (1, x_1, x_1², ...).
@@ -1573,7 +1567,7 @@ fn diff_basis_containing_1_is_trivial_both_paths() {
     let f = x.mul(&y, &r).sub(&one, &r);
     let gens = vec![f, one];
     for &use_f4 in &[false, true] {
-        let cfg = BuchbergerConfig { order: r.order, use_f4, ..Default::default() };
+        let cfg = BuchbergerConfig { use_f4, ..Default::default() };
         let gb = interreduce(groebner_basis(gens.clone(), &r, &cfg).unwrap().basis, &r);
         assert_eq!(gb.len(), 1, "GB of (f, 1) must be {{1}} (use_f4={use_f4})");
         assert!(gb[0].is_constant() && !gb[0].is_zero(),

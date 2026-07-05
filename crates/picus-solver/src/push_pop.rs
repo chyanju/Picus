@@ -1,9 +1,13 @@
-//! Incremental solver: push / pop / check API.
+//! Push / pop / check harness for tests and benches.
 //!
-//! A simple push/pop interface backed by a stack of checkpoint heights
-//! into a single `Vec<Constraint>`. Each `check()` rebuilds a fresh
+//! NOT incremental solving: each `check()` rebuilds a fresh
 //! [`ConstraintSystemBuilder`] from the accumulated facts and
-//! dispatches to [`crate::core::solve_encoded_with_cancel`].
+//! dispatches to [`crate::solve::solve_encoded_with_cancel`] from
+//! scratch (the real incremental machinery is
+//! `ff::buchberger::IncrementalGB` inside the engine and
+//! `incremental_context::RebuildOnCheckSolverContext` at the backend
+//! seam). A push/pop interface backed by a stack of checkpoint
+//! heights into a single `Vec<Constraint>`; no production caller.
 //!
 //! Facts are stored in name-keyed form ([`NamedTerm`]) because the
 //! push/pop API can't fix variable indices until check time — each
@@ -13,13 +17,13 @@ use std::collections::BTreeMap;
 
 use num_bigint::BigUint;
 
-use crate::core::{solve_encoded_with_cancel, SolveOutcome};
+use crate::solve::{solve_encoded_with_cancel, SolveOutcome};
 use crate::frontend::encoder::{encode, ConstraintSystemBuilder, PolyTerm, VarIdx};
 use crate::timeout::CancelToken;
 
 /// AST scratch term: `coeff * prod(vars)` with `vars` carrying
 /// repeated names for higher exponents (`vec!["x", "x"]` = `x^2`).
-/// Used by [`IncrementalSolver::assert_equality`] for incremental
+/// Used by [`RebuildOnCheckSolver::assert_equality`] for incremental
 /// fact storage; converted to [`PolyTerm`] at check time.
 #[derive(Clone, Debug)]
 pub struct NamedTerm {
@@ -39,7 +43,7 @@ pub enum Constraint {
 }
 
 /// Incremental solver state.
-pub struct IncrementalSolver {
+pub struct RebuildOnCheckSolver {
     prime: BigUint,
     add_field_polys: bool,
     facts: Vec<Constraint>,
@@ -47,13 +51,13 @@ pub struct IncrementalSolver {
     push_stack: Vec<usize>,
 }
 
-impl IncrementalSolver {
+impl RebuildOnCheckSolver {
     /// Create a new incremental solver over `GF(prime)`.  If
     /// `add_field_polys` is true, field polynomials `x^p - x` are added
     /// for each variable on every check (typically only needed for very
     /// small primes).
     pub fn new(prime: BigUint, add_field_polys: bool) -> Self {
-        IncrementalSolver {
+        RebuildOnCheckSolver {
             prime,
             add_field_polys,
             facts: Vec::new(),
@@ -154,5 +158,5 @@ impl IncrementalSolver {
 }
 
 #[cfg(test)]
-#[path = "incremental_tests.rs"]
+#[path = "push_pop_tests.rs"]
 mod tests;

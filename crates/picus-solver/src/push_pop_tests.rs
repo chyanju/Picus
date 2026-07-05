@@ -9,7 +9,7 @@ fn term(coeff: u32, vars: &[&str]) -> NamedTerm {
 
 #[test]
 fn test_push_pop_basic() {
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     solver.assert_assignment("x", BigUint::from(2u32));
     match solver.check() {
         SolveOutcome::Sat(_) => {}
@@ -30,7 +30,7 @@ fn test_push_pop_basic() {
 
 #[test]
 fn test_nested_push_pop() {
-    let mut solver = IncrementalSolver::new(BigUint::from(11u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(11u32), false);
     // x + y - 7 = 0
     solver.assert_equality(vec![
         term(1, &["x"]),
@@ -67,7 +67,7 @@ fn test_nested_push_pop() {
 
 #[test]
 fn pop_without_push_is_noop() {
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     solver.assert_assignment("x", BigUint::from(2u32));
     assert_eq!(solver.num_facts(), 1);
     solver.pop(); // no checkpoint pushed — facts retained.
@@ -77,7 +77,7 @@ fn pop_without_push_is_noop() {
 
 #[test]
 fn disequality_unsat_when_endpoints_equal_and_sat_otherwise() {
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     solver.assert_assignment("x", BigUint::from(2u32));
     solver.assert_assignment("y", BigUint::from(2u32));
     solver.assert_disequality("x", "y");
@@ -86,7 +86,7 @@ fn disequality_unsat_when_endpoints_equal_and_sat_otherwise() {
         other => panic!("expected UNSAT, got {:?}", other),
     }
     // Different witnesses: x=2, y=3 satisfies x≠y.
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     solver.assert_assignment("x", BigUint::from(2u32));
     solver.assert_assignment("y", BigUint::from(3u32));
     solver.assert_disequality("x", "y");
@@ -102,7 +102,7 @@ fn disequality_unsat_when_endpoints_equal_and_sat_otherwise() {
 #[test]
 fn equality_with_repeated_var_encodes_as_higher_exponent() {
     // x^2 = 4 in GF(7): vars=["x", "x"] should produce a quadratic.
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     // x^2 + (-4) = 0 (encoded as x^2 + 3 = 0 in GF(7)).
     solver.assert_equality(vec![
         term(1, &["x", "x"]),
@@ -127,7 +127,7 @@ fn encode_failure_surfaces_as_unknown() {
     // equality over 5001 distinct variable names drives the encoder past
     // that bound, so `check` takes the `Err` arm and returns Unknown
     // (never a SAT/UNSAT verdict from an unencodable system).
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     let terms: Vec<NamedTerm> = (0..5001)
         .map(|i| NamedTerm {
             coeff: BigUint::from(1u32),
@@ -141,7 +141,7 @@ fn encode_failure_surfaces_as_unknown() {
 #[test]
 fn check_with_timeout_eventually_returns() {
     // Trivial instance; just exercise the timeout-wrapper code path.
-    let mut solver = IncrementalSolver::new(BigUint::from(7u32), false);
+    let mut solver = RebuildOnCheckSolver::new(BigUint::from(7u32), false);
     solver.assert_assignment("x", BigUint::from(2u32));
     let outcome = solver.check_with_timeout(std::time::Duration::from_secs(5));
     assert!(matches!(outcome, SolveOutcome::Sat(_)));

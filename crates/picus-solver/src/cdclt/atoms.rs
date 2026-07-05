@@ -50,7 +50,7 @@ fn normalize_named_terms(terms: &mut Vec<(BigUint, Vec<String>)>, prime: &BigUin
 /// after [`normalize_named_terms`]. Two equalities are the
 /// same atom iff their canonical keys are equal.
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
-pub struct AtomKey {
+pub(crate) struct AtomKey {
     /// Terms of the canonical polynomial. Each element is
     /// `(coefficient, sorted variable list)`. The list itself is
     /// sorted by `vars` (then by `coeff`), so equal atoms produce
@@ -65,7 +65,7 @@ impl AtomKey {
     /// negates `rhs`, normalizes, then sign-canonicalizes so the
     /// leading coefficient is in `[1, p/2]` — making `(= a b)` and
     /// `(= b a)` agree across producers.
-    pub fn from_indexed_eq(
+    pub(crate) fn from_indexed_eq(
         lhs: &[PolyTerm],
         rhs: &[PolyTerm],
         var_names: &[String],
@@ -110,7 +110,7 @@ impl AtomKey {
 
     /// `true` when the canonical polynomial is the zero polynomial,
     /// i.e. the equality is `0 = 0` — trivially true.
-    pub fn is_trivially_true(&self) -> bool {
+    pub(crate) fn is_trivially_true(&self) -> bool {
         self.terms.is_empty()
     }
 
@@ -125,7 +125,7 @@ impl AtomKey {
     /// degree > 1, or the trivial empty (`0 = 0`) polynomial. Since
     /// `prime` is prime, every non-zero coefficient is invertible, so
     /// any non-zero `a` is handled (not just `±1`).
-    pub fn as_single_var_eq(&self, prime: &BigUint) -> Option<(String, BigUint)> {
+    pub(crate) fn as_single_var_eq(&self, prime: &BigUint) -> Option<(String, BigUint)> {
         if self.terms.is_empty() {
             return None;
         }
@@ -171,7 +171,7 @@ impl AtomKey {
     /// `builder.add_equality`. Within-term repeated names
     /// (`x * x` as `vars = ["x", "x"]`) collapse to a sparse
     /// `(VarIdx, 2)` exponent pair.
-    pub fn intern_into(&self, builder: &mut ConstraintSystemBuilder) -> Vec<PolyTerm> {
+    pub(crate) fn intern_into(&self, builder: &mut ConstraintSystemBuilder) -> Vec<PolyTerm> {
         self.terms
             .iter()
             .map(|(coeff, names)| {
@@ -191,7 +191,7 @@ impl AtomKey {
     /// Intern the negation of this atom's polynomial into `builder`.
     /// Used by `ff_theory` to assemble the Rabinowitsch trick body
     /// `d - lhs = 0`, where `-lhs` is the negated atom polynomial.
-    pub fn intern_negated_into(
+    pub(crate) fn intern_negated_into(
         &self,
         builder: &mut ConstraintSystemBuilder,
         prime: &BigUint,
@@ -219,7 +219,7 @@ impl AtomKey {
 }
 
 /// Interning table: maps canonical atom keys to SAT variables.
-pub struct AtomTable {
+pub(crate) struct AtomTable {
     prime: BigUint,
     by_key: HashMap<AtomKey, Var>,
     by_var: Vec<Option<AtomKey>>,
@@ -231,7 +231,7 @@ pub struct AtomTable {
 }
 
 impl AtomTable {
-    pub fn new(prime: BigUint) -> Self {
+    pub(crate) fn new(prime: BigUint) -> Self {
         AtomTable {
             prime,
             by_key: HashMap::new(),
@@ -241,13 +241,13 @@ impl AtomTable {
         }
     }
 
-    pub fn prime(&self) -> &BigUint {
+    pub(crate) fn prime(&self) -> &BigUint {
         &self.prime
     }
 
     /// Allocate a fresh auxiliary SAT variable that has no associated
     /// atom (used by Tseitin transformations).
-    pub fn new_aux(&mut self, sat: &mut Solver) -> Var {
+    pub(crate) fn new_aux(&mut self, sat: &mut Solver) -> Var {
         let v = sat.new_var();
         self.grow_to(v);
         self.is_aux[v.index()] = true;
@@ -262,7 +262,7 @@ impl AtomTable {
     /// `var_names` frame; the atom table reverse-resolves names
     /// internally to build the name-keyed cache key. Returns
     /// `Trivial(true)` for the constant `0 = 0` case.
-    pub fn intern_eq(
+    pub(crate) fn intern_eq(
         &mut self,
         lhs: &[PolyTerm],
         rhs: &[PolyTerm],
@@ -299,19 +299,19 @@ impl AtomTable {
     /// Look up the canonical atom for a SAT variable. Returns `None`
     /// for auxiliary variables (Tseitin or other) and out-of-range
     /// indices.
-    pub fn atom(&self, v: Var) -> Option<&AtomKey> {
+    pub(crate) fn atom(&self, v: Var) -> Option<&AtomKey> {
         self.by_var.get(v.index()).and_then(|o| o.as_ref())
     }
 
     /// Length of the variable-indexed atom slot vector. Callers iterate
     /// `0..n_atom_slots()` and use `atom(Var(i))` to skip aux slots.
-    pub fn n_atom_slots(&self) -> usize {
+    pub(crate) fn n_atom_slots(&self) -> usize {
         self.by_var.len()
     }
 
     /// Registered single-variable equalities for `var_name` as
     /// `(value, atom_var)` pairs in insertion order.
-    pub fn atoms_for_var(&self, var_name: &str) -> &[(BigUint, Var)] {
+    pub(crate) fn atoms_for_var(&self, var_name: &str) -> &[(BigUint, Var)] {
         self.single_var_eq
             .get(var_name)
             .map(|v| v.as_slice())
@@ -320,7 +320,7 @@ impl AtomTable {
 
     /// `true` iff `v` is a Tseitin / orchestration auxiliary
     /// variable rather than an FF atom.
-    pub fn is_auxiliary(&self, v: Var) -> bool {
+    pub(crate) fn is_auxiliary(&self, v: Var) -> bool {
         self.is_aux.get(v.index()).copied().unwrap_or(false)
     }
 
@@ -334,7 +334,7 @@ impl AtomTable {
 
 /// Outcome of an `intern_eq` call.
 #[derive(Debug)]
-pub enum InternResult {
+pub(crate) enum InternResult {
     /// A SAT variable was returned. The positive literal denotes the
     /// equality holding; the negative literal denotes inequality.
     Var(Var),
@@ -348,7 +348,7 @@ impl InternResult {
     /// Convert into a Lit assuming polarity-positive interpretation.
     /// Returns `Some(Lit::pos(v))` for a real atom; `None` for a
     /// trivially-true atom (caller must constant-fold).
-    pub fn into_lit_pos(self) -> InternLit {
+    pub(crate) fn into_lit_pos(self) -> InternLit {
         match self {
             InternResult::Var(v) => InternLit::Lit(Lit::pos(v)),
             InternResult::Trivial(b) => InternLit::Constant(b),
@@ -356,7 +356,7 @@ impl InternResult {
     }
 
     /// Same as `into_lit_pos` but with negative polarity (disequality).
-    pub fn into_lit_neg(self) -> InternLit {
+    pub(crate) fn into_lit_neg(self) -> InternLit {
         match self {
             InternResult::Var(v) => InternLit::Lit(Lit::neg(v)),
             InternResult::Trivial(b) => InternLit::Constant(!b),
@@ -367,7 +367,7 @@ impl InternResult {
 /// Helper enum used by the CNF builder: an atom interns to either a
 /// real SAT literal or a constant truth value.
 #[derive(Debug)]
-pub enum InternLit {
+pub(crate) enum InternLit {
     Lit(Lit),
     Constant(bool),
 }

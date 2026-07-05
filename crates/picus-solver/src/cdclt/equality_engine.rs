@@ -16,7 +16,7 @@ use crate::sat::Var;
 
 /// Outcome of `notify`: a fresh fact, a redundant fact, or a contradiction.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NotifyOutcome {
+pub(crate) enum NotifyOutcome {
     /// First time this representative is asserted at this polarity. The
     /// caller should forward to the underlying theory.
     Fresh,
@@ -32,7 +32,7 @@ pub enum NotifyOutcome {
 /// have no meaning, but a union of two classes whose endpoints carry
 /// opposite asserted polarities is a theory conflict.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RegisterOutcome {
+pub(crate) enum RegisterOutcome {
     /// Registration completed without exposing a polarity conflict. The
     /// caller need not forward anything to the underlying theory.
     Ok,
@@ -45,7 +45,7 @@ pub enum RegisterOutcome {
 }
 
 /// Union-find equality engine with same-polynomial atom dedup.
-pub struct EqualityEngine {
+pub(crate) struct EqualityEngine {
     /// Union-find parent array. `parent[v.0 as usize] = v` for a root.
     parent: Vec<Var>,
     /// Maps canonical poly bytes → an atom var that owns that canon (the
@@ -72,7 +72,7 @@ impl Default for EqualityEngine {
 }
 
 impl EqualityEngine {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         EqualityEngine {
             parent: Vec::new(),
             canonical_to_rep: HashMap::new(),
@@ -85,7 +85,7 @@ impl EqualityEngine {
 
     /// Read-only union-find resolve. Does NOT path-compress; safe to
     /// call on a `&EqualityEngine`.
-    pub fn rep_of(&self, var: Var) -> Var {
+    pub(crate) fn rep_of(&self, var: Var) -> Var {
         let mut x = var;
         while (x.0 as usize) < self.parent.len() && self.parent[x.0 as usize] != x {
             x = self.parent[x.0 as usize];
@@ -98,7 +98,7 @@ impl EqualityEngine {
     /// asserted on this rep yet. Together with `rep_polarity` lookup
     /// this lets a caller build a precise contradiction lemma when
     /// `notify` returned `Contradiction`.
-    pub fn prior_witness(&self, rep: Var) -> Option<Var> {
+    pub(crate) fn prior_witness(&self, rep: Var) -> Option<Var> {
         self.polarity_witness.get(&rep).copied()
     }
 
@@ -160,7 +160,7 @@ impl EqualityEngine {
     /// On Contradiction the polarity table is left untouched, so a
     /// subsequent [`notify`] on either endpoint trips the same
     /// disagreement.
-    pub fn register_atom(&mut self, var: Var, atom: &AtomKey) -> RegisterOutcome {
+    pub(crate) fn register_atom(&mut self, var: Var, atom: &AtomKey) -> RegisterOutcome {
         self.ensure_slot(var);
         let canon = Self::canonicalise(atom);
         let existing = match self.canonical_to_rep.get(&canon).copied() {
@@ -196,7 +196,7 @@ impl EqualityEngine {
 
     /// Notify the engine of a SAT-asserted fact. Returns whether the
     /// caller should forward the fact, drop it, or treat as conflict.
-    pub fn notify(&mut self, atom: Var, polarity: bool) -> NotifyOutcome {
+    pub(crate) fn notify(&mut self, atom: Var, polarity: bool) -> NotifyOutcome {
         let rep = self.find(atom);
         let prior = self.rep_polarity.get(&rep).copied();
         match prior {
@@ -213,14 +213,14 @@ impl EqualityEngine {
     }
 
     /// Save a checkpoint matching a SAT push.
-    pub fn push(&mut self) {
+    pub(crate) fn push(&mut self) {
         self.levels.push(self.trail.len());
     }
 
     /// Roll back to the most recent push. Polarities and witnesses
     /// asserted since are reverted; union-find structure is not (atom
     /// registration is monotonic across SAT decisions).
-    pub fn pop(&mut self) {
+    pub(crate) fn pop(&mut self) {
         if let Some(height) = self.levels.pop() {
             while self.trail.len() > height {
                 if let Some((rep, prior, prior_witness)) = self.trail.pop() {
@@ -247,7 +247,8 @@ impl EqualityEngine {
 
     /// Number of distinct fresh facts that have reached `notify` since
     /// construction (or last reset of polarities). Useful for tests.
-    pub fn n_fresh_polarities(&self) -> usize {
+    #[cfg(test)]
+    pub(crate) fn n_fresh_polarities(&self) -> usize {
         self.rep_polarity.len()
     }
 }

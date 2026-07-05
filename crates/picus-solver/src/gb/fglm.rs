@@ -64,14 +64,14 @@ const FGLM_MONO_CAP: usize = 200_000;
 /// [`fglm_to_lex_cancel`].
 /// Test-only convenience: production callers use [`fglm_to_lex_cancel`].
 #[cfg(test)]
-pub fn fglm_to_lex(ideal: &Ideal) -> Option<Vec<Poly>> {
+pub(crate) fn fglm_to_lex(ideal: &Ideal) -> Option<Vec<Poly>> {
     fglm_to_lex_cancel(ideal, &CancelToken::none())
 }
 
 /// Cancel-aware FGLM: same as [`fglm_to_lex`] but bails out with `None`
 /// when `cancel` fires mid-walk (large staircases on big primes can
 /// otherwise run for seconds before the BFS queue drains).
-pub fn fglm_to_lex_cancel(ideal: &Ideal, cancel: &CancelToken) -> Option<Vec<Poly>> {
+pub(crate) fn fglm_to_lex_cancel(ideal: &Ideal, cancel: &CancelToken) -> Option<Vec<Poly>> {
     let pr = ideal.poly_ring;
     let f = &pr.field();
     let ctx = pr.ctx();

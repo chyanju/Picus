@@ -27,7 +27,7 @@ use crate::frontend::encoder::{ConstraintSystem, PolyTerm};
 /// same index are merged by adding exponents; terms are sorted by
 /// their `vars` slice; like terms (same `vars`) merge coefficients
 /// modulo `prime`; terms with zero coefficient are dropped.
-pub fn normalize_term_list(terms: &mut Vec<PolyTerm>, prime: &BigUint) {
+pub(crate) fn normalize_term_list(terms: &mut Vec<PolyTerm>, prime: &BigUint) {
     for t in terms.iter_mut() {
         // 1. Within-term: sort by var idx and merge same-idx entries
         //    by summing exponents (handles e.g. `x * x` ↔ `[(x, 2)]`
@@ -75,7 +75,7 @@ pub fn normalize_term_list(terms: &mut Vec<PolyTerm>, prime: &BigUint) {
 
 /// Normalize every equality in a [`ConstraintSystem`].
 /// Equalities whose term list collapses to empty are dropped.
-pub fn rewrite_system(system: &mut ConstraintSystem) {
+pub(crate) fn rewrite_system(system: &mut ConstraintSystem) {
     let prime = system.prime.clone();
     let mut new_equalities = Vec::with_capacity(system.equalities.len());
     for mut eq in std::mem::take(&mut system.equalities) {

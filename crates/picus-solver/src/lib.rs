@@ -6,19 +6,43 @@
 //!
 //! The algorithm follows [OKTB23] "Satisfiability Modulo Finite Fields" (CAV 2023).
 
-// Public modules: used by external crates (picus-smt backends, picus-cli)
-// and/or integration tests under `tests/` / `src/bin/`.
+#![warn(unreachable_pub)]
+
+// Public modules. The only external crate consuming this one is
+// picus-smt's native backend; the remaining public surface serves the
+// crate's own bins (`run_smt2`, `cvc5_compare`), benches, and
+// integration tests. Everything else is pub(crate).
 pub mod boolean;
 pub mod cdclt;
-pub mod core;
-pub mod ff;
+pub(crate) mod ff;
 pub mod frontend;
 pub mod gb;
 pub mod incremental_context;
+pub mod push_pop;
 pub mod smt2;
-pub mod split_gb;
+pub mod solve;
+pub(crate) mod split_gb;
+
+/// Renamed to [`solve`]: a top-of-stack driver named `core` inverted
+/// layering intuition next to the substrate crate `picus-core` and
+/// punned with "UNSAT core". Alias kept for external callers.
+pub use solve as core;
+
+// Curated facade: the items picus-smt's native backend actually
+// consumes, re-exported at the root so the seam is one flat, greppable
+// list (the deep module paths remain valid).
+pub use boolean::{solve_boolean_query, BooleanQuery, Formula, Literal};
+pub use frontend::encoder::{
+    encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm,
+};
+pub use gb::linsolve::eliminate_linear;
+pub use incremental_context::{digest_constraint_side, IncrementalSolverContext};
+pub use solve::{solve_encoded_with_cancel, SolveOutcome};
 
 pub(crate) mod sat;
+
+#[cfg(test)]
+mod strategy_dispatch_tests;
 
 // Shared substrate (runtime config, polynomial ring, profiler, cancellation)
 // lives in picus-core; in-crate code refers to it as

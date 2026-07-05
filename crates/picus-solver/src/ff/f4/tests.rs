@@ -493,7 +493,6 @@ fn f4_incremental_push_pop_roundtrip() {
     let x2 = x(2, &ring);
 
     let cfg = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
@@ -541,7 +540,6 @@ fn f4_incremental_pop_clears_trivial_state() {
     let x1 = x(1, &ring);
 
     let cfg = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: true,
         use_f4: true,
@@ -784,7 +782,6 @@ fn f4_vs_per_pair_bn254_3vars() {
 
         let run = |use_f4: bool| {
             let cfg = BuchbergerConfig {
-                order: MonomialOrder::DegRevLex,
                 cancel_token: None,
                 abort_on_trivial: false,
                 use_f4,
@@ -857,7 +854,6 @@ fn f4_size_fallback_fires_on_small_batches() {
     polys.push(tail);
 
     let cfg_f4 = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
@@ -879,7 +875,6 @@ fn f4_size_fallback_fires_on_small_batches() {
     // Per-pair reference: compare LT sets to confirm the routing
     // decision preserves correctness.
     let cfg_pp = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: false,
@@ -939,7 +934,6 @@ fn f4_matrix_path_fires_on_cyclic_5() {
     polys.push(p);
 
     let cfg = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
@@ -1006,7 +1000,6 @@ fn f4_large_batch_cyclic_6() {
     polys.push(p);
 
     let cfg_f4 = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
@@ -1043,7 +1036,6 @@ fn f4_large_batch_cyclic_6() {
 
     // Per-pair reference.
     let cfg_pp = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: false,
@@ -1128,7 +1120,6 @@ fn f4_large_batch_homog_5vars_deg2() {
     );
 
     let cfg_f4 = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: true,
@@ -1153,7 +1144,6 @@ fn f4_large_batch_homog_5vars_deg2() {
     );
 
     let cfg_pp = BuchbergerConfig {
-        order: MonomialOrder::DegRevLex,
         cancel_token: None,
         abort_on_trivial: false,
         use_f4: false,

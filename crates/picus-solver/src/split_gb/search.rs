@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use crate::frontend::bitprop::BitProp;
+use crate::split_gb::bitprop::BitProp;
 use crate::gb::brancher::Brancher;
 use crate::ff::field::{FieldElem, PrimeField};
 use crate::gb::ideal::Ideal;
@@ -31,7 +31,8 @@ use crate::profile::SPLIT_DFS;
 
 /// Try to extend `cur_r` into a complete zero of the ideal whose generators
 /// are `orig_polys`.
-pub fn split_zero_extend<'r>(
+#[cfg(test)]
+pub(crate) fn split_zero_extend<'r>(
     poly_ring: &'r FfPolyRing,
     orig_polys: &[Poly],
     cur_bases: SplitGb<'r>,

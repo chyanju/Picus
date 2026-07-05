@@ -5,7 +5,7 @@
 //! requiring ITE / disjunction / uninterpreted functions are out of
 //! scope for the polynomial solver and are not covered here.
 
-use picus_solver::core::{solve_encoded, SolveOutcome};
+use picus_solver::solve::{solve_encoded, SolveOutcome};
 mod common;
 use common::{NamedSystem, NamedTerm};
 use num_bigint::BigUint;
@@ -109,9 +109,9 @@ fn test_bigff_is_zero_unsound() {
 // 2nd check (adds c*c=c, c*c=b):              → SAT (c = 1, b = 1)
 #[test]
 fn test_multicheck() {
-    use picus_solver::gb::incremental::IncrementalSolver;
+    use picus_solver::push_pop::RebuildOnCheckSolver;
 
-    let mut s = IncrementalSolver::new(BigUint::from(17u32), false);
+    let mut s = RebuildOnCheckSolver::new(BigUint::from(17u32), false);
     // a*a - b = 0
     s.assert_equality(vec![pt(1, &["a", "a"]), svt(16, "b")]);
     // a - 1 = 0
@@ -143,9 +143,9 @@ fn test_multicheck() {
 //   pop
 #[test]
 fn test_ctx_incremental() {
-    use picus_solver::gb::incremental::IncrementalSolver;
+    use picus_solver::push_pop::RebuildOnCheckSolver;
 
-    let mut s = IncrementalSolver::new(BigUint::from(17u32), false);
+    let mut s = RebuildOnCheckSolver::new(BigUint::from(17u32), false);
     s.assert_equality(vec![pt(1, &["a", "a"]), svt(16, "b")]);
     s.assert_equality(vec![vt("a"), ct(16)]);
     assert!(matches!(s.check(), SolveOutcome::Sat(_)), "first check");

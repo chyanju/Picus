@@ -172,7 +172,7 @@ impl PolySystem {
     /// [`Self::to_constraint_system`] and routes through
     /// [`picus_solver::frontend::encoder::encode`] (which runs
     /// `rewriter::rewrite_system` and `auto_extract_bitsums`).
-    pub fn encode(&self) -> Result<EncodedSystem, String> {
+    pub fn encode(&self) -> Result<EncodedSystem, picus_solver::EngineError> {
         encode(&self.to_constraint_system())
     }
 }

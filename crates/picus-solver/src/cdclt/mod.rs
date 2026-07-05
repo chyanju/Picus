@@ -4,17 +4,17 @@
 //! ([`crate::sat::Solver`]) is the Boolean reasoner; an arbitrary
 //! [`theory::Theory`] implementation acts as the theory plug-in. The
 //! FF theory ([`ff_theory::FfTheory`]) is the concrete instance for
-//! QF_FF queries and wraps [`crate::core::solve_encoded_with_cancel`].
+//! QF_FF queries and wraps [`crate::solve::solve_encoded_with_cancel`].
 
-pub mod atoms;
-pub mod cnf;
-pub mod ee_filtered;
-pub mod equality_engine;
-pub mod ff_theory;
-pub mod ff_theory_incremental;
-pub mod multi_prime;
-pub mod orchestrator;
-pub mod theory;
+pub(crate) mod atoms;
+pub(crate) mod cnf;
+pub(crate) mod ee_filtered;
+pub(crate) mod equality_engine;
+pub(crate) mod ff_theory;
+pub(crate) mod ff_theory_incremental;
+pub(crate) mod multi_prime;
+pub(crate) mod orchestrator;
+pub(crate) mod theory;
 
 pub use orchestrator::solve_formula;
 

@@ -26,6 +26,7 @@ use std::collections::HashMap;
 use crate::ff::field::PrimeField;
 use crate::ff::matrix_order::{intern as intern_order, MatrixOrder};
 use crate::ff::monomial::MonomialOrder;
+use crate::EngineError;
 use crate::poly::{FfPolyRing, Poly};
 
 /// Origin of an entry in [`EncodedSystem::polynomials`], parallel to it
@@ -123,7 +124,7 @@ pub use bitsum_extract::*;
 ///   2. `rewriter::rewrite_system`: canonicalise terms.
 ///   3. `auto_extract_bitsums`: extract bitsum chains into
 ///      `bitsum_polys`.
-pub fn encode(system: &ConstraintSystem) -> Result<EncodedSystem, String> {
+pub fn encode(system: &ConstraintSystem) -> Result<EncodedSystem, EngineError> {
     let compacted = compact_used_vars(system);
     let mut rewritten = compacted;
     crate::frontend::rewriter::rewrite_system(&mut rewritten);
@@ -136,7 +137,7 @@ pub fn encode(system: &ConstraintSystem) -> Result<EncodedSystem, String> {
 /// disequalities.
 pub fn encode_constraint_side(
     system: &ConstraintSystem,
-) -> Result<EncodedSystem, String> {
+) -> Result<EncodedSystem, EngineError> {
     let compacted = compact_used_vars(system);
     let mut rewritten = compacted;
     crate::frontend::rewriter::rewrite_system(&mut rewritten);
@@ -276,7 +277,7 @@ fn choose_solve_order(var_names: &[String]) -> MonomialOrder {
 fn encode_impl(
     system: &ConstraintSystem,
     emit_rabinowitsch: bool,
-) -> Result<EncodedSystem, String> {
+) -> Result<EncodedSystem, EngineError> {
     // Ring is `var_names` from the system, then aux witness vars for
     // disequalities and bitsums (one each, appended in order).
     let mut var_names: Vec<String> = system.var_names.clone();
@@ -311,10 +312,10 @@ fn encode_impl(
 
     let n_vars = var_names.len();
     if n_vars > 5000 {
-        return Err(format!(
+        return Err(EngineError::Encoding(format!(
             "too many variables ({}) for polynomial ring construction",
             n_vars
-        ));
+        )));
     }
 
     let field = PrimeField::new(system.prime.clone());
@@ -352,10 +353,10 @@ fn encode_impl(
             let mut t = poly_ring.constant(c);
             for &(vidx, exp) in &term.vars {
                 if (vidx as usize) >= n_ring {
-                    return Err(format!(
+                    return Err(EngineError::Encoding(format!(
                         "equality term references var_idx {} but ring has only {} vars",
                         vidx, n_ring
-                    ));
+                    )));
                 }
                 let v_poly = poly_ring.var(vidx as usize);
                 for _ in 0..exp {
@@ -373,10 +374,10 @@ fn encode_impl(
     // Assignments: v - val = 0.
     for (v_idx, val) in &system.assignments {
         if (*v_idx as usize) >= n_user {
-            return Err(format!(
+            return Err(EngineError::Encoding(format!(
                 "assignment references var_idx {} but only {} user vars exist",
                 v_idx, n_user
-            ));
+            )));
         }
         let v = poly_ring.var(*v_idx as usize);
         let c = poly_ring.constant(poly_ring.field().from_biguint(val));
@@ -393,11 +394,11 @@ fn encode_impl(
             system.disequalities.iter().zip(witness_idxs.iter()).enumerate()
         {
             if (*a as usize) >= n_user || (*b as usize) >= n_user {
-                return Err(format!(
+                return Err(EngineError::Encoding(format!(
                     "disequality references var_idx >= {} but only {} user vars exist",
                     a.max(b),
                     n_user
-                ));
+                )));
             }
             let diff = poly_ring.sub(
                 poly_ring.var(*a as usize),
@@ -419,10 +420,10 @@ fn encode_impl(
         let mut coeff = poly_ring.field().one();
         for &bit_idx in bs {
             if (bit_idx as usize) >= n_user {
-                return Err(format!(
+                return Err(EngineError::Encoding(format!(
                     "bitsum references var_idx {} but only {} user vars exist",
                     bit_idx, n_user
-                ));
+                )));
             }
             let term = poly_ring.scale(fp.clone_el(&coeff), poly_ring.var(bit_idx as usize));
             sum = poly_ring.add(sum, term);

@@ -25,30 +25,37 @@
 //! ([`split_find_zero`], [`split_find_zero_cancel`]), and the trivial
 //! helpers (`admit`, `total_degree`, `num_terms`).
 
+pub(crate) mod bitprop;
 mod branching;
 mod fixpoint;
 mod search;
 
-pub use branching::apply_rule;
-pub use fixpoint::{split_gb, split_gb_cancel, split_gb_cancel_traced, TracedSplitGb};
+pub(crate) use fixpoint::{split_gb_cancel, split_gb_cancel_traced};
 pub(crate) use fixpoint::split_gb_extend_cancel;
-pub use search::{split_zero_extend, split_zero_extend_cancel};
+pub(crate) use search::split_zero_extend_cancel;
 
-use crate::frontend::bitprop::BitProp;
+// Token-less twins, kept for unit tests only: production callers must
+// pass a live cancel token.
+#[cfg(test)]
+pub(crate) use branching::apply_rule;
+#[cfg(test)]
+pub(crate) use fixpoint::split_gb;
+
+use crate::split_gb::bitprop::BitProp;
 use crate::ff::field::FieldElem;
 use crate::gb::ideal::Ideal;
 use crate::poly::{FfPolyRing, Poly};
 use crate::timeout::{CancelToken, Cancelled};
 
 /// A split Groebner basis: one [`Ideal`] per partition.
-pub type SplitGb<'r> = Vec<Ideal<'r>>;
+pub(crate) type SplitGb<'r> = Vec<Ideal<'r>>;
 
 /// A partial assignment of variable indices to field values.
-pub type PartialPoint = Vec<Option<FieldElem>>;
+pub(crate) type PartialPoint = Vec<Option<FieldElem>>;
 
 /// Result of [`split_zero_extend`].
 #[derive(Debug)]
-pub enum ZeroExtendResult {
+pub(crate) enum ZeroExtendResult {
     /// A complete assignment was found.
     Point(Vec<FieldElem>),
     /// A conflict polynomial: not in `bases[0]` but evaluates to non-zero
@@ -69,7 +76,7 @@ pub enum ZeroExtendResult {
 /// a large prime field; the formula may still be SAT outside the range
 /// tried. Callers must NOT treat `Unknown` as UNSAT.
 #[derive(Debug)]
-pub enum SplitFindZeroOutcome {
+pub(crate) enum SplitFindZeroOutcome {
     Sat(Vec<FieldElem>),
     Unsat,
     Unknown,
@@ -83,7 +90,7 @@ pub enum SplitFindZeroOutcome {
 ///   - basis 1 (nonlinear): admits `p` iff `deg(p) <= 1` and
 ///                          `numTerms(p) <= 2`.
 ///   - any other index: never admit.
-pub fn admit(_pr: &FfPolyRing, idx: usize, p: &Poly) -> bool {
+pub(crate) fn admit(_pr: &FfPolyRing, idx: usize, p: &Poly) -> bool {
     if total_degree(p) > 1 { return false; }
     match idx {
         0 => true,
@@ -205,12 +212,12 @@ pub(crate) fn max_fixpoint_iters(k: usize) -> u64 {
 }
 
 /// Total degree of a polynomial.
-pub fn total_degree(p: &Poly) -> usize {
+pub(crate) fn total_degree(p: &Poly) -> usize {
     p.total_degree() as usize
 }
 
 /// Number of terms in a polynomial.
-pub fn num_terms(p: &Poly) -> usize {
+pub(crate) fn num_terms(p: &Poly) -> usize {
     p.num_terms()
 }
 
@@ -255,7 +262,8 @@ fn try_split_triangular<'r>(
 
 /// Encode `(orig_polys, bitsums)` into a split GB, run the propagation
 /// fixpoint, then [`split_zero_extend`] to extract a model.
-pub fn split_find_zero<'r>(
+#[cfg(test)]
+pub(crate) fn split_find_zero<'r>(
     poly_ring: &'r FfPolyRing,
     split_basis: SplitGb<'r>,
     bit_prop: &mut BitProp<'r>,
@@ -268,7 +276,7 @@ pub fn split_find_zero<'r>(
 
 /// Cancel-aware model search. Returns `Sat / Unsat / Unknown` on
 /// success; `Err(Cancelled)` on timeout.
-pub fn split_find_zero_cancel<'r>(
+pub(crate) fn split_find_zero_cancel<'r>(
     poly_ring: &'r FfPolyRing,
     split_basis: SplitGb<'r>,
     bit_prop: &mut BitProp<'r>,

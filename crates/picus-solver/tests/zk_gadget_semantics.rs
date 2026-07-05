@@ -7,7 +7,7 @@ use common::{NamedSystem, NamedTerm};
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use picus_solver::core::{solve_encoded, SolveOutcome};
+use picus_solver::solve::{solve_encoded, SolveOutcome};
 
 fn ipt(c: u64, vars: &[&str]) -> NamedTerm {
     NamedTerm {

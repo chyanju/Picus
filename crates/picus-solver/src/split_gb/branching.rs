@@ -27,7 +27,7 @@ use super::PartialPoint;
 ///     unassigned variable and enumerate its roots;
 /// (3) otherwise, round-robin: for each unassigned variable, try
 ///     values in `0..min(p, cap)` (lazily generated).
-pub fn apply_rule<'r>(
+pub(crate) fn apply_rule<'r>(
     poly_ring: &'r FfPolyRing,
     gb: &Ideal<'r>,
     r: &PartialPoint,

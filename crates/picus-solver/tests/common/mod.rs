@@ -10,15 +10,15 @@ use std::collections::BTreeMap;
 
 use num_bigint::BigUint;
 
-use picus_solver::core::{solve_encoded, SolveOutcome};
+use picus_solver::solve::{solve_encoded, SolveOutcome};
 use picus_solver::frontend::encoder::{
     encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm, VarIdx,
 };
 
 /// Name-keyed AST scratch term. Re-exported from
-/// [`picus_solver::gb::incremental`] so the `pt(..)` helper here and
-/// `IncrementalSolver::assert_equality` agree on one struct.
-pub use picus_solver::gb::incremental::NamedTerm;
+/// [`picus_solver::push_pop`] so the `pt(..)` helper here and
+/// `RebuildOnCheckSolver::assert_equality` agree on one struct.
+pub use picus_solver::push_pop::NamedTerm;
 
 #[allow(dead_code)]
 fn intern_named_term(t: &NamedTerm, builder: &mut ConstraintSystemBuilder) -> PolyTerm {
@@ -117,7 +117,7 @@ impl NamedSystem {
 
     #[allow(dead_code)]
     pub fn encode(&self) -> Result<EncodedSystem, String> {
-        encode(&self.build())
+        encode(&self.build()).map_err(|e| e.to_string())
     }
 
     #[allow(dead_code)]

@@ -75,7 +75,7 @@ use matrix::{poly_to_sparse_row, sparse_row_to_poly, MonoKey, RowProv, SparseRow
 /// `lt_divmask` is the 128-bit divisibility fingerprint of `lt`,
 /// used by `symbolic_preprocess` as a constant-time filter before
 /// the O(n_vars) `Monomial::divides` check.
-pub struct F4BasisRef<'a> {
+pub(crate) struct F4BasisRef<'a> {
     pub poly: &'a DensePoly,
     pub lt: &'a Monomial,
     pub lt_divmask: DivMask,
@@ -89,7 +89,7 @@ pub struct F4BasisRef<'a> {
 /// `on_new_poly` so the `GbTracer` UNSAT-core dependency graph
 /// stays accurate under F4.
 #[derive(Debug, Clone)]
-pub struct F4Output {
+pub(crate) struct F4Output {
     pub poly: DensePoly,
     /// Indices into the `batch[]` argument of [`process_batch`] —
     /// every pair whose S-polynomial row contributed to this output.
@@ -128,7 +128,7 @@ pub struct F4Output {
 /// workspace on every call disables both the cache and the scratch
 /// reuse — output is unchanged, allocator traffic increases.
 #[derive(Default)]
-pub struct F4Workspace {
+pub(crate) struct F4Workspace {
     /// `m -> basis_idx`. Stores only the basis-element index whose
     /// LT divides `m`; the reducer polynomial is materialised on the
     /// fly via `basis[bi].poly.mul_term(m / LT(basis[bi]), 1)` at
@@ -159,14 +159,14 @@ pub struct F4Workspace {
 
 /// Cache-hit / miss statistics for diagnostic and benchmark use.
 #[derive(Default, Debug, Clone, Copy)]
-pub struct F4WorkspaceStats {
+pub(crate) struct F4WorkspaceStats {
     pub reducer_hits: u64,
     pub reducer_misses: u64,
     pub reducer_stale: u64,
 }
 
 impl F4Workspace {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 }
@@ -180,7 +180,7 @@ impl F4Workspace {
 ///
 /// `basis` must contain only active basis elements; the function
 /// does not check `active` flags.
-pub fn process_batch(
+pub(crate) fn process_batch(
     batch: &[&SPair],
     basis: &[F4BasisRef],
     ring: &Arc<PolyRing>,
@@ -194,7 +194,7 @@ pub fn process_batch(
 /// reducer-row computation across calls in
 /// `workspace.reducer_cache`; output matches [`process_batch`]
 /// exactly for any input.
-pub fn process_batch_with_workspace(
+pub(crate) fn process_batch_with_workspace(
     batch: &[&SPair],
     basis: &[F4BasisRef],
     ring: &Arc<PolyRing>,

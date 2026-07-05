@@ -17,47 +17,47 @@ use crate::timeout::CancelToken;
 /// stripped so `coeffs.last()` is always non-zero (or the vector is empty for
 /// the zero polynomial).
 #[derive(Clone, Debug)]
-pub struct UnivariatePoly {
+pub(crate) struct UnivariatePoly {
     coeffs: Vec<FieldElem>,
 }
 
 impl UnivariatePoly {
-    pub fn zero() -> Self {
+    pub(crate) fn zero() -> Self {
         UnivariatePoly { coeffs: Vec::new() }
     }
 
-    pub fn one(field: &PrimeField) -> Self {
+    pub(crate) fn one(field: &PrimeField) -> Self {
         UnivariatePoly { coeffs: vec![field.one()] }
     }
 
     /// Build from a list of coefficients (low-to-high). Trailing zeros are
     /// trimmed so the leading coefficient (if any) is non-zero.
-    pub fn from_coeffs(mut coeffs: Vec<FieldElem>, field: &PrimeField) -> Self {
+    pub(crate) fn from_coeffs(mut coeffs: Vec<FieldElem>, field: &PrimeField) -> Self {
         while coeffs.last().map_or(false, |c| field.is_zero(c)) {
             coeffs.pop();
         }
         UnivariatePoly { coeffs }
     }
 
-    pub fn coeffs(&self) -> &[FieldElem] {
+    pub(crate) fn coeffs(&self) -> &[FieldElem] {
         &self.coeffs
     }
 
     /// Degree of the polynomial; `None` for the zero polynomial.
-    pub fn degree(&self) -> Option<usize> {
+    pub(crate) fn degree(&self) -> Option<usize> {
         if self.coeffs.is_empty() { None } else { Some(self.coeffs.len() - 1) }
     }
 
-    pub fn is_zero(&self) -> bool {
+    pub(crate) fn is_zero(&self) -> bool {
         self.coeffs.is_empty()
     }
 
     /// Leading coefficient (None for the zero polynomial).
-    pub fn leading_coefficient(&self) -> Option<&FieldElem> {
+    pub(crate) fn leading_coefficient(&self) -> Option<&FieldElem> {
         self.coeffs.last()
     }
 
-    pub fn evaluate(&self, x: &FieldElem, field: &PrimeField) -> FieldElem {
+    pub(crate) fn evaluate(&self, x: &FieldElem, field: &PrimeField) -> FieldElem {
         // Horner's rule.
         let mut acc = field.zero();
         for c in self.coeffs.iter().rev() {
@@ -67,7 +67,8 @@ impl UnivariatePoly {
         acc
     }
 
-    pub fn add(&self, other: &Self, field: &PrimeField) -> Self {
+    #[cfg(test)]
+    pub(crate) fn add(&self, other: &Self, field: &PrimeField) -> Self {
         let n = self.coeffs.len().max(other.coeffs.len());
         let mut out = Vec::with_capacity(n);
         for i in 0..n {
@@ -84,7 +85,7 @@ impl UnivariatePoly {
         UnivariatePoly::from_coeffs(out, field)
     }
 
-    pub fn sub(&self, other: &Self, field: &PrimeField) -> Self {
+    pub(crate) fn sub(&self, other: &Self, field: &PrimeField) -> Self {
         let n = self.coeffs.len().max(other.coeffs.len());
         let mut out = Vec::with_capacity(n);
         for i in 0..n {
@@ -101,12 +102,13 @@ impl UnivariatePoly {
         UnivariatePoly::from_coeffs(out, field)
     }
 
-    pub fn neg(&self, field: &PrimeField) -> Self {
+    #[cfg(test)]
+    pub(crate) fn neg(&self, field: &PrimeField) -> Self {
         let coeffs = self.coeffs.iter().map(|c| field.neg(c)).collect();
         UnivariatePoly { coeffs }
     }
 
-    pub fn mul(&self, other: &Self, field: &PrimeField) -> Self {
+    pub(crate) fn mul(&self, other: &Self, field: &PrimeField) -> Self {
         if self.is_zero() || other.is_zero() {
             return UnivariatePoly::zero();
         }
@@ -124,7 +126,7 @@ impl UnivariatePoly {
         UnivariatePoly::from_coeffs(out, field)
     }
 
-    pub fn scale(&self, c: &FieldElem, field: &PrimeField) -> Self {
+    pub(crate) fn scale(&self, c: &FieldElem, field: &PrimeField) -> Self {
         if field.is_zero(c) || self.is_zero() {
             return UnivariatePoly::zero();
         }
@@ -134,7 +136,7 @@ impl UnivariatePoly {
 
     /// Polynomial long division: returns `(q, r)` such that `self = q * other + r`
     /// with `deg(r) < deg(other)`. Panics if `other` is zero.
-    pub fn div_rem(&self, other: &Self, field: &PrimeField) -> (Self, Self) {
+    pub(crate) fn div_rem(&self, other: &Self, field: &PrimeField) -> (Self, Self) {
         assert!(!other.is_zero(), "division by zero polynomial");
         if self.degree() < other.degree() {
             return (UnivariatePoly::zero(), self.clone());
@@ -170,12 +172,12 @@ impl UnivariatePoly {
         (q, rem)
     }
 
-    pub fn rem(&self, other: &Self, field: &PrimeField) -> Self {
+    pub(crate) fn rem(&self, other: &Self, field: &PrimeField) -> Self {
         self.div_rem(other, field).1
     }
 
     /// Monic GCD of `self` and `other` (Euclidean algorithm).
-    pub fn gcd(&self, other: &Self, field: &PrimeField) -> Self {
+    pub(crate) fn gcd(&self, other: &Self, field: &PrimeField) -> Self {
         let mut a = self.clone();
         let mut b = other.clone();
         while !b.is_zero() {
@@ -186,7 +188,7 @@ impl UnivariatePoly {
         if a.is_zero() { a } else { a.make_monic(field) }
     }
 
-    pub fn make_monic(&self, field: &PrimeField) -> Self {
+    pub(crate) fn make_monic(&self, field: &PrimeField) -> Self {
         if self.is_zero() {
             return UnivariatePoly::zero();
         }
@@ -199,7 +201,7 @@ impl UnivariatePoly {
     }
 
     /// Formal derivative.
-    pub fn derivative(&self, field: &PrimeField) -> Self {
+    pub(crate) fn derivative(&self, field: &PrimeField) -> Self {
         if self.coeffs.len() <= 1 {
             return UnivariatePoly::zero();
         }
@@ -212,7 +214,8 @@ impl UnivariatePoly {
     }
 
     /// Compute `self^exp mod modulus` using square-and-multiply.
-    pub fn pow_mod(&self, exp: &BigUint, modulus: &Self, field: &PrimeField) -> Self {
+    #[cfg(test)]
+    pub(crate) fn pow_mod(&self, exp: &BigUint, modulus: &Self, field: &PrimeField) -> Self {
         self.pow_mod_cancel(exp, modulus, field, None)
             .expect("pow_mod without a cancel token cannot be cancelled")
     }
@@ -222,7 +225,7 @@ impl UnivariatePoly {
     /// 254-bit prime the loop runs up to 254 iterations, making this the
     /// longest otherwise-poll-free region in the crate). Returns `None`
     /// when cancelled.
-    pub fn pow_mod_cancel(
+    pub(crate) fn pow_mod_cancel(
         &self,
         exp: &BigUint,
         modulus: &Self,
@@ -501,7 +504,8 @@ pub(crate) fn cantor_zassenhaus(
 /// Find all roots of `poly` in GF(p). Returns an empty vector if `poly` is
 /// the zero polynomial (every element is a root, which is not a useful
 /// answer; callers should check for the zero case themselves).
-pub fn find_roots(poly: &UnivariatePoly, field: &PrimeField) -> Vec<FieldElem> {
+#[cfg(test)]
+pub(crate) fn find_roots(poly: &UnivariatePoly, field: &PrimeField) -> Vec<FieldElem> {
     find_roots_checked(poly, field).0
 }
 
@@ -520,7 +524,8 @@ pub fn find_roots(poly: &UnivariatePoly, field: &PrimeField) -> Vec<FieldElem> {
 /// satisfying assignment — concluding UNSAT there would be unsound. Such
 /// callers should fall back to a non-exhaustive search (yielding Unknown)
 /// instead.
-pub fn find_roots_checked(poly: &UnivariatePoly, field: &PrimeField) -> (Vec<FieldElem>, bool) {
+#[cfg(test)]
+pub(crate) fn find_roots_checked(poly: &UnivariatePoly, field: &PrimeField) -> (Vec<FieldElem>, bool) {
     find_roots_checked_cancel(poly, field, None)
 }
 
@@ -528,7 +533,7 @@ pub fn find_roots_checked(poly: &UnivariatePoly, field: &PrimeField) -> (Vec<Fie
 /// the result is `(roots_so_far, false)` — the same shape as an exhausted
 /// split budget, so every caller that honours the completeness contract
 /// degrades soundly (to Unknown, never a false UNSAT).
-pub fn find_roots_checked_cancel(
+pub(crate) fn find_roots_checked_cancel(
     poly: &UnivariatePoly,
     field: &PrimeField,
     cancel: Option<&CancelToken>,

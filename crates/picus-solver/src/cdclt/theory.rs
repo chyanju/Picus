@@ -17,7 +17,7 @@ use crate::sat::Var;
 
 /// Outcome of a theory check.
 #[derive(Debug)]
-pub enum CheckOutcome {
+pub(crate) enum CheckOutcome {
     /// All asserted facts are consistent.
     Sat,
     /// A subset of asserted-True atom vars is inconsistent. The
@@ -36,7 +36,7 @@ pub enum CheckOutcome {
 }
 
 /// Theory plug-in interface.
-pub trait Theory {
+pub(crate) trait Theory {
     /// SAT just committed `(atom, polarity)`. Theory should record
     /// this so a later `post_check` can reason about it. Order
     /// matters: facts arrive in SAT trail order.

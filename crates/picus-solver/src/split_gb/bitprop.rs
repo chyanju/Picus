@@ -26,7 +26,7 @@ use crate::poly::{FfPolyRing, Poly};
 use crate::timeout::CancelToken;
 
 /// State for bit propagation across multiple GBs.
-pub struct BitProp<'r> {
+pub(crate) struct BitProp<'r> {
     pub poly_ring: &'r FfPolyRing,
     /// Variables known to be bit-constrained (by user-asserted `x*(x-1)=0`).
     pub bits: HashSet<usize>,
@@ -41,24 +41,50 @@ pub struct BitProp<'r> {
 /// the poly ring; this owned form reconstitutes via
 /// [`BitProp::from_state`].
 #[derive(Clone, Default, Debug)]
-pub struct BitPropState {
+pub(crate) struct BitPropState {
     pub bits: HashSet<usize>,
     pub bitsums: Vec<Vec<usize>>,
 }
 
 impl<'r> BitProp<'r> {
-    pub fn new(poly_ring: &'r FfPolyRing) -> Self {
+    pub(crate) fn new(poly_ring: &'r FfPolyRing) -> Self {
         BitProp { poly_ring, bits: HashSet::new(), bitsums: Vec::new() }
     }
 
+    /// Scan encoded polynomials for bit constraints (`x*(x-1) = 0`)
+    /// and bitsum patterns, registering what they define. Callable
+    /// repeatedly; later scans see the bits collected by earlier ones.
+    pub(crate) fn scan_polys(&mut self, polys: &[Poly]) {
+        // Phase 1: detect bit constraints (x^2 - x = 0) → add_bit
+        for p in polys {
+            if let Some(bc) = crate::frontend::parse::bit_constraint(self.poly_ring, p) {
+                self.add_bit(bc.var);
+            }
+        }
+        // Phase 2: detect bitsums in each polynomial → add_bitsum.
+        // All known bit variables form the hint set.
+        let bits_hint: std::collections::HashSet<usize> = self.bits.clone();
+        for p in polys {
+            if let Some((sums, _residual)) =
+                crate::frontend::parse::bit_sums(self.poly_ring, p, &bits_hint)
+            {
+                for bs in &sums {
+                    if bs.bits.len() >= 2 {
+                        self.add_bitsum(bs.bits.clone());
+                    }
+                }
+            }
+        }
+    }
+
     /// Mark `var` as bit-constrained.
-    pub fn add_bit(&mut self, var: usize) { self.bits.insert(var); }
+    pub(crate) fn add_bit(&mut self, var: usize) { self.bits.insert(var); }
 
     /// Register a known bitsum (variable indices, lowest bit first).
-    pub fn add_bitsum(&mut self, bits: Vec<usize>) { self.bitsums.push(bits); }
+    pub(crate) fn add_bitsum(&mut self, bits: Vec<usize>) { self.bitsums.push(bits); }
 
     /// Snapshot the logical state into an owned form (for caching).
-    pub fn to_state(&self) -> BitPropState {
+    pub(crate) fn to_state(&self) -> BitPropState {
         BitPropState {
             bits: self.bits.clone(),
             bitsums: self.bitsums.clone(),
@@ -66,7 +92,7 @@ impl<'r> BitProp<'r> {
     }
 
     /// Reconstruct a `BitProp` from a saved state and a poly_ring borrow.
-    pub fn from_state(poly_ring: &'r FfPolyRing, state: BitPropState) -> Self {
+    pub(crate) fn from_state(poly_ring: &'r FfPolyRing, state: BitPropState) -> Self {
         BitProp {
             poly_ring,
             bits: state.bits,
@@ -86,7 +112,7 @@ impl<'r> BitProp<'r> {
     /// would let `get_bit_equalities` treat a non-bit variable as a bit on a
     /// sibling branch and emit a spurious overflow contradiction (false
     /// UNSAT). `self.bits` therefore holds only globally-valid bits.
-    pub fn is_bit(&self, var: usize, split_basis: &[Ideal<'r>]) -> bool {
+    pub(crate) fn is_bit(&self, var: usize, split_basis: &[Ideal<'r>]) -> bool {
         if self.bits.contains(&var) {
             return true;
         }
@@ -100,7 +126,8 @@ impl<'r> BitProp<'r> {
     /// Derive new equalities (as polynomials whose `=0` form is asserted)
     /// from the structure of the bitsums and the current GB.  See cvc5's
     /// `BitProp::getBitEqualities` for the original algorithm.
-    pub fn get_bit_equalities(&self, split_basis: &[Ideal<'r>]) -> Vec<Poly> {
+    #[cfg(test)]
+    pub(crate) fn get_bit_equalities(&self, split_basis: &[Ideal<'r>]) -> Vec<Poly> {
         self.get_bit_equalities_with_cancel(split_basis, None)
     }
 

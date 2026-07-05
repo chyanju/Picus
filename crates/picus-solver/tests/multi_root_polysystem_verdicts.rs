@@ -1,4 +1,4 @@
-//! Multi-root solver tests driven through [`picus_solver::core::solve_encoded`].
+//! Multi-root solver tests driven through [`picus_solver::solve::solve_encoded`].
 //!
 //! Each test constructs an [`crate::EncodedSystem`] from polynomial
 //! generators and checks the SAT / UNSAT verdict (and, for SAT, that
@@ -7,7 +7,7 @@
 //! `IsUnsat` cases use the `add_field_polys` flag to introduce field
 //! polynomials when the test requires the resulting contradiction.
 
-use picus_solver::core::{solve_encoded, SolveOutcome};
+use picus_solver::solve::{solve_encoded, SolveOutcome};
 mod common;
 use common::{NamedSystem, NamedTerm};
 use num_bigint::BigUint;
