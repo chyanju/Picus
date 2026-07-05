@@ -45,7 +45,6 @@ fn main() {
             radical_membership,
             matrix_elim_order,
             dynamic_order,
-            signature_criterion,
             zech_log_small_fp,
             reducer_index_cache,
             frobenius_cache,
@@ -100,13 +99,11 @@ fn main() {
                     linear_elim: linear_elim.then_some(true),
                     // Config-file only (no CLI flag): precise inter-reduce
                     // core tracking is a niche knob; set it via picus.toml.
-                    track_inter_reduce_deps: None,
                     split_triangular: on_off(&split_triangular),
                     membership_fastpath: on_off(&membership_fastpath),
                     radical_membership: on_off(&radical_membership),
                     matrix_elim_order: on_off(&matrix_elim_order),
                     dynamic_order: on_off(&dynamic_order),
-                    signature_criterion: on_off(&signature_criterion),
                     zech_log_small_fp: on_off(&zech_log_small_fp),
                     reducer_index_cache: on_off(&reducer_index_cache),
                     frobenius_cache: on_off(&frobenius_cache),

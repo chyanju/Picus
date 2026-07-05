@@ -40,6 +40,9 @@ pub enum FindZeroOutcome {
 /// search exhausted a non-exhaustive round-robin brancher on a large
 /// prime field — the formula could still have a model outside the
 /// bounded range).
+/// Test-only convenience: production callers must pass a live token via
+/// [`find_zero_cancel`] so the search shares the solve deadline.
+#[cfg(test)]
 pub fn find_zero(
     poly_ring: &FfPolyRing,
     initial_gb: &[Poly],

@@ -1,11 +1,9 @@
 //! UNSAT core type and high-level solving API.
 //!
 //! An UNSAT core is a list of input fact indices that are jointly
-//! unsatisfiable. The single-GB solver uses Buchberger observer hooks
-//! (via [`crate::gb::tracer::GbTracer`]) to track which input polynomials
-//! contribute to the UNSAT proof. The split-GB solver returns the traced
-//! dependency core when the whole-ring element can be attributed to a
-//! subset of inputs, and the all-input core as a sound fallback otherwise.
+//! unsatisfiable. The split-GB solver returns the traced dependency core
+//! when the whole-ring element can be attributed to a subset of inputs,
+//! and the all-input core as a sound fallback otherwise.
 
 use std::collections::{HashMap, HashSet};
 
@@ -13,7 +11,6 @@ use num_bigint::BigUint;
 
 use crate::frontend::bitprop::BitProp;
 use crate::frontend::encoder::EncodedSystem;
-use crate::gb::{compute_gb_with_timeout_traced, GbResultTraced};
 use crate::gb::ideal::Ideal;
 use crate::gb::model;
 use crate::frontend::parse;
@@ -118,38 +115,6 @@ pub(crate) fn radical_membership_unsat(
 /// Solve an `EncodedSystem` directly.  Convenience wrapper.
 pub fn solve_encoded(encoded: &EncodedSystem) -> SolveOutcome {
     solve_encoded_with_cancel(encoded, &CancelToken::none())
-}
-
-/// Single Groebner basis solver.
-///
-/// Uses Buchberger observer hooks to trace which input polynomials
-/// contribute to an UNSAT proof.
-pub fn solve_single_gb(
-    poly_ring: &FfPolyRing,
-    polynomials: Vec<Poly>,
-) -> SolveOutcome {
-    let n_polys = polynomials.len();
-    let gb_result = compute_gb_with_timeout_traced(poly_ring, polynomials, None);
-    match gb_result {
-        GbResultTraced::Trivial(core) => SolveOutcome::Unsat(core),
-        GbResultTraced::Timeout => SolveOutcome::Unknown,
-        GbResultTraced::NonTrivial(gb) => {
-            match model::find_zero(poly_ring, &gb) {
-                model::FindZeroOutcome::Sat(m) => {
-                    if model::verify_model(poly_ring, &gb, &m) {
-                        SolveOutcome::Sat(m)
-                    } else {
-                        log::warn!("SingleGb model validation failed; reporting Unknown");
-                        SolveOutcome::Unknown
-                    }
-                }
-                model::FindZeroOutcome::Unsat => {
-                    SolveOutcome::Unsat((0..n_polys).collect())
-                }
-                model::FindZeroOutcome::Unknown => SolveOutcome::Unknown,
-            }
-        }
-    }
 }
 
 /// Solve an `EncodedSystem` with cooperative timeout.

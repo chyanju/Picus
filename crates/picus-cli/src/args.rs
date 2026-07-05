@@ -177,12 +177,6 @@ pub(crate) enum Commands {
         #[arg(long, value_parser = ["on", "off"])]
         dynamic_order: Option<String>,
 
-        /// Signature-based Gröbner basis (GVW, signature-safe reduction) in
-        /// place of the per-pair native GB on large rings: on | off. Skips
-        /// J-pairs a syzygy / rewrite / singular criterion proves redundant.
-        /// Omit to use the built-in default.
-        #[arg(long, value_parser = ["on", "off"])]
-        signature_criterion: Option<String>,
 
         /// Zech (discrete-log) multiplication tables for small prime fields
         /// (`prime <= 2^20`): on | off. Result-identical; only the small-prime

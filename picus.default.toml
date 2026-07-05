@@ -61,10 +61,6 @@ cache_enabled = true
 # overhead (net loss on the general workload). May help linear-heavy
 # conjunctive circuits.
 linear_elim = false
-# Track inter-reduction reducer deps in the single-GB UNSAT-core tracer for
-# precise (cvc5/CoCoA-style) cores. On by default: only affects the
-# non-default SingleGb path (no cost on the main/PLDI workload).
-track_inter_reduce_deps = true
 # Triangular model construction (cvc5 `multi_roots` analogue) on the default
 # split-GB path: decide a zero-dimensional combined system by univariate-root
 # + back-substitution enumeration instead of the brancher DFS. Sound (SAT =
@@ -99,10 +95,6 @@ dynamic_order = true
 # the dynamic_order size gate). Off by default — regresses the model search on
 # most circuits. CLI: --matrix-elim-order on|off.
 matrix_elim_order = false
-# Signature-based GVW Gröbner engine in place of per-pair Buchberger on rings
-# of at least buchberger::GVW_MIN_VARS variables. Result-identical reduced GB.
-# Off by default — benchmark-neutral research knob. CLI: --signature-criterion.
-signature_criterion = false
 # Zech (discrete-log) multiply/inverse/power tables for prime fields with
 # prime <= ff::field::ZECH_LOG_MAX_PRIME (2^20). Result-identical. Off by
 # default — only the small-prime path (never BN254). CLI: --zech-log-small-fp.

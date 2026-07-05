@@ -62,6 +62,8 @@ const FGLM_MONO_CAP: usize = 200_000;
 ///
 /// Uncancellable variant; for cancel-aware callers use
 /// [`fglm_to_lex_cancel`].
+/// Test-only convenience: production callers use [`fglm_to_lex_cancel`].
+#[cfg(test)]
 pub fn fglm_to_lex(ideal: &Ideal) -> Option<Vec<Poly>> {
     fglm_to_lex_cancel(ideal, &CancelToken::none())
 }

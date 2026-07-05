@@ -173,17 +173,6 @@ runtime_config! {
     /// nonlinear part and add per-`solve` overhead. Exposed as a knob for
     /// linear-heavy conjunctive circuits where it may pay off.
     linear_elim: bool = false,
-    /// Track inter-reduction reducer dependencies in the single-GB UNSAT-core
-    /// tracer (`GbTracer`), so a trivial core reflects the basis elements that
-    /// actually reduced the contradiction — matching cvc5/CoCoA's precise
-    /// cores. On by default, and only meaningful on the non-default SingleGb
-    /// path: that path tail-reduces the basis and emits `on_inter_reduce`
-    /// events (gated by this flag). The default split-GB path never
-    /// tail-reduces during its incremental extends, so no inter-reduce events
-    /// fire there regardless of this flag; its UNSAT core is instead
-    /// attributed by a conservative union (see `split_gb::fixpoint`). Set
-    /// false to drop the small per-reduce counting cost on the SingleGb path.
-    track_inter_reduce_deps: bool = true,
     /// Triangular model construction (cvc5 `multi_roots` analogue) on the
     /// default split-GB path: decide a zero-dimensional combined system by
     /// univariate-root + back-substitution enumeration instead of the
@@ -250,21 +239,6 @@ runtime_config! {
     /// default: the size guard routes small rings, where the elimination
     /// order regresses, to DegRevLex.
     dynamic_order: bool = true,
-    /// Signature-based Gröbner basis (GVW with signature-safe reduction) in
-    /// place of the per-pair Buchberger run, for rings of at least
-    /// `ff::buchberger::GVW_MIN_VARS` variables. GVW carries a Schreyer
-    /// module signature on every labeled polynomial and J-pair, reduces
-    /// signature-safely, and skips a J-pair a recorded syzygy / rewrite /
-    /// singular criterion proves redundant — so the zero-reductions the
-    /// product / Gebauer-Möller / Buchberger criteria fail to predict are
-    /// never paid for, rather than reduced-then-discarded. Off by default:
-    /// the GVW basis equals the per-pair reduced GB (verdict-identical), but
-    /// timeout circuits are bounded by the intrinsic Gröbner-basis size, not
-    /// by the zero-reductions GVW removes, so it does not resolve them. The
-    /// size guard routes small rings — where a from-scratch GVW recompute on
-    /// each split-GB extend regresses — to the per-pair engine. Kept as a
-    /// research knob and the foundation for further signature work.
-    signature_criterion: bool = false,
     /// Use Zech (discrete-log) tables for prime fields with
     /// `prime <= ff::field::ZECH_LOG_MAX_PRIME`, turning multiply / inverse /
     /// power into table lookups. Result-identical (the stored element is the

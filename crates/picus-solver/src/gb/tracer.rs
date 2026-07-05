@@ -140,30 +140,6 @@ impl BuchbergerObserver for GbTracer {
         self.deps.push(combined);
     }
 
-    fn wants_inter_reduce_deps(&self) -> bool {
-        crate::config::with(|c| c.track_inter_reduce_deps)
-    }
-
-    fn on_inter_reduce(&mut self, affected: usize, reducers: &[usize]) {
-        // `affected` (a basis position == this tracer's deps index, since
-        // every basis element is reported in order via on_initial_basis /
-        // on_new_poly) was tail-reduced by `reducers`. Its reduced form is
-        // a combination of itself and those reducers, so it now transitively
-        // depends on every input the reducers depend on — fold them in. This
-        // is the precise inter-reduce accounting (gated on
-        // `track_inter_reduce_deps`): without it the element kept only its
-        // pre-reduction deps, which can under-approximate the UNSAT core.
-        if affected >= self.deps.len() {
-            return;
-        }
-        let mut extra: BTreeSet<usize> = BTreeSet::new();
-        for &r in reducers {
-            if let Some(set) = self.deps.get(r) {
-                extra.extend(set.iter().copied());
-            }
-        }
-        self.deps[affected].extend(extra);
-    }
 }
 
 #[cfg(test)]

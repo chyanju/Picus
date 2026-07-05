@@ -4,7 +4,9 @@
 use picus_solver::core::{solve_encoded, SolveOutcome};
 mod common;
 use common::{NamedSystem, NamedTerm};
-use picus_solver::gb::{compute_gb, GbResult};
+use picus_core::ff::monomial::MonomialOrder;
+use picus_core::timeout::CancelToken;
+use picus_solver::gb::ideal::{compute_gb_with_order, GbOutcome};
 use num_bigint::BigUint;
 use num_traits::One;
 use std::time::Instant;
@@ -45,7 +47,12 @@ fn bench_is_zero_bn128() {
     let encode_time = start.elapsed();
 
     let start = Instant::now();
-    let result = compute_gb(&encoded.poly_ring, encoded.polynomials);
+    let result = compute_gb_with_order(
+        &encoded.poly_ring,
+        encoded.polynomials,
+        &CancelToken::none(),
+        MonomialOrder::DegRevLex,
+    );
     let gb_time = start.elapsed();
 
     println!("BN128 IsZero uniqueness:");
@@ -53,9 +60,13 @@ fn bench_is_zero_bn128() {
     println!("  GB computation: {:?}", gb_time);
     println!("  Total: {:?}", encode_time + gb_time);
     println!("  Result: {}", match result {
-        GbResult::Trivial => "UNSAT",
-        GbResult::NonTrivial(_) => "SAT/UNKNOWN",
-        GbResult::Timeout => "TIMEOUT",
+        GbOutcome::Basis(ref gb)
+            if gb.iter().any(|p| !encoded.poly_ring.is_zero(p) && p.is_constant()) =>
+        {
+            "UNSAT"
+        }
+        GbOutcome::Basis(_) => "SAT/UNKNOWN",
+        GbOutcome::Cancelled | GbOutcome::Failed => "TIMEOUT/FAILED",
     });
 }
 
@@ -111,15 +122,24 @@ fn bench_multi_constraint_gf17() {
 
     let start = Instant::now();
     let encoded = system.encode().unwrap();
-    let result = compute_gb(&encoded.poly_ring, encoded.polynomials);
+    let result = compute_gb_with_order(
+        &encoded.poly_ring,
+        encoded.polynomials,
+        &CancelToken::none(),
+        MonomialOrder::DegRevLex,
+    );
     let total = start.elapsed();
 
     println!("GF(17) bit decomposition uniqueness:");
     println!("  Total: {:?}", total);
     println!("  Result: {}", match result {
-        GbResult::Trivial => "UNSAT",
-        GbResult::NonTrivial(_) => "SAT/UNKNOWN",
-        GbResult::Timeout => "TIMEOUT",
+        GbOutcome::Basis(ref gb)
+            if gb.iter().any(|p| !encoded.poly_ring.is_zero(p) && p.is_constant()) =>
+        {
+            "UNSAT"
+        }
+        GbOutcome::Basis(_) => "SAT/UNKNOWN",
+        GbOutcome::Cancelled | GbOutcome::Failed => "TIMEOUT/FAILED",
     });
 }
 

@@ -521,3 +521,27 @@ fn elim_order_gb_terminates_and_is_consistent() {
         "consistent system must not produce a whole-ring (constant) basis"
     );
 }
+
+#[test]
+fn traced_request_falls_back_to_direct_when_strategy_lacks_tracing() {
+    // ByHomog does not support tracing, so a traced request must fall
+    // back to BuchbergerDirect through dispatch rather than bypass it.
+    let _g = ConfigGuard::install({
+        let mut c = RuntimeConfig::default();
+        c.gb_strategy = GbStrategy::ByHomog;
+        c.poly_repr = crate::config::ReprKind::Dense;
+        c
+    });
+    let pr = pr3();
+    let gens = vec![x_minus_1(&pr)];
+    let mut tracer = crate::gb::tracer::GbTracer::new(gens.len());
+    let _ = compute_gb_with_order_traced(
+        &pr, gens, &CancelToken::none(), FfOrder::DegRevLex, &mut tracer,
+    )
+    .expect_basis("gb");
+    assert_eq!(
+        last_dispatched_algorithm(),
+        Some("buchberger-direct"),
+        "traced request under a non-tracing strategy must fall back through dispatch"
+    );
+}

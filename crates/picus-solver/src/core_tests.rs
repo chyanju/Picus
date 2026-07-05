@@ -149,34 +149,6 @@ fn satisfiable_system_with_bitsum_shaped_linear_part_is_not_false_unsat() {
 }
 
 #[test]
-fn test_single_gb_traced_unsat_core() {
-    // System: x = 2, x = 3, y = 1  in GF(7).
-    // The UNSAT comes from the first two constraints only.
-    // With tracing, the core should be a subset of {0, 1, 2}
-    // and must include both 0 and 1 (since those are contradictory).
-    let pr = FfPolyRing::new(ff(7), vec!["x".into(), "y".into()]);
-    let two = pr.field().from_int(2);
-    let three = pr.field().from_int(3);
-    let one = pr.field().from_int(1);
-    let p0 = pr.sub(pr.var(0), pr.constant(two)); // x = 2
-    let p1 = pr.sub(pr.var(0), pr.constant(three)); // x = 3
-    let p2 = pr.sub(pr.var(1), pr.constant(one)); // y = 1 (irrelevant)
-    match solve_single_gb(&pr, vec![p0, p1, p2]) {
-        SolveOutcome::Unsat(core) => {
-            // Core must contain 0 and 1 (the contradictory pair).
-            assert!(core.contains(&0), "core must contain input 0 (x=2)");
-            assert!(core.contains(&1), "core must contain input 1 (x=3)");
-            // Core should NOT contain 2 (y=1 is irrelevant) in an
-            // ideal tracer.  Due to conservative initial-basis tracking
-            // this may still include 2, but it must be <= 3 elements.
-            assert!(core.len() <= 3, "core should be bounded by total inputs");
-            log::info!("UNSAT core: {:?} (ideal: [0, 1])", core);
-        }
-        _ => panic!("expected UNSAT"),
-    }
-}
-
-#[test]
 fn test_split_gb_traced_unsat_core_is_sound_superset() {
     // System: x = 2, x = 3, y = 1  in GF(7).
     // The UNSAT comes from the first two constraints only, so the true
@@ -210,12 +182,12 @@ fn test_split_gb_traced_unsat_core_is_sound_superset() {
 }
 
 #[test]
-fn test_single_gb_traced_sat() {
-    // x*y = 1 in GF(7): SAT, tracing should not interfere.
+fn test_split_gb_sat_product_constraint() {
+    // x*y = 1 in GF(7): SAT.
     let pr = FfPolyRing::new(ff(7), vec!["x".into(), "y".into()]);
     let xy = pr.mul(pr.var(0), pr.var(1));
     let p = pr.sub(xy, pr.one());
-    match solve_single_gb(&pr, vec![p]) {
+    match solve_split_gb(&pr, &[p], &[]) {
         SolveOutcome::Sat(m) => {
             let prod = (&m["x"] * &m["y"]) % BigUint::from(7u32);
             assert_eq!(prod, BigUint::from(1u32));
@@ -405,17 +377,16 @@ fn populate_bitprop_ignores_non_bit_non_bitsum_polys() {
 }
 
 #[test]
-fn solve_single_gb_nontrivial_unsat_returns_full_core() {
+fn solve_split_gb_nontrivial_unsat_returns_full_core() {
     // x^2 - 3 over GF(7): 3 is a non-residue (QRs = {1,2,4}), so x^2 = 3
-    // has no GF(7) root. The DegRevLex GB {x^2-3} is non-trivial (no
-    // constant element), so solve_single_gb reaches the NonTrivial arm;
-    // find_zero enumerates x ∈ {0..6} exhaustively (7 < 2^16) and returns
-    // FindZeroOutcome::Unsat ⇒ SolveOutcome::Unsat((0..1).collect()).
+    // has no GF(7) root. The GB {x^2-3} is non-trivial (no constant
+    // element), so the model search enumerates x ∈ {0..6} exhaustively
+    // (7 < 2^16) and returns Unsat with the all-input core.
     let pr = FfPolyRing::new(ff(7), vec!["x".into()]);
     let f = pr.field();
     let x2 = pr.mul(pr.var(0), pr.var(0));
     let p = pr.sub(x2, pr.constant(f.from_int(3))); // x^2 - 3
-    match solve_single_gb(&pr, vec![p]) {
+    match solve_split_gb(&pr, &[p], &[]) {
         SolveOutcome::Unsat(core) => {
             assert_eq!(core, vec![0usize], "non-trivial UNSAT names all inputs");
         }
@@ -479,7 +450,7 @@ fn solve_split_gb_unsat_via_dfs_returns_full_input_core() {
 }
 
 // =============================================================================
-// SPEC-DRIVEN property tests for `solve_split_gb` / `solve_single_gb`. Expected
+// SPEC-DRIVEN property tests for `solve_split_gb`. Expected
 // values are derived from polynomial-ideal theory / Fermat / brute-force ground
 // truth over small primes — NEVER from inspecting source behavior.
 // =============================================================================
@@ -599,16 +570,16 @@ fn prop_solve_split_gb_unsat_monotone_under_extension() {
     ));
 }
 
-/// Property (5/9) MODEL CHECKING for `solve_single_gb`: a SAT model must
-/// zero the original polynomial inputs. Pin: x²-x over GF(11). MATH:
-/// roots are exactly {0, 1}.
+/// Property (5/9) MODEL CHECKING: a SAT model must zero the original
+/// polynomial inputs. Pin: x²-x over GF(11). MATH: roots are exactly
+/// {0, 1}.
 #[test]
-fn prop_solve_single_gb_bit_root_in_zero_or_one() {
+fn prop_solve_split_gb_bit_root_in_zero_or_one() {
     let pr = FfPolyRing::new(ff(11), vec!["x".into()]);
     let f = pr.field();
     let xx = pr.mul(pr.var(0), pr.var(0));
     let bit = pr.sub(xx, pr.var(0));
-    match solve_single_gb(&pr, vec![pr.clone_poly(&bit)]) {
+    match solve_split_gb(&pr, &[pr.clone_poly(&bit)], &[]) {
         SolveOutcome::Sat(m) => {
             let pt = vec![f.from_biguint(&m["x"])];
             let v = eval_poly_core(&pr, &bit, &pt);

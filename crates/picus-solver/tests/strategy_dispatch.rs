@@ -23,7 +23,6 @@ use num_bigint::BigUint;
 use picus_core::config::{ConfigGuard, GbStrategy, ReprKind, RuntimeConfig};
 use picus_core::ff::field::PrimeField;
 use picus_core::ff::monomial::MonomialOrder;
-use picus_solver::gb::compute_gb_with_timeout_traced;
 use picus_solver::gb::ideal::{compute_gb_with_order, last_dispatched_algorithm, Ideal};
 use picus_core::poly::FfPolyRing;
 use picus_core::timeout::CancelToken;
@@ -86,31 +85,6 @@ fn by_homog_falls_back_to_direct_for_lex() {
         Some("buchberger-by-homog"),
         "ByHomog should still be the chosen algorithm; Lex fallback \
          happens internally"
-    );
-}
-
-#[test]
-fn traced_path_falls_back_to_direct_when_strategy_lacks_tracing() {
-    let _guard = ConfigGuard::with_override(|c| {
-        c.gb_strategy = GbStrategy::ByHomog;
-        c.poly_repr = ReprKind::Dense;
-    });
-    let (pr, gens) = gens_xy_minus_1();
-    // `compute_gb_with_timeout_traced` is the main production traced
-    // entry; it dispatches twice (DegRevLex traced, Lex untraced) so
-    // we read the most recent algorithm — the Lex pass — to check
-    // dispatch behaviour for the untraced half. The DegRevLex traced
-    // pass would have already fallen back to BuchbergerDirect; the
-    // Lex pass goes through ByHomog → internal Lex fallback (still
-    // recorded as "buchberger-by-homog" by dispatch).
-    let _ = compute_gb_with_timeout_traced(&pr, gens, None);
-    // Either name is acceptable: ByHomog (Lex fallback) or Direct
-    // (traced DegRevLex fallback). Both demonstrate dispatch is
-    // working. What must NOT happen is `None` — i.e. that some entry
-    // point bypassed dispatch entirely.
-    assert!(
-        last_dispatched_algorithm().is_some(),
-        "traced GB path must have gone through dispatch at least once"
     );
 }
 
