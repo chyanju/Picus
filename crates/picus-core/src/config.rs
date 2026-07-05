@@ -274,10 +274,13 @@ runtime_config! {
     branching_incremental_gb: bool = true,
     /// Route the FF theory through `cdclt::multi_prime::FfTheoryRouter`
     /// instead of the single-prime `FfTheory`. Capability flag for
-    /// future multi-prime SMT-LIB inputs; the parser today still
-    /// rejects multi-prime sessions, so the router runs in single-slot
-    /// mode (path-equivalent to `FfTheory` on the same input). Off by
-    /// default until the parser is widened to emit per-prime atom tables.
+    /// future multi-prime SMT-LIB inputs. A one-shot multi-prime parser
+    /// lift exists (`smt2::parse_boolean_multi` feeding
+    /// `solve_formula_multi`) but is not wired into `SmtSession`, whose
+    /// define-sort path still keeps a single prime — so with the flag on
+    /// the router runs in single-slot mode (path-equivalent to
+    /// `FfTheory` on the same input). Off by default until the session
+    /// is reworked to emit per-prime atom tables.
     cdclt_multi_prime_router: bool = false,
     /// Interpose `cdclt::equality_engine::EqualityEngine` before the
     /// FF theory at fact-notification time. `Fresh` facts forward,

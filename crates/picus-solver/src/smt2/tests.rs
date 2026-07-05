@@ -1,77 +1,9 @@
 use super::*;
 
-#[test]
-fn parses_minimal_unsat() {
-    let src = r#"
-        (set-logic QF_FF)
-        (define-sort F () (_ FiniteField 7))
-        (declare-fun x () F)
-        (assert (= x (as ff2 F)))
-        (assert (= x (as ff3 F)))
-        (check-sat)
-    "#;
-    let cs = parse(src).expect("parse");
-    assert_eq!(cs.prime, BigUint::from(7u32));
-    assert_eq!(cs.equalities.len(), 2);
-}
 
-#[test]
-fn parses_inline_finite_field_sort() {
-    let src = r#"
-        (set-logic QF_FF)
-        (declare-fun x () (_ FiniteField 17))
-        (assert (= (ff.mul x x) x))
-        (check-sat)
-    "#;
-    let cs = parse(src).expect("parse");
-    assert_eq!(cs.prime, BigUint::from(17u32));
-    assert_eq!(cs.equalities.len(), 1);
-}
 
-#[test]
-fn rejects_boolean_in_assert() {
-    let src = r#"
-        (set-logic QF_FF)
-        (define-sort F () (_ FiniteField 7))
-        (declare-fun x () F)
-        (declare-fun y () F)
-        (assert (or (= x (as ff0 F)) (= y (as ff0 F))))
-        (check-sat)
-    "#;
-    match parse(src) {
-        Err(ParseError::BooleanInAssert(op)) => assert_eq!(op, "or"),
-        other => panic!("expected BooleanInAssert(or); got {:?}", other),
-    }
-}
 
-#[test]
-fn parses_disequality_via_not() {
-    let src = r#"
-        (set-logic QF_FF)
-        (define-sort F () (_ FiniteField 7))
-        (declare-fun x () F)
-        (assert (not (= x (as ff0 F))))
-        (check-sat)
-    "#;
-    let cs = parse(src).expect("parse");
-    assert_eq!(cs.disequalities.len(), 1);
-    assert_eq!(cs.assignments.len(), 1); // __zero pinned
-}
 
-#[test]
-fn rejects_unknown_symbol() {
-    let src = r#"
-        (set-logic QF_FF)
-        (define-sort F () (_ FiniteField 7))
-        (declare-fun x () F)
-        (assert (= x y))
-        (check-sat)
-    "#;
-    match parse(src) {
-        Err(ParseError::UnknownSymbol(s)) => assert_eq!(s, "y"),
-        other => panic!("expected UnknownSymbol(y); got {:?}", other),
-    }
-}
 
 // ─────────────── Bool decl + iff (parse_boolean) ───────────────
 
@@ -308,7 +240,7 @@ fn deep_sexpr_nesting_is_rejected_not_overflow() {
         "(".repeat(depth),
         ")".repeat(depth),
     );
-    assert!(parse(&src).is_err(), "deep nesting must be rejected, not crash");
+    assert!(parse_boolean(&src).is_err(), "deep nesting must be rejected, not crash");
 }
 
 #[test]
@@ -321,22 +253,9 @@ fn recursive_define_fun_is_rejected_not_overflow() {
         (assert (= (rec) (rec)))
         (check-sat)
     "#;
-    assert!(parse(src).is_err(), "recursive macro must be rejected, not crash");
+    assert!(parse_boolean(src).is_err(), "recursive macro must be rejected, not crash");
 }
 
-#[test]
-fn zero_arg_minus_is_rejected_not_panic() {
-    // `(-)` with no operand must surface a parse error, not index out of
-    // bounds in the n-ary minus arm of `build_poly`.
-    let src = r#"
-        (set-logic QF_FF)
-        (define-sort F () (_ FiniteField 7))
-        (declare-fun x () F)
-        (assert (= x (-)))
-        (check-sat)
-    "#;
-    assert!(parse(src).is_err(), "(-) must be rejected, not crash");
-}
 
 #[test]
 fn zero_arg_minus_in_boolean_query_is_rejected_not_panic() {
@@ -351,20 +270,6 @@ fn zero_arg_minus_in_boolean_query_is_rejected_not_panic() {
     assert!(parse_boolean(src).is_err(), "(-) must be rejected, not crash");
 }
 
-#[test]
-fn n_ary_minus_is_left_associative_in_parse() {
-    // (- a b c) = ((a - b) - c). In GF(7): (5 - 2 - 1) = 2.
-    let src = r#"
-        (set-logic QF_FF)
-        (define-sort F () (_ FiniteField 7))
-        (declare-fun x () F)
-        (assert (= x (- (as ff5 F) (as ff2 F) (as ff1 F))))
-        (check-sat)
-    "#;
-    let cs = parse(src).expect("parse n-ary minus");
-    assert_eq!(cs.prime, BigUint::from(7u32));
-    assert_eq!(cs.equalities.len(), 1);
-}
 
 #[test]
 fn n_ary_minus_is_left_associative_in_parse_boolean() {
@@ -385,99 +290,17 @@ fn n_ary_minus_is_left_associative_in_parse_boolean() {
     let _ = q;
 }
 
-#[test]
-fn ff_bitsum_in_assert_decomposes_to_weighted_sum() {
-    // ff.bitsum [b0, b1, b2] = b0 + 2·b1 + 4·b2 in GF(7).
-    let src = r#"
-        (set-logic QF_FF)
-        (define-sort F () (_ FiniteField 7))
-        (declare-fun b0 () F)
-        (declare-fun b1 () F)
-        (declare-fun b2 () F)
-        (declare-fun s () F)
-        (assert (= s (ff.bitsum b0 b1 b2)))
-        (check-sat)
-    "#;
-    let cs = parse(src).expect("parse ff.bitsum");
-    assert_eq!(cs.equalities.len(), 1);
-}
 
 // ────────── parse() malformed-input rejection (robustness) ──────────
 
-/// Standard GF(7) preamble + one body assert, for malformed-assert tests.
-fn parse_with_assert(body: &str) -> Result<ConstraintSystem, ParseError> {
-    let src = format!(
-        "(set-logic QF_FF)\n\
-         (define-sort F () (_ FiniteField 7))\n\
-         (declare-fun x () F)\n\
-         (declare-fun y () F)\n\
-         (assert {})\n\
-         (check-sat)\n",
-        body
-    );
-    parse(&src)
-}
 
-#[test]
-fn eq_with_wrong_arity_is_malformed() {
-    // (= x) has arity 1, not 2.
-    assert!(matches!(parse_with_assert("(= x)"), Err(ParseError::Malformed(_))));
-    // (= x y x) has arity 3.
-    assert!(matches!(parse_with_assert("(= x y x)"), Err(ParseError::Malformed(_))));
-}
 
-#[test]
-fn not_with_non_equality_inner_is_malformed() {
-    // (not (ff.mul x y)) — inner head is not '='.
-    assert!(matches!(
-        parse_with_assert("(not (ff.mul x y))"),
-        Err(ParseError::Malformed(_))
-    ));
-}
 
-#[test]
-fn not_with_atom_inner_is_malformed() {
-    // (not x) — inner is an atom, not a list.
-    assert!(matches!(parse_with_assert("(not x)"), Err(ParseError::Malformed(_))));
-}
 
-#[test]
-fn not_with_inner_equality_wrong_arity_is_malformed() {
-    // (not (= x)) — inner '=' has arity 1.
-    assert!(matches!(parse_with_assert("(not (= x))"), Err(ParseError::Malformed(_))));
-}
 
-#[test]
-fn unsupported_assert_head_is_malformed() {
-    // (assert (foo x y)) — 'foo' is neither '=' nor 'not' nor a boolean op.
-    assert!(matches!(parse_with_assert("(bar x y)"), Err(ParseError::Malformed(_))));
-}
 
-#[test]
-fn non_list_assert_body_is_malformed() {
-    // (assert x) — the body is an atom, not a list.
-    assert!(matches!(parse_with_assert("x"), Err(ParseError::Malformed(_))));
-}
 
-#[test]
-fn assert_with_wrong_arity_is_malformed() {
-    let src = "(set-logic QF_FF)\n\
-               (define-sort F () (_ FiniteField 7))\n\
-               (declare-fun x () F)\n\
-               (assert)\n\
-               (check-sat)\n";
-    assert!(matches!(parse(src), Err(ParseError::Malformed(_))));
-}
 
-#[test]
-fn bool_declaration_in_conjunctive_parser_is_malformed() {
-    // The conjunctive parser rejects Bool-sorted declarations (use parse_boolean).
-    let src = "(set-logic QF_FF)\n\
-               (define-sort F () (_ FiniteField 7))\n\
-               (declare-fun b () Bool)\n\
-               (check-sat)\n";
-    assert!(matches!(parse(src), Err(ParseError::Malformed(_))));
-}
 
 #[test]
 fn multiple_distinct_ff_literal_primes_is_malformed() {
@@ -489,14 +312,19 @@ fn multiple_distinct_ff_literal_primes_is_malformed() {
                (assert (= x #f3m7))\n\
                (assert (= y #f3m11))\n\
                (check-sat)\n";
-    assert!(matches!(parse(src), Err(ParseError::Malformed(_))));
+    assert!(parse_boolean(src).is_err(), "two distinct literal primes must be rejected");
 }
 
 #[test]
-fn no_prime_anywhere_is_missing_prime() {
-    // No FF sort, no FF literals ⇒ MissingPrime (distinct from Malformed).
-    let src = "(set-logic QF_FF)\n(check-sat)\n";
-    assert!(matches!(parse(src), Err(ParseError::MissingPrime)));
+fn no_prime_anywhere_defaults_bool_only_but_rejects_ff_ops() {
+    // A session with no FF sorts, literals, or operators is Bool-only:
+    // it parses under the harmless GF(2) default.
+    let bool_only = "(set-logic QF_FF)\n(check-sat)\n";
+    assert!(parse_boolean(bool_only).is_ok());
+    // Using an ff.* operator without any prime source is MissingPrime
+    // (distinct from Malformed) so it is not silently encoded mod 2.
+    let ff_op = "(set-logic QF_FF)\n(declare-fun x () F)\n(assert (= x (ff.add x x)))\n";
+    assert!(matches!(parse_boolean(ff_op), Err(ParseError::MissingPrime)));
 }
 
 // ────────── parse_boolean() FF-term builder edge / error paths ──────────
@@ -808,191 +636,17 @@ fn parse_ff_const_rejects_modulus_mismatch() {
 
 // ── build_poly: Atom paths ──
 
-#[test]
-fn build_poly_atom_constants() {
-    let prime = BigUint::from(7u32);
-    let vars: HashMap<String, VarSort> = HashMap::new();
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    // ff5 constant.
-    let p = build_poly(&atom("ff5"), &prime, &vars, &mut b).expect("ff5");
-    assert_eq!(p.len(), 1);
-    assert_eq!(p[0].coeff, BigUint::from(5u32));
-    assert!(p[0].vars.is_empty());
-    // bare decimal reduced mod prime: 9 mod 7 = 2.
-    let p2 = build_poly(&atom("9"), &prime, &vars, &mut b).expect("9");
-    assert_eq!(p2[0].coeff, BigUint::from(2u32));
-    assert!(p2[0].vars.is_empty());
-}
 
-#[test]
-fn build_poly_atom_error_paths() {
-    let prime = BigUint::from(7u32);
-    let mut vars: HashMap<String, VarSort> = HashMap::new();
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    // Undeclared symbol.
-    match build_poly(&atom("undefined_var"), &prime, &vars, &mut b) {
-        Err(ParseError::UnknownSymbol(s)) => assert_eq!(s, "undefined_var"),
-        other => panic!("expected UnknownSymbol; got {:?}", other),
-    }
-    // Bool var used in an FF term context.
-    vars.insert("b".into(), VarSort::Bool);
-    match build_poly(&atom("b"), &prime, &vars, &mut b) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("Bool")),
-        other => panic!("expected Malformed for Bool in FF; got {:?}", other),
-    }
-}
 
-#[test]
-fn build_poly_atom_ff_var_interns_index() {
-    let prime = BigUint::from(7u32);
-    let mut vars: HashMap<String, VarSort> = HashMap::new();
-    vars.insert("x".into(), VarSort::Ff);
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    let p = build_poly(&atom("x"), &prime, &vars, &mut b).expect("x");
-    assert_eq!(p.len(), 1);
-    assert_eq!(p[0].coeff, BigUint::from(1u32));
-    assert_eq!(p[0].vars.len(), 1);
-    assert_eq!(p[0].vars[0].1, 1u16);
-}
 
 // ── build_poly: List error / operator paths ──
 
-#[test]
-fn build_poly_list_error_paths() {
-    let prime = BigUint::from(7u32);
-    let vars: HashMap<String, VarSort> = HashMap::new();
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    // Non-atom head.
-    match build_poly(&list(vec![list(vec![])]), &prime, &vars, &mut b) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("non-atom head")),
-        other => panic!("expected non-atom head Malformed; got {:?}", other),
-    }
-    // 'as' arity != 3.
-    match build_poly(&list(vec![atom("as"), atom("ff1")]), &prime, &vars, &mut b) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("'as' arity")),
-        other => panic!("expected 'as' arity Malformed; got {:?}", other),
-    }
-    // 'as' first arg not an atom.
-    match build_poly(
-        &list(vec![atom("as"), list(vec![]), atom("F")]),
-        &prime,
-        &vars,
-        &mut b,
-    ) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("'as' first arg")),
-        other => panic!("expected 'as' first arg Malformed; got {:?}", other),
-    }
-    // Unknown ff operator.
-    match build_poly(
-        &list(vec![atom("ff.unknown"), atom("ff1")]),
-        &prime,
-        &vars,
-        &mut b,
-    ) {
-        Err(ParseError::UnknownOperator(o)) => assert_eq!(o, "ff.unknown"),
-        other => panic!("expected UnknownOperator; got {:?}", other),
-    }
-}
 
-#[test]
-fn build_poly_ff_add_accumulates() {
-    let prime = BigUint::from(7u32);
-    let mut vars: HashMap<String, VarSort> = HashMap::new();
-    vars.insert("x".into(), VarSort::Ff);
-    vars.insert("y".into(), VarSort::Ff);
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    let p = build_poly(
-        &list(vec![atom("ff.add"), atom("x"), atom("y")]),
-        &prime,
-        &vars,
-        &mut b,
-    )
-    .expect("ff.add");
-    // Two monomial terms, one per addend, both coeff 1.
-    assert_eq!(p.len(), 2);
-    assert!(p.iter().all(|t| t.coeff == BigUint::from(1u32) && t.vars.len() == 1));
-}
 
-#[test]
-fn build_poly_ff_neg_negates_and_checks_arity() {
-    let prime = BigUint::from(7u32);
-    let mut vars: HashMap<String, VarSort> = HashMap::new();
-    vars.insert("x".into(), VarSort::Ff);
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    let p = build_poly(
-        &list(vec![atom("ff.neg"), atom("x")]),
-        &prime,
-        &vars,
-        &mut b,
-    )
-    .expect("ff.neg");
-    assert_eq!(p.len(), 1);
-    // -x mod 7 has coefficient 7-1 = 6.
-    assert_eq!(p[0].coeff, BigUint::from(6u32));
-    assert_eq!(p[0].vars.len(), 1);
-    // Wrong arity.
-    match build_poly(
-        &list(vec![atom("ff.neg"), atom("x"), atom("x")]),
-        &prime,
-        &vars,
-        &mut b,
-    ) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("ff.neg")),
-        other => panic!("expected ff.neg arity Malformed; got {:?}", other),
-    }
-}
 
-#[test]
-fn build_poly_unary_minus_negates() {
-    let prime = BigUint::from(7u32);
-    let mut vars: HashMap<String, VarSort> = HashMap::new();
-    vars.insert("x".into(), VarSort::Ff);
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    let p = build_poly(&list(vec![atom("-"), atom("x")]), &prime, &vars, &mut b)
-        .expect("unary minus");
-    assert_eq!(p.len(), 1);
-    assert_eq!(p[0].coeff, BigUint::from(6u32));
-}
 
 // ── handle_assert error paths ──
 
-#[test]
-fn handle_assert_error_paths() {
-    let prime = BigUint::from(7u32);
-    let vars: HashMap<String, VarSort> = HashMap::new();
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    let mut diseq_zero: Option<VarIdx> = None;
-    let mut diseq_counter = 0usize;
-    // Non-list body.
-    match handle_assert(&atom("x"), &prime, &vars, &mut b, &mut diseq_zero, &mut diseq_counter) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("non-list assert body")),
-        other => panic!("expected non-list body Malformed; got {:?}", other),
-    }
-    // Non-atom head.
-    match handle_assert(
-        &list(vec![list(vec![])]),
-        &prime,
-        &vars,
-        &mut b,
-        &mut diseq_zero,
-        &mut diseq_counter,
-    ) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("non-atom head")),
-        other => panic!("expected non-atom head Malformed; got {:?}", other),
-    }
-    // 'not' wrong arity.
-    match handle_assert(
-        &list(vec![atom("not")]),
-        &prime,
-        &vars,
-        &mut b,
-        &mut diseq_zero,
-        &mut diseq_counter,
-    ) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("'not' arity")),
-        other => panic!("expected 'not' arity Malformed; got {:?}", other),
-    }
-}
 
 // ── is_bool_expr ──
 
@@ -1370,24 +1024,6 @@ fn parse_define_fun_error_paths() {
 
 // ── parse()/parse_boolean() top-level passes ──
 
-#[test]
-fn parse_skips_atoms_empty_and_unknown_commands() {
-    // Stray atom, empty list, and an unrecognised command are all ignored;
-    // a valid define-sort + declare-fun + assert still parse.
-    let src = r#"
-        bareatom
-        ()
-        (frobnicate 1 2)
-        (set-logic QF_FF)
-        (define-sort F () (_ FiniteField 7))
-        (declare-fun x () F)
-        (assert (= x (as ff3 F)))
-        (check-sat)
-    "#;
-    let cs = parse(src).expect("parse");
-    assert_eq!(cs.prime, BigUint::from(7u32));
-    assert_eq!(cs.equalities.len(), 1);
-}
 
 #[test]
 fn parse_declare_const_infers_prime() {
@@ -1398,8 +1034,8 @@ fn parse_declare_const_infers_prime() {
         (assert (= x (as ff4 F)))
         (check-sat)
     "#;
-    let cs = parse(src).expect("parse");
-    assert_eq!(cs.prime, BigUint::from(13u32));
+    let q = parse_boolean(src).expect("parse");
+    assert_eq!(q.prime, BigUint::from(13u32));
 }
 
 #[test]
@@ -1511,41 +1147,9 @@ fn collect_ff_literal_primes_skips_hashf_atom_without_modulus() {
 
 // ── handle_assert: (not (<non-atom-head> ..)) ──
 
-#[test]
-fn handle_assert_not_inner_non_atom_head_is_malformed() {
-    let prime = BigUint::from(7u32);
-    let vars: HashMap<String, VarSort> = HashMap::new();
-    let mut b = ConstraintSystemBuilder::new(prime.clone());
-    let mut diseq_zero: Option<VarIdx> = None;
-    let mut diseq_counter = 0usize;
-    // (not (() x)) — the inner list's first element is itself a list, so the
-    // inner head is not an atom.
-    let body = list(vec![atom("not"), list(vec![list(vec![]), atom("x")])]);
-    match handle_assert(&body, &prime, &vars, &mut b, &mut diseq_zero, &mut diseq_counter) {
-        Err(ParseError::Malformed(m)) => assert!(m.contains("'not' inner head")),
-        other => panic!("expected 'not' inner head Malformed; got {:?}", other),
-    }
-}
 
 // ── parse() first-pass skip arms ──
 
-#[test]
-fn parse_skips_list_with_non_atom_head_and_short_define_sort() {
-    // `((nested))` — a top-level list whose first element is a list (non-atom
-    // head, `_ => continue`). `(define-sort F)` — too short (< 4), continues
-    // without setting a prime. The inline-FF-sort declare-fun then supplies it.
-    let src = r#"
-        (set-logic QF_FF)
-        ((nested))
-        (define-sort F)
-        (declare-fun x () (_ FiniteField 7))
-        (assert (= x (as ff3 F)))
-        (check-sat)
-    "#;
-    let cs = parse(src).expect("parse skips bad forms");
-    assert_eq!(cs.prime, BigUint::from(7u32));
-    assert_eq!(cs.equalities.len(), 1);
-}
 
 // ── is_bool_expr depth cap ──
 
@@ -1710,8 +1314,8 @@ fn parse_define_sort_pins_session_prime() {
         (declare-fun x () F)
         (assert (= x (as ff4 F)))
     "#;
-    let cs = parse(src).expect("parse");
-    assert_eq!(cs.prime, BigUint::from(13u32));
+    let q = parse_boolean(src).expect("parse");
+    assert_eq!(q.prime, BigUint::from(13u32));
 }
 
 #[test]
@@ -1724,8 +1328,8 @@ fn parse_declare_fun_inline_ff_sort_infers_prime() {
         (declare-fun x () (_ FiniteField 19))
         (assert (= x (as ff5 (_ FiniteField 19))))
     "#;
-    let cs = parse(src).expect("parse");
-    assert_eq!(cs.prime, BigUint::from(19u32));
+    let q = parse_boolean(src).expect("parse");
+    assert_eq!(q.prime, BigUint::from(19u32));
 }
 
 // ───────────── parse_boolean() prime-assignment paths (deterministic) ─────

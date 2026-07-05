@@ -7,19 +7,15 @@
 //! term-level), n-ary `=` (FF equality chain or Bool iff), `distinct`,
 //! `define-fun` macros.
 //!
-//! [`parse`] handles the conjunctive subset and returns a
-//! [`ConstraintSystem`]; Boolean connectives in `(assert ...)` are
-//! rejected with [`ParseError::BooleanInAssert`].
+//! [`parse_boolean`] is the entry point: it handles the full structure
+//! above and returns a [`crate::boolean::BooleanQuery`]. Term-level
+//! `(ite c x y)` over FF terms is skolem-eliminated into a fresh FF
+//! variable plus two conditional equalities at the formula level.
 //!
-//! [`parse_boolean`] handles the full structure above and returns a
-//! [`crate::boolean::BooleanQuery`]. Term-level `(ite c x y)` over FF
-//! terms is skolem-eliminated into a fresh FF variable plus two
-//! conditional equalities at the formula level.
-//!
-//! Both entry points thread a single `ConstraintSystemBuilder`
-//! through the AST recursion: every leaf-variable reference goes
-//! through `builder.var(name)` so the parser emits index-keyed
-//! `Vec<PolyTerm>` directly with no separate intern step.
+//! The parser threads a single `ConstraintSystemBuilder` through the
+//! AST recursion: every leaf-variable reference goes through
+//! `builder.var(name)` so it emits index-keyed `Vec<PolyTerm>`
+//! directly with no separate intern step.
 
 mod session;
 mod tokenizer;
@@ -32,12 +28,12 @@ use std::fmt;
 use num_bigint::BigUint;
 use num_traits::Zero;
 
-use crate::frontend::encoder::{ConstraintSystemBuilder, ConstraintSystem, PolyTerm, VarIdx};
+use crate::frontend::encoder::{ConstraintSystemBuilder, PolyTerm, VarIdx};
 use tokenizer::{parse_sexprs, tokenize, Sexpr};
 
 // ─────────────────────── Errors ──────────────────────────────────────────
 
-/// Errors produced by [`parse`].
+/// Errors produced by the SMT-LIB parser.
 #[derive(Debug, Clone)]
 pub enum ParseError {
     /// Unexpected token at top level.
@@ -278,307 +274,9 @@ pub(in crate::smt2) fn has_ff_op(s: &Sexpr) -> bool {
     }
 }
 
-fn build_poly(
-    s: &Sexpr,
-    prime: &BigUint,
-    vars: &HashMap<String, VarSort>,
-    builder: &mut ConstraintSystemBuilder,
-) -> Result<Polynomial, ParseError> {
-    match s {
-        Sexpr::Atom(a) => {
-            if let Some(c) = parse_ff_const(a, prime) {
-                return Ok(vec![PolyTerm { coeff: c, vars: vec![] }]);
-            }
-            if let Ok(c) = a.parse::<BigUint>() {
-                return Ok(vec![PolyTerm { coeff: c % prime, vars: vec![] }]);
-            }
-            match vars.get(a) {
-                None => Err(ParseError::UnknownSymbol(a.clone())),
-                Some(VarSort::Bool) => Err(ParseError::Malformed(format!(
-                    "Bool variable '{}' used in FF term context",
-                    a
-                ))),
-                Some(VarSort::Ff) => {
-                    let idx = builder.var(a);
-                    Ok(vec![PolyTerm {
-                        coeff: BigUint::from(1u32),
-                        vars: vec![(idx, 1)],
-                    }])
-                }
-            }
-        }
-        Sexpr::List(elts) => {
-            let head = match elts.first() {
-                Some(Sexpr::Atom(a)) => a.as_str(),
-                _ => return Err(ParseError::Malformed("non-atom head".into())),
-            };
-            match head {
-                "as" => {
-                    if elts.len() != 3 {
-                        return Err(ParseError::Malformed("'as' arity".into()));
-                    }
-                    let sym = match &elts[1] {
-                        Sexpr::Atom(a) => a,
-                        _ => return Err(ParseError::Malformed("'as' first arg".into())),
-                    };
-                    let c = parse_ff_const(sym, prime)
-                        .ok_or_else(|| ParseError::Malformed(format!("bad 'as' constant: {}", sym)))?;
-                    Ok(vec![PolyTerm { coeff: c, vars: vec![] }])
-                }
-                "ff.add" | "+" => {
-                    let mut acc: Polynomial = Vec::new();
-                    for child in &elts[1..] {
-                        let p = build_poly(child, prime, vars, builder)?;
-                        acc = add_polys(acc, p);
-                    }
-                    Ok(acc)
-                }
-                "ff.bitsum" => {
-                    let mut acc: Polynomial = Vec::new();
-                    let mut weight = BigUint::from(1u32);
-                    let two = BigUint::from(2u32);
-                    for child in &elts[1..] {
-                        let p = build_poly(child, prime, vars, builder)?;
-                        let weighted: Polynomial = p
-                            .into_iter()
-                            .map(|t| PolyTerm {
-                                coeff: (&t.coeff * &weight) % prime,
-                                vars: t.vars,
-                            })
-                            .collect();
-                        acc = add_polys(acc, weighted);
-                        weight = (&weight * &two) % prime;
-                    }
-                    Ok(acc)
-                }
-                "ff.mul" | "*" => {
-                    let mut acc: Polynomial = vec![PolyTerm {
-                        coeff: BigUint::from(1u32),
-                        vars: vec![],
-                    }];
-                    for child in &elts[1..] {
-                        let p = build_poly(child, prime, vars, builder)?;
-                        acc = mul_polys(&acc, &p, prime)?;
-                    }
-                    Ok(acc)
-                }
-                "ff.neg" => {
-                    if elts.len() != 2 {
-                        return Err(ParseError::Malformed("'ff.neg' arity".into()));
-                    }
-                    let p = build_poly(&elts[1], prime, vars, builder)?;
-                    Ok(neg_poly(&p, prime))
-                }
-                "-" if elts.len() == 2 => {
-                    let p = build_poly(&elts[1], prime, vars, builder)?;
-                    Ok(neg_poly(&p, prime))
-                }
-                "-" => {
-                    if elts.len() < 2 {
-                        return Err(ParseError::Malformed("'-' arity".into()));
-                    }
-                    let mut acc = build_poly(&elts[1], prime, vars, builder)?;
-                    for child in &elts[2..] {
-                        let p = build_poly(child, prime, vars, builder)?;
-                        acc = add_polys(acc, neg_poly(&p, prime));
-                    }
-                    Ok(acc)
-                }
-                other => Err(ParseError::UnknownOperator(other.into())),
-            }
-        }
-    }
-}
-
 // ─────────────────────── Assert handler ──────────────────────────────────
 
-fn handle_assert(
-    s: &Sexpr,
-    prime: &BigUint,
-    vars: &HashMap<String, VarSort>,
-    builder: &mut ConstraintSystemBuilder,
-    diseq_zero: &mut Option<VarIdx>,
-    diseq_counter: &mut usize,
-) -> Result<(), ParseError> {
-    let list = match s {
-        Sexpr::List(l) => l,
-        _ => return Err(ParseError::Malformed("non-list assert body".into())),
-    };
-    let head = match list.first() {
-        Some(Sexpr::Atom(a)) => a.as_str(),
-        _ => return Err(ParseError::Malformed("non-atom head in assert".into())),
-    };
-    match head {
-        "=" => {
-            if list.len() != 3 {
-                return Err(ParseError::Malformed("'=' arity".into()));
-            }
-            let a = build_poly(&list[1], prime, vars, builder)?;
-            let b = build_poly(&list[2], prime, vars, builder)?;
-            let poly = add_polys(a, neg_poly(&b, prime));
-            builder.add_equality(poly);
-            Ok(())
-        }
-        "not" => {
-            if list.len() != 2 {
-                return Err(ParseError::Malformed("'not' arity".into()));
-            }
-            let inner = match &list[1] {
-                Sexpr::List(l) => l,
-                _ => return Err(ParseError::Malformed("'not' inner".into())),
-            };
-            let inner_head = match inner.first() {
-                Some(Sexpr::Atom(a)) => a.as_str(),
-                _ => return Err(ParseError::Malformed("'not' inner head".into())),
-            };
-            if inner_head != "=" {
-                return Err(ParseError::Malformed(format!(
-                    "(not <X>) only supports (not (= a b)); got (not ({} ..))",
-                    inner_head
-                )));
-            }
-            if inner.len() != 3 {
-                return Err(ParseError::Malformed("inner '=' arity".into()));
-            }
-            let a = build_poly(&inner[1], prime, vars, builder)?;
-            let b = build_poly(&inner[2], prime, vars, builder)?;
-
-            // d = a - b; assert d != 0 via the disequality list. Uses the
-            // shared `fresh_disequality_vars` so the synthetic
-            // `__diseq_d_N` / `__zero` naming matches the DNF and CDCL(T)
-            // disequality encoders.
-            let (d_idx, zero_idx) = builder.fresh_disequality_vars(diseq_counter, diseq_zero);
-            let mut def: Vec<PolyTerm> = vec![PolyTerm {
-                coeff: BigUint::from(1u32),
-                vars: vec![(d_idx, 1)],
-            }];
-            def.extend(neg_poly(&a, prime));
-            def.extend(b);
-            builder.add_equality(def);
-            builder.add_disequality(d_idx, zero_idx);
-            Ok(())
-        }
-        "and" | "or" | "=>" | "ite" => Err(ParseError::BooleanInAssert(head.into())),
-        other => Err(ParseError::Malformed(format!(
-            "unsupported assert head '{}'",
-            other
-        ))),
-    }
-}
-
 // ─────────────────────── Top-level loop ──────────────────────────────────
-
-/// Parse an SMT-LIB v2 QF_FF source and produce a
-/// [`ConstraintSystem`]. Threads a single `ConstraintSystemBuilder`
-/// through `build_poly` so each variable reference is interned in
-/// encounter order; the indexed rewriter canonicalises every
-/// equality at the end.
-pub fn parse(src: &str) -> Result<ConstraintSystem, ParseError> {
-    let toks = tokenize(src);
-    let sexprs = parse_sexprs(&toks)?;
-
-    // First pass: collect prime + declared variables.
-    let mut prime: Option<BigUint> = None;
-    let mut vars: HashMap<String, VarSort> = HashMap::new();
-
-    for s in &sexprs {
-        let list = match s {
-            Sexpr::List(l) => l,
-            Sexpr::Atom(_) => continue,
-        };
-        if list.is_empty() {
-            continue;
-        }
-        let head = match list.first() {
-            Some(Sexpr::Atom(a)) => a.as_str(),
-            _ => continue,
-        };
-        match head {
-            "set-logic" | "set-info" | "set-option" | "check-sat" | "exit" | "get-model"
-            | "push" | "pop" | "echo" | "assert" => {}
-            "define-sort" => {
-                if list.len() < 4 {
-                    continue;
-                }
-                if let Some(p) = finite_field_prime_str(&list[3]) {
-                    let n = p
-                        .parse::<BigUint>()
-                        .map_err(|_| ParseError::Malformed(format!("bad prime: {}", p)))?;
-                    prime = Some(n);
-                }
-            }
-            "declare-fun" | "declare-const" => {
-                if let Some((name, sort, inferred)) = classify_declare(head, list) {
-                    if matches!(sort, Some(VarSort::Bool)) {
-                        return Err(ParseError::Malformed(format!(
-                            "Bool sort '{}' not supported by conjunctive parser; use parse_boolean",
-                            name
-                        )));
-                    }
-                    vars.insert(name, VarSort::Ff);
-                    if prime.is_none() {
-                        if let Some(n) = inferred {
-                            prime = Some(n);
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // Fall back to literal-based prime inference when no FF sort
-    // declaration supplied one: every `#fNmP` carries its modulus in the
-    // suffix. Multiple distinct moduli are malformed (single-prime
-    // session); none at all keeps the existing `MissingPrime` error.
-    let prime_val = if let Some(p) = prime {
-        p
-    } else {
-        let mut lit_primes: BTreeSet<BigUint> = BTreeSet::new();
-        for s in &sexprs {
-            collect_ff_literal_primes(s, &mut lit_primes);
-        }
-        if lit_primes.len() > 1 {
-            return Err(ParseError::Malformed(format!(
-                "multiple FF primes in literals: {:?}",
-                lit_primes.iter().collect::<Vec<_>>()
-            )));
-        }
-        lit_primes.into_iter().next().ok_or(ParseError::MissingPrime)?
-    };
-    let mut builder = ConstraintSystemBuilder::new(prime_val.clone());
-    let mut diseq_counter = 0usize;
-    let mut diseq_zero: Option<VarIdx> = None;
-
-    // Second pass: handle asserts now that the builder is ready.
-    for s in &sexprs {
-        let list = match s {
-            Sexpr::List(l) => l,
-            Sexpr::Atom(_) => continue,
-        };
-        let head = match list.first() {
-            Some(Sexpr::Atom(a)) => a.as_str(),
-            _ => continue,
-        };
-        if head == "assert" {
-            if list.len() != 2 {
-                return Err(ParseError::Malformed("'assert' arity".into()));
-            }
-            handle_assert(
-                &list[1],
-                &prime_val,
-                &vars,
-                &mut builder,
-                &mut diseq_zero,
-                &mut diseq_counter,
-            )?;
-        }
-    }
-
-    let mut indexed = builder.build();
-    crate::frontend::rewriter::rewrite_system(&mut indexed);
-    Ok(indexed)
-}
 
 // ─────────────────────── Boolean structure parser ────────────────────────
 
@@ -1302,6 +1000,12 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
 ///
 /// The lifted multi-prime path produces queries that the orchestrator
 /// joins via [`crate::cdclt::orchestrator::solve_formula_multi`].
+///
+/// PARKED: no production caller. `SmtSession` still solves single-prime
+/// only (its define-sort path keeps one prime); wiring this in requires
+/// reworking session prime handling and a corpus regression pass, so the
+/// pair stays hidden until multi-prime support is a product decision.
+#[doc(hidden)]
 pub fn parse_boolean_multi(src: &str) -> Result<Vec<BooleanQuery>, ParseError> {
     let toks = tokenize(src);
     let sexprs = parse_sexprs(&toks)?;

@@ -134,6 +134,9 @@ pub fn solve_formula(
 /// A length-1 input degrades to the single-prime path
 /// ([`solve_formula`]) verbatim so callers can route both shapes
 /// through the same multi-prime API.
+///
+/// PARKED: no production caller — see `smt2::parse_boolean_multi`.
+#[doc(hidden)]
 pub fn solve_formula_multi(
     primes_subs: Vec<(BigUint, Vec<String>, crate::boolean::Formula)>,
     cancel: &CancelToken,

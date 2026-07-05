@@ -30,9 +30,42 @@ fn mk_ctx(prime: u32, vars: &[(&str, VarSort)], macros: Vec<(&str, MacroDef)>) -
     }
 }
 
+/// Parse via the production pipeline and flatten the top-level
+/// conjunction into `LHS − RHS` equality polynomials (the shape the
+/// evaluator consumes), plus the interned variable names.
+fn parse_conjunct_eq_polys(src: &str) -> (BigUint, Vec<String>, Vec<Vec<PolyTerm>>) {
+    fn walk(f: &crate::boolean::Formula, prime: &BigUint, out: &mut Vec<Vec<PolyTerm>>) {
+        match f {
+            crate::boolean::Formula::Lit(crate::boolean::Literal::Eq(l, r)) => {
+                let mut poly = l.clone();
+                for t in r {
+                    let mut nt = t.clone();
+                    nt.coeff = (prime - (&t.coeff % prime)) % prime;
+                    if !nt.coeff.is_zero() {
+                        poly.push(nt);
+                    }
+                }
+                out.push(poly);
+            }
+            crate::boolean::Formula::And(fs) => {
+                for g in fs {
+                    walk(g, prime, out);
+                }
+            }
+            crate::boolean::Formula::True => {}
+            other => panic!("expected a flat conjunction of equalities, got {:?}", other),
+        }
+    }
+    let q = parse_boolean(src).expect("parse_boolean");
+    let mut polys = Vec::new();
+    walk(&q.formula, &q.prime, &mut polys);
+    let cs = q.builder.build();
+    (q.prime, cs.var_names, polys)
+}
+
 /// Independent polynomial evaluator: maps every (idx -> value) and
 /// returns `sum_i coeff_i * prod_j x_j^e_j  (mod prime)`. Pure math —
-/// used as the reference oracle for `build_poly` outputs.
+/// used as the reference oracle for the FF term builder's outputs.
 fn eval_poly(poly: &[PolyTerm], assign: &HashMap<VarIdx, BigUint>, prime: &BigUint) -> BigUint {
     let mut acc = BigUint::zero();
     for t in poly {
@@ -437,18 +470,17 @@ fn prop_parse_eq_polynomial_evaluates_to_zero_at_solution() {
             "(set-logic QF_FF) (declare-fun x () (_ FiniteField {})) (assert (= x ff{}))",
             p, k
         );
-        let cs = parse(&src).expect("parse");
-        assert_eq!(cs.equalities.len(), 1);
+        let (_, var_names, eqs) = parse_conjunct_eq_polys(&src);
+        assert_eq!(eqs.len(), 1);
         // x is the only variable.
-        let x_idx = cs
-            .var_names
+        let x_idx = var_names
             .iter()
             .position(|n| n == "x")
             .expect("x interned") as VarIdx;
         let mut env = HashMap::new();
         env.insert(x_idx, BigUint::from(k));
         assert_eq!(
-            eval_poly(&cs.equalities[0], &env, &prime),
+            eval_poly(&eqs[0], &env, &prime),
             BigUint::zero(),
             "(= x ff{}) at x={} should be 0",
             k,
@@ -469,9 +501,8 @@ fn prop_parse_eq_polynomial_nonzero_at_non_solution() {
         "(set-logic QF_FF) (declare-fun x () (_ FiniteField {})) (assert (= x ff3))",
         p
     );
-    let cs = parse(&src).expect("parse");
-    let x_idx = cs
-        .var_names
+    let (_, var_names, eqs) = parse_conjunct_eq_polys(&src);
+    let x_idx = var_names
         .iter()
         .position(|n| n == "x")
         .expect("x interned") as VarIdx;
@@ -481,7 +512,7 @@ fn prop_parse_eq_polynomial_nonzero_at_non_solution() {
         }
         let mut env = HashMap::new();
         env.insert(x_idx, BigUint::from(k));
-        let got = eval_poly(&cs.equalities[0], &env, &prime);
+        let got = eval_poly(&eqs[0], &env, &prime);
         assert!(!got.is_zero(), "(= x 3) at x={} should be != 0", k);
     }
 }
@@ -503,19 +534,19 @@ fn prop_parse_eq_zero_polynomial_for_tautology() {
         "(set-logic QF_FF) (declare-fun x () (_ FiniteField {})) (assert (= x x))",
         p
     );
-    let cs_a = parse(&src_a).expect("parse a");
-    let cs_b = parse(&src_b).expect("parse b");
-    let xa = cs_a.var_names.iter().position(|n| n == "x").unwrap_or(0) as VarIdx;
-    let xb = cs_b.var_names.iter().position(|n| n == "x").unwrap_or(0) as VarIdx;
+    let (_, names_a, eqs_a) = parse_conjunct_eq_polys(&src_a);
+    let (_, names_b, eqs_b) = parse_conjunct_eq_polys(&src_b);
+    let xa = names_a.iter().position(|n| n == "x").unwrap_or(0) as VarIdx;
+    let xb = names_b.iter().position(|n| n == "x").unwrap_or(0) as VarIdx;
     for v in 0..p {
         let mut env_a = HashMap::new();
         env_a.insert(xa, BigUint::from(v));
         let mut env_b = HashMap::new();
         env_b.insert(xb, BigUint::from(v));
-        for eq in &cs_a.equalities {
+        for eq in &eqs_a {
             assert_eq!(eval_poly(eq, &env_a, &prime), BigUint::zero());
         }
-        for eq in &cs_b.equalities {
+        for eq in &eqs_b {
             assert_eq!(eval_poly(eq, &env_b, &prime), BigUint::zero());
         }
     }
@@ -596,41 +627,36 @@ fn prop_parse_is_deterministic_across_two_calls() {
         (assert (= (ff.mul x y) ff3))
         (check-sat)
     "#;
-    let a = parse(src).expect("a");
-    let b = parse(src).expect("b");
-    assert_eq!(a.prime, b.prime);
-    assert_eq!(a.var_names, b.var_names);
-    assert_eq!(a.equalities.len(), b.equalities.len());
-    let prime = a.prime.clone();
+    let (prime, names_a, eqs_a) = parse_conjunct_eq_polys(src);
+    let (_, names_b, eqs_b) = parse_conjunct_eq_polys(src);
+    assert_eq!(names_a, names_b);
+    assert_eq!(eqs_a.len(), eqs_b.len());
     // Compare semantically: evaluate every equality at random points.
     for xv in 0..11u32 {
         for yv in 0..11u32 {
-            let xi = a.var_names.iter().position(|n| n == "x").unwrap() as VarIdx;
-            let yi = a.var_names.iter().position(|n| n == "y").unwrap() as VarIdx;
+            let xi = names_a.iter().position(|n| n == "x").unwrap() as VarIdx;
+            let yi = names_a.iter().position(|n| n == "y").unwrap() as VarIdx;
             let mut env = HashMap::new();
             env.insert(xi, BigUint::from(xv));
             env.insert(yi, BigUint::from(yv));
-            for (e_a, e_b) in a.equalities.iter().zip(b.equalities.iter()) {
+            for (e_a, e_b) in eqs_a.iter().zip(eqs_b.iter()) {
                 assert_eq!(eval_poly(e_a, &env, &prime), eval_poly(e_b, &env, &prime));
             }
         }
     }
 }
 
-/// SPEC: `parse` and `parse_boolean` agree on the underlying prime for a
-/// QF_FF script that lies in the conjunctive fragment. (Both pipelines
-/// derive the prime from the SAME inputs — sort decls + literal hints —
-/// so the outcome MUST coincide.)
+/// SPEC: the parser derives the prime from sort declarations and
+/// literal hints; each source below pins the expected modulus.
 #[test]
-fn prop_parse_and_parse_boolean_agree_on_prime() {
-    for src in [
-        "(set-logic QF_FF) (declare-fun x () (_ FiniteField 5)) (assert (= x ff2))",
-        "(set-logic QF_FF) (define-sort F () (_ FiniteField 13)) (declare-fun y () F) (assert (= y ff7))",
-        "(set-logic QF_FF) (declare-fun x () (_ FiniteField 7)) (assert (= x #f3m7))",
+fn prop_parse_boolean_prime_inference_matches_source() {
+    for (src, expected) in [
+        ("(set-logic QF_FF) (declare-fun x () (_ FiniteField 5)) (assert (= x ff2))", 5u32),
+        ("(set-logic QF_FF) (define-sort F () (_ FiniteField 13)) (declare-fun y () F) (assert (= y ff7))", 13),
+        ("(set-logic QF_FF) (declare-fun x () (_ FiniteField 7)) (assert (= x #f3m7))", 7),
     ] {
-        let a = parse(src).expect("parse");
         let b = parse_boolean(src).expect("parse_boolean");
-        assert_eq!(a.prime, b.prime, "prime mismatch for {:?}", src);
+        assert_eq!(b.prime, BigUint::from(expected), "prime mismatch for {:?}", src);
     }
 }
 
@@ -644,13 +670,11 @@ fn prop_parse_and_parse_boolean_agree_on_prime() {
 fn prop_parse_is_comment_and_whitespace_invariant() {
     let bare = "(set-logic QF_FF) (declare-fun x () (_ FiniteField 7)) (assert (= x ff3))";
     let noisy = "\n  ; header comment\n(set-logic QF_FF) ; logic\n  (declare-fun x () (_ FiniteField 7))\n  ; another\n  (assert (= x ff3))\n;trailing\n";
-    let a = parse(bare).expect("a");
-    let b = parse(noisy).expect("b");
-    assert_eq!(a.prime, b.prime);
-    assert_eq!(a.var_names, b.var_names);
-    assert_eq!(a.equalities.len(), b.equalities.len());
-    assert_eq!(a.disequalities.len(), b.disequalities.len());
-    assert_eq!(a.assignments.len(), b.assignments.len());
+    let (prime_a, names_a, eqs_a) = parse_conjunct_eq_polys(bare);
+    let (prime_b, names_b, eqs_b) = parse_conjunct_eq_polys(noisy);
+    assert_eq!(prime_a, prime_b);
+    assert_eq!(names_a, names_b);
+    assert_eq!(eqs_a.len(), eqs_b.len());
 }
 
 // ────────── Macro / define-fun expansion vs inlined ──────────
@@ -731,12 +755,12 @@ fn prop_parse_constant_equality_is_zero_polynomial() {
         "(set-logic QF_FF) (declare-fun x () (_ FiniteField {})) (assert (= ff5 ff5))",
         p
     );
-    let cs = parse(&src).expect("parse");
+    let (_, _, eqs) = parse_conjunct_eq_polys(&src);
     // Spec: every retained equality (after normalization) must
     // evaluate to 0 at every assignment we test, since the original
     // assertion `(= ff5 ff5)` is a tautology over GF(p).
     let env: HashMap<VarIdx, BigUint> = HashMap::new();
-    for eq in &cs.equalities {
+    for eq in &eqs {
         assert_eq!(eval_poly(eq, &env, &prime), BigUint::zero());
     }
 }
@@ -753,7 +777,7 @@ fn prop_parse_contradictory_constant_equality_is_nonzero_polynomial() {
         "(set-logic QF_FF) (declare-fun x () (_ FiniteField {})) (assert (= ff5 ff3))",
         p
     );
-    let cs = parse(&src).expect("parse");
+    let (_, _, eqs) = parse_conjunct_eq_polys(&src);
     let env: HashMap<VarIdx, BigUint> = HashMap::new();
-    assert!(!eval_poly(&cs.equalities[0], &env, &prime).is_zero());
+    assert!(!eval_poly(&eqs[0], &env, &prime).is_zero());
 }
