@@ -511,7 +511,7 @@ fn test_run_dpvl_no_backend_with_unknown_target_returns_unknown() {
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(
-        matches!(result, DpvlResult::Unknown),
+        matches!(result, DpvlResult::Unknown(_)),
         "no backend + unknown target ⇒ Unknown; got {:?}",
         result
     );
@@ -536,7 +536,7 @@ fn test_run_dpvl_propagation_runs_but_target_unreached_returns_unknown() {
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(
-        matches!(result, DpvlResult::Unknown),
+        matches!(result, DpvlResult::Unknown(_)),
         "propagation can't reach wire 1 from trivial constraint; got {:?}",
         result
     );
@@ -678,7 +678,7 @@ fn test_dpvl_error_display_strings() {
 fn test_dpvl_result_clone_preserves_variant_and_payload() {
     let safe = DpvlResult::Safe;
     let _ = safe.clone();
-    let unknown = DpvlResult::Unknown;
+    let unknown = DpvlResult::Unknown(DpvlUnknown::Exhausted);
     let _ = unknown.clone();
 
     let mut model: HashMap<String, BigUint> = HashMap::new();
@@ -825,7 +825,7 @@ fn test_run_dpvl_propagation_disabled_misses_promotion() {
     };
     let result = run_dpvl(&r, &cfg).expect("run_dpvl");
     assert!(
-        matches!(result, DpvlResult::Unknown),
+        matches!(result, DpvlResult::Unknown(_)),
         "no lemmas + no backend ⇒ Unknown; got {:?}",
         result
     );

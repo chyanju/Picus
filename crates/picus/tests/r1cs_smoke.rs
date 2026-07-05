@@ -55,7 +55,7 @@ fn verdict_str(r: &CheckResult) -> &'static str {
     match r {
         CheckResult::Safe => "safe",
         CheckResult::Unsafe { .. } => "unsafe",
-        CheckResult::Unknown => "unknown",
+        CheckResult::Unknown(_) => "unknown",
     }
 }
 

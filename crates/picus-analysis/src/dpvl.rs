@@ -22,7 +22,7 @@ use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use picus_r1cs::grammar::*;
-use picus_smt::backends::{SolverBackend, SolverResult};
+use picus_smt::backends::{SolverBackend, SolverResult, UnknownReason};
 use crate::uniqueness::{r1cs_to_uniqueness_query, LowerError, UniquenessQuery};
 use picus_smt::{SolverKind, Theory};
 use picus_core::poly::Poly;
@@ -40,7 +40,30 @@ use crate::selector::{SelectorKind, SelectorState, SolverFeedback};
 pub enum DpvlResult {
     Safe,
     Unsafe(HashMap<String, BigUint>),
-    Unknown,
+    Unknown(DpvlUnknown),
+}
+
+/// Why a DPVL run returned `Unknown`, aggregated from the per-wire solver
+/// outcomes so a caller can react: `Timeout` (retry with a larger budget),
+/// `BackendError` (a broken/misconfigured solver), or `Exhausted`
+/// (propagation and the solver both ran to completion without deciding every
+/// target — genuinely hard, not a timeout or backend fault).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DpvlUnknown {
+    Timeout,
+    BackendError,
+    Exhausted,
+}
+
+impl DpvlUnknown {
+    /// Short human label.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DpvlUnknown::Timeout => "timeout",
+            DpvlUnknown::BackendError => "backend error",
+            DpvlUnknown::Exhausted => "exhausted",
+        }
+    }
 }
 
 /// Caller-facing selection of which propagation lemmas to run.
@@ -288,9 +311,10 @@ pub fn run_dpvl_on_query(
         timeout_ms: config.timeout_ms,
         dump_smt: config.dump_smt.clone(),
         solve_errors: 0,
+        saw_timeout: false,
     };
     let result = ctx.iterate(&mut q, &mut lemma_instances, &mut ks, &mut us, &mut ranges);
-    if ctx.solve_errors > 0 && matches!(result, DpvlResult::Unknown) {
+    if ctx.solve_errors > 0 && matches!(result, DpvlResult::Unknown(_)) {
         log::warn!(
             "DPVL: {} solver invocation(s) failed with a hard error; the Unknown \
              verdict may reflect a broken or misconfigured solver rather than a \
@@ -312,6 +336,10 @@ struct DpvlContext {
     /// `Unknown`; this lets `run_dpvl` distinguish that from a genuinely hard
     /// problem in its final log.
     solve_errors: usize,
+    /// Whether any per-wire solve returned `Unknown(Timeout)`, so an
+    /// `Unknown` verdict can be attributed to a timeout budget rather than a
+    /// genuinely exhausted search.
+    saw_timeout: bool,
 }
 
 impl DpvlContext {
@@ -339,7 +367,7 @@ impl DpvlContext {
             }
 
             if self.backend.is_none() {
-                return DpvlResult::Unknown;
+                return DpvlResult::Unknown(self.unknown_reason());
             }
 
             let mut uspool: HashSet<usize> = us.clone();
@@ -390,7 +418,7 @@ impl DpvlContext {
                 return if self.target_set.iter().all(|t| ks.contains(t)) {
                     DpvlResult::Safe
                 } else {
-                    DpvlResult::Unknown
+                    DpvlResult::Unknown(self.unknown_reason())
                 };
             }
         }
@@ -461,6 +489,19 @@ impl DpvlContext {
         }
     }
 
+    /// Aggregate the per-wire outcomes into a reason for an `Unknown`
+    /// verdict: a hard backend error dominates (most actionable), then a
+    /// timeout, else the search is genuinely exhausted.
+    fn unknown_reason(&self) -> DpvlUnknown {
+        if self.solve_errors > 0 {
+            DpvlUnknown::BackendError
+        } else if self.saw_timeout {
+            DpvlUnknown::Timeout
+        } else {
+            DpvlUnknown::Exhausted
+        }
+    }
+
     fn solve(&mut self, q: &mut UniquenessQuery, wire: usize) -> SolveResult {
         let backend = match self.backend.as_mut() {
             Some(b) => b,
@@ -503,6 +544,9 @@ impl DpvlContext {
                 }
             }
             Ok(SolverResult::Unknown(reason)) => {
+                if matches!(reason, UnknownReason::Timeout) {
+                    self.saw_timeout = true;
+                }
                 log::debug!("solver returned Unknown for wire {}: {:?}", wire, reason);
                 SolveResult::Skip
             }

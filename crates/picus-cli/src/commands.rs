@@ -108,8 +108,9 @@ pub(crate) fn cmd_check(r1cs_path: PathBuf, config: PicusConfig, format: OutputF
                     aprintln!("  {} {}", "✗".red().bold(), "uniqueness: unsafe".red().bold());
                     print_counter_example_human(witness_1, witness_2);
                 }
-                CheckResult::Unknown => {
-                    aprintln!("  {} {}", "?".yellow().bold(), "uniqueness: unknown".yellow().bold());
+                CheckResult::Unknown(reason) => {
+                    let label = format!("uniqueness: unknown ({})", reason.as_str());
+                    aprintln!("  {} {}", "?".yellow().bold(), label.yellow().bold());
                 }
             }
         }
@@ -122,7 +123,7 @@ pub(crate) fn cmd_check(r1cs_path: PathBuf, config: PicusConfig, format: OutputF
                         witness_2: witness_2.iter().map(|(k, v)| (k.clone(), v.to_string())).collect(),
                     }))
                 }
-                CheckResult::Unknown => ("unknown".to_string(), None),
+                CheckResult::Unknown(_) => ("unknown".to_string(), None),
             };
 
             let output = CheckOutput {

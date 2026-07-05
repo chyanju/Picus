@@ -14,7 +14,7 @@
 //!     CheckResult::Unsafe { witness_1, witness_2 } => {
 //!         println!("Found two distinct witnesses with the same inputs");
 //!     }
-//!     CheckResult::Unknown => println!("Could not determine uniqueness"),
+//!     CheckResult::Unknown(_) => println!("Could not determine uniqueness"),
 //! }
 //! ```
 
@@ -49,6 +49,10 @@ pub use picus_smt::Theory;
 
 /// Propagation lemma set configuration.
 pub use picus_analysis::dpvl::LemmaSet;
+
+/// Reason attached to [`CheckResult::Unknown`] / [`ir::Solution`] when the
+/// analysis can't decide: timeout, backend error, or exhausted search.
+pub use picus_analysis::dpvl::DpvlUnknown;
 
 /// Signal selection strategy.
 pub use picus_analysis::selector::SelectorKind;
@@ -265,8 +269,10 @@ pub enum CheckResult {
         witness_2: HashMap<String, BigUint>,
     },
 
-    /// The analysis could not determine uniqueness within the timeout.
-    Unknown,
+    /// The analysis could not determine uniqueness. The [`DpvlUnknown`]
+    /// reason distinguishes a timeout (retry with a larger budget), a
+    /// backend error, or a genuinely exhausted search.
+    Unknown(DpvlUnknown),
 }
 
 // ============================================================
@@ -349,7 +355,7 @@ pub fn check_r1cs(
                 witness_2: w2,
             })
         }
-        picus_analysis::dpvl::DpvlResult::Unknown => Ok(CheckResult::Unknown),
+        picus_analysis::dpvl::DpvlResult::Unknown(reason) => Ok(CheckResult::Unknown(reason)),
     }
 }
 
@@ -397,7 +403,7 @@ pub(crate) fn check_polyir_uniqueness(
                 witness_2: ir.rename_witness(w2),
             })
         }
-        picus_analysis::dpvl::DpvlResult::Unknown => Ok(CheckResult::Unknown),
+        picus_analysis::dpvl::DpvlResult::Unknown(reason) => Ok(CheckResult::Unknown(reason)),
     }
 }
 
