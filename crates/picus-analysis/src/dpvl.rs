@@ -33,7 +33,7 @@ use crate::propagation::range::{initial_ranges, RangeValue};
 use crate::propagation::{
     all_descriptors, all_names, wire_connectivity_score, PropagationCtx, PropagationLemma,
 };
-use crate::selector::{SelectorKind, SelectorState, SolverFeedback};
+use crate::selector::{SelectorState, SolverFeedback};
 
 /// DPVL analysis result.
 #[derive(Debug, Clone)]
@@ -182,7 +182,7 @@ impl std::fmt::Display for LemmaSet {
 pub struct DpvlConfig {
     pub solver: SolverKind,
     pub theory: Theory,
-    pub selector: SelectorKind,
+    pub selector: String,
     pub timeout_ms: u64,
     pub lemmas: LemmaSet,
     pub dump_smt: Option<PathBuf>,
@@ -197,7 +197,7 @@ impl Default for DpvlConfig {
             // require their opt-in features and an explicit `--solver`.
             solver: SolverKind::Native,
             theory: Theory::Ff,
-            selector: SelectorKind::Counter,
+            selector: "counter".to_string(),
             timeout_ms: 5000,
             lemmas: LemmaSet::all(),
             dump_smt: None,
@@ -218,7 +218,14 @@ impl DpvlConfig {
             self.theory = s.parse()?;
         }
         if let Some(s) = &o.selector {
-            self.selector = s.parse()?;
+            if !crate::selector::is_selector_name(s) {
+                return Err(format!(
+                    "unknown selector: '{}'. Valid: {}",
+                    s,
+                    crate::selector::all_selector_names().join(", ")
+                ));
+            }
+            self.selector = s.clone();
         }
         if let Some(v) = o.timeout_ms {
             self.timeout_ms = v;
@@ -306,7 +313,7 @@ pub fn run_dpvl_on_query(
         picus_smt::create_backend(config.solver, config.theory).map_err(DpvlError::Backend)?;
     let mut ctx = DpvlContext {
         target_set: targets.clone(),
-        selector: SelectorState::new(config.selector, connectivity),
+        selector: SelectorState::new(&config.selector, connectivity),
         backend,
         timeout_ms: config.timeout_ms,
         dump_smt: config.dump_smt.clone(),

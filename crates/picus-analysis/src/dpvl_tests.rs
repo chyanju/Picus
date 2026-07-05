@@ -22,7 +22,7 @@ fn apply_overlay_consumes_every_field() {
     let expected = DpvlConfig {
         solver: SolverKind::Cvc5,
         theory: Theory::Nia,
-        selector: SelectorKind::First,
+        selector: "first".to_string(),
         timeout_ms: 1234,
         lemmas: LemmaSet::none(),
         dump_smt: Some(PathBuf::from("/tmp/picus-x")),
@@ -231,7 +231,7 @@ fn prop_dpvl_config_default_values() {
     let d = DpvlConfig::default();
     assert_eq!(d.solver, SolverKind::Native);
     assert_eq!(d.theory, Theory::Ff);
-    assert_eq!(d.selector, SelectorKind::Counter);
+    assert_eq!(d.selector, "counter");
     assert_eq!(d.timeout_ms, 5000);
     assert_eq!(d.lemmas, LemmaSet::all());
     assert_eq!(d.dump_smt, None);
@@ -412,7 +412,7 @@ fn test_run_dpvl_lowering_error_surfaces_as_dpvl_error_lower() {
     let cfg = DpvlConfig {
         solver: SolverKind::None,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
@@ -433,7 +433,7 @@ fn test_run_dpvl_invalid_solver_theory_combo_surfaces_as_backend_error() {
     let cfg = DpvlConfig {
         solver: SolverKind::Native,
         theory: Theory::Nia,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
@@ -456,7 +456,7 @@ fn test_run_dpvl_empty_target_set_returns_safe() {
     let cfg = DpvlConfig {
         solver: SolverKind::None,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
@@ -478,7 +478,7 @@ fn test_run_dpvl_target_is_input_returns_safe() {
     let cfg = DpvlConfig {
         solver: SolverKind::None,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,
@@ -502,7 +502,7 @@ fn test_run_dpvl_no_backend_with_unknown_target_returns_unknown() {
     let cfg = DpvlConfig {
         solver: SolverKind::None,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 100,
         // LemmaSet::none() ⇒ `lemmas.is_empty()` ⇒ propagate is skipped,
         // exercising that branch too.
@@ -529,7 +529,7 @@ fn test_run_dpvl_propagation_runs_but_target_unreached_returns_unknown() {
     let cfg = DpvlConfig {
         solver: SolverKind::None,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 100,
         lemmas: LemmaSet::all(),
         dump_smt: None,
@@ -633,7 +633,7 @@ fn test_apply_overlay_later_layer_wins() {
     assert_eq!(cfg.timeout_ms, 2000, "later layer overrides timeout_ms");
     assert_eq!(
         cfg.selector,
-        SelectorKind::First,
+        "first",
         "untouched field keeps the prior layer's value"
     );
 }
@@ -796,7 +796,7 @@ fn test_run_dpvl_propagation_promotes_target_returns_safe() {
     let cfg = DpvlConfig {
         solver: SolverKind::None,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 100,
         lemmas: LemmaSet::all(),
         dump_smt: None,
@@ -818,7 +818,7 @@ fn test_run_dpvl_propagation_disabled_misses_promotion() {
     let cfg = DpvlConfig {
         solver: SolverKind::None,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 100,
         lemmas: LemmaSet::none(),
         dump_smt: None,

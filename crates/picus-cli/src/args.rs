@@ -49,8 +49,9 @@ pub(crate) enum Commands {
         #[arg(long)]
         timeout: Option<u64>,
 
-        /// Signal selection strategy. [default: counter]
-        #[arg(long, value_parser = ["first", "counter"])]
+        /// Wire selection strategy, validated against the live registry
+        /// (an unknown name lists the valid ones). [default: counter]
+        #[arg(long)]
         selector: Option<String>,
 
         /// Propagation lemmas to enable.

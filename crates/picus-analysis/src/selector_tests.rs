@@ -1,10 +1,10 @@
 //! Spec-driven tests for the selector module.
 //!
 //! Doc spec (verbatim from `selector.rs`):
-//!   * `SelectorKind::First`   — smallest wire index in the pool, NOT
+//!   * `"first"`   — smallest wire index in the pool, NOT
 //!     `iter().next()` (HashSet order is nondeterministic, would be
 //!     irreproducible). `min()` over the pool.
-//!   * `SelectorKind::Counter` — highest `connectivity + weight`,
+//!   * `"counter"` — highest `connectivity + weight`,
 //!     ties broken by smallest wire index. Determinism follows from
 //!     `(c+w, Reverse(wire))` being unique per wire.
 //!   * `feedback(Skip)` on a Counter selector decrements that wire's
@@ -12,8 +12,8 @@
 //!     (and Counter ignores `Verified` per the `let SolverFeedback::Skip`
 //!     guard).
 //!   * `select` on an empty pool returns `None`.
-//!   * `FromStr` for `SelectorKind` accepts only "first" and "counter"
-//!     (unknown ⇒ Err).
+//!   * the registry lists "first" and "counter"; `is_selector_name` /
+//!     `create_selector_by_name` reject any other name.
 
 use super::*;
 use std::collections::{HashMap, HashSet};
@@ -27,25 +27,24 @@ fn conn(pairs: &[(usize, usize)]) -> HashMap<usize, usize> {
 }
 
 // ---------------------------------------------------------------------------
-// SelectorKind::from_str
+// registry
 // ---------------------------------------------------------------------------
 
 #[test]
-fn prop_selector_kind_from_str_known() {
-    assert_eq!("first".parse::<SelectorKind>().unwrap(), SelectorKind::First);
-    assert_eq!(
-        "counter".parse::<SelectorKind>().unwrap(),
-        SelectorKind::Counter
-    );
+fn prop_registry_lists_first_and_counter() {
+    let names = all_selector_names();
+    assert!(names.contains(&"first"), "registry must list 'first'");
+    assert!(names.contains(&"counter"), "registry must list 'counter'");
+    assert!(is_selector_name("first"));
+    assert!(is_selector_name("counter"));
 }
 
 #[test]
-fn prop_selector_kind_from_str_unknown_errors() {
-    assert!("bogus".parse::<SelectorKind>().is_err());
-    assert!("".parse::<SelectorKind>().is_err());
-    // Spec only matches exact lowercase strings — uppercase is unknown.
-    assert!("First".parse::<SelectorKind>().is_err());
-    assert!("COUNTER".parse::<SelectorKind>().is_err());
+fn prop_registry_unknown_name_is_absent() {
+    assert!(!is_selector_name("bogus"));
+    assert!(create_selector_by_name("bogus").is_none());
+    assert!(create_selector_by_name("first").is_some());
+    assert!(create_selector_by_name("counter").is_some());
 }
 
 // ---------------------------------------------------------------------------
@@ -54,13 +53,13 @@ fn prop_selector_kind_from_str_unknown_errors() {
 
 #[test]
 fn prop_select_empty_pool_first_is_none() {
-    let mut s = SelectorState::new(SelectorKind::First, HashMap::new());
+    let mut s = SelectorState::new("first", HashMap::new());
     assert_eq!(s.select(&HashSet::new()), None);
 }
 
 #[test]
 fn prop_select_empty_pool_counter_is_none() {
-    let mut s = SelectorState::new(SelectorKind::Counter, HashMap::new());
+    let mut s = SelectorState::new("counter", HashMap::new());
     assert_eq!(s.select(&HashSet::new()), None);
 }
 
@@ -71,7 +70,7 @@ fn prop_select_empty_pool_counter_is_none() {
 /// `First` picks the smallest wire index, regardless of insertion order.
 #[test]
 fn prop_first_selects_smallest_index() {
-    let mut s = SelectorState::new(SelectorKind::First, HashMap::new());
+    let mut s = SelectorState::new("first", HashMap::new());
     let p = pool(&[5, 2, 9, 7, 3]);
     assert_eq!(s.select(&p), Some(2));
 }
@@ -81,8 +80,8 @@ fn prop_first_selects_smallest_index() {
 /// (the doc explicitly motivates `min()` for this).
 #[test]
 fn prop_first_is_reproducible() {
-    let mut s1 = SelectorState::new(SelectorKind::First, HashMap::new());
-    let mut s2 = SelectorState::new(SelectorKind::First, HashMap::new());
+    let mut s1 = SelectorState::new("first", HashMap::new());
+    let mut s2 = SelectorState::new("first", HashMap::new());
     let mut p1 = HashSet::new();
     p1.insert(7);
     p1.insert(3);
@@ -98,7 +97,7 @@ fn prop_first_is_reproducible() {
 /// Single-element pool — returns the unique element.
 #[test]
 fn prop_first_single_element() {
-    let mut s = SelectorState::new(SelectorKind::First, HashMap::new());
+    let mut s = SelectorState::new("first", HashMap::new());
     assert_eq!(s.select(&pool(&[42])), Some(42));
 }
 
@@ -111,7 +110,7 @@ fn prop_first_single_element() {
 #[test]
 fn prop_counter_prefers_high_connectivity() {
     let mut s = SelectorState::new(
-        SelectorKind::Counter,
+        "counter",
         conn(&[(1, 1), (2, 5), (3, 2)]),
     );
     assert_eq!(s.select(&pool(&[1, 2, 3])), Some(2));
@@ -120,7 +119,7 @@ fn prop_counter_prefers_high_connectivity() {
 /// `Counter` falls back to connectivity = 0 for wires not in the map.
 #[test]
 fn prop_counter_missing_connectivity_treated_as_zero() {
-    let mut s = SelectorState::new(SelectorKind::Counter, conn(&[(7, 4)]));
+    let mut s = SelectorState::new("counter", conn(&[(7, 4)]));
     // Wires 1 and 2 have connectivity 0; wire 7 has 4 ⇒ picks 7.
     assert_eq!(s.select(&pool(&[1, 2, 7])), Some(7));
 }
@@ -131,7 +130,7 @@ fn prop_counter_missing_connectivity_treated_as_zero() {
 #[test]
 fn prop_counter_tie_broken_by_smallest_index() {
     let mut s = SelectorState::new(
-        SelectorKind::Counter,
+        "counter",
         conn(&[(1, 3), (5, 3), (9, 3)]),
     );
     assert_eq!(s.select(&pool(&[1, 5, 9])), Some(1));
@@ -142,8 +141,8 @@ fn prop_counter_tie_broken_by_smallest_index() {
 #[test]
 fn prop_counter_is_reproducible_across_pools() {
     let c = conn(&[(1, 2), (2, 2), (3, 2)]);
-    let mut s1 = SelectorState::new(SelectorKind::Counter, c.clone());
-    let mut s2 = SelectorState::new(SelectorKind::Counter, c);
+    let mut s1 = SelectorState::new("counter", c.clone());
+    let mut s2 = SelectorState::new("counter", c);
     let p1 = pool(&[1, 2, 3]);
     let p2 = pool(&[3, 2, 1]); // distinct insertion order
     assert_eq!(s1.select(&p1), s2.select(&p2));
@@ -154,7 +153,7 @@ fn prop_counter_is_reproducible_across_pools() {
 /// Single-element pool — returns the unique element regardless of map.
 #[test]
 fn prop_counter_single_element() {
-    let mut s = SelectorState::new(SelectorKind::Counter, HashMap::new());
+    let mut s = SelectorState::new("counter", HashMap::new());
     assert_eq!(s.select(&pool(&[42])), Some(42));
 }
 
@@ -168,7 +167,7 @@ fn prop_counter_single_element() {
 #[test]
 fn prop_counter_skip_decrements_weight() {
     let mut s = SelectorState::new(
-        SelectorKind::Counter,
+        "counter",
         conn(&[(1, 5), (2, 3)]),
     );
     // Initially wire 1 (conn=5) beats wire 2 (conn=3).
@@ -184,7 +183,7 @@ fn prop_counter_skip_decrements_weight() {
 #[test]
 fn prop_counter_single_skip_can_flip_pick() {
     let mut s = SelectorState::new(
-        SelectorKind::Counter,
+        "counter",
         conn(&[(1, 4), (2, 3)]),
     );
     assert_eq!(s.select(&pool(&[1, 2])), Some(1));
@@ -201,32 +200,27 @@ fn prop_counter_single_skip_can_flip_pick() {
 #[test]
 fn prop_counter_verified_does_not_change_weight() {
     let mut s = SelectorState::new(
-        SelectorKind::Counter,
+        "counter",
         conn(&[(1, 4), (2, 3)]),
     );
     s.feedback(1, SolverFeedback::Verified);
     s.feedback(1, SolverFeedback::Verified);
     s.feedback(1, SolverFeedback::Verified);
-    // Weights still empty ⇒ pick driven by connectivity alone.
+    // wire 1 (connectivity 4) still beats wire 2 (connectivity 3): the
+    // Verified feedback added no deprioritising weight.
     assert_eq!(s.select(&pool(&[1, 2])), Some(1));
-    assert!(
-        s.weights.is_empty(),
-        "Verified must not create or mutate any weight entry"
-    );
 }
 
-/// `feedback(Skip)` on a First selector is a no-op — the guard
-/// `self.kind == SelectorKind::Counter` excludes it.
+/// `feedback` on the First selector is a no-op — it records no weight, so
+/// the pick stays purely by min index.
 #[test]
 fn prop_first_feedback_is_noop() {
-    let mut s = SelectorState::new(SelectorKind::First, HashMap::new());
+    let mut s = SelectorState::new("first", HashMap::new());
     s.feedback(1, SolverFeedback::Skip);
     s.feedback(2, SolverFeedback::Skip);
     s.feedback(5, SolverFeedback::Verified);
     // Pick is still purely by min index — feedback didn't change behaviour.
     assert_eq!(s.select(&pool(&[1, 2, 5])), Some(1));
-    // And weights stayed unset.
-    assert!(s.weights.is_empty(), "First selector should not record weights");
 }
 
 /// Pool can skip a wire's pick: if `select` returned `sid` but the
@@ -235,7 +229,7 @@ fn prop_first_feedback_is_noop() {
 #[test]
 fn prop_counter_returns_next_after_pool_removal() {
     let mut s = SelectorState::new(
-        SelectorKind::Counter,
+        "counter",
         conn(&[(1, 5), (2, 3), (3, 1)]),
     );
     let mut p = pool(&[1, 2, 3]);

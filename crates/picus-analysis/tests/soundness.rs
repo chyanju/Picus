@@ -10,7 +10,6 @@
 
 use num_bigint::BigUint;
 use picus_analysis::dpvl::{run_dpvl, DpvlConfig, DpvlResult, LemmaSet};
-use picus_analysis::selector::SelectorKind;
 use picus_r1cs::grammar::{
     Constraint, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
@@ -21,7 +20,7 @@ fn propagation_only_config() -> DpvlConfig {
     DpvlConfig {
         solver: SolverKind::None,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 5000,
         lemmas: LemmaSet::all(),
         dump_smt: None,
@@ -32,7 +31,7 @@ fn native_ff_config() -> DpvlConfig {
     DpvlConfig {
         solver: SolverKind::Native,
         theory: Theory::Ff,
-        selector: SelectorKind::Counter,
+        selector: "counter".to_string(),
         timeout_ms: 5000,
         lemmas: LemmaSet::all(),
         dump_smt: None,

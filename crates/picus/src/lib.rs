@@ -54,8 +54,6 @@ pub use picus_analysis::dpvl::LemmaSet;
 /// analysis can't decide: timeout, backend error, or exhausted search.
 pub use picus_analysis::dpvl::DpvlUnknown;
 
-/// Signal selection strategy.
-pub use picus_analysis::selector::SelectorKind;
 
 /// Groebner basis algorithm strategy used by the native FF backend.
 pub use picus_core::config::GbStrategy;
