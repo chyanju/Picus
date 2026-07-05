@@ -5,60 +5,21 @@
 //! disequality/assignment/bitsum propagation, field-poly flag).
 
 use num_bigint::BigUint;
-use picus_r1cs::grammar::{
-    Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
-};
+use picus_r1cs::grammar::Constraint;
+use picus_r1cs::testkit::*;
 
 use crate::poly_system::PolySystem;
 use crate::test_lowering::lower_two_copy;
 use picus_core::timeout::CancelToken;
 
-// ─── Test fixtures (mirror the poly_system tests) ────────────────────
-
-fn make_r1cs(
-    prime: BigUint,
-    n_wires: u32,
-    inputs: Vec<usize>,
-    constraints: Vec<Constraint>,
-) -> R1csFile {
-    let m = constraints.len() as u32;
-    R1csFile {
-        magic: *b"r1cs",
-        version: 1,
-        n_sections: 3,
-        header: HeaderSection {
-            field_size: 32,
-            prime_number: prime,
-            n_wires,
-            n_pub_out: 0,
-            n_pub_in: 0,
-            n_prv_in: 0,
-            n_labels: 0,
-            m_constraints: m,
-        },
-        constraints: ConstraintSection { constraints },
-        w2l: W2lSection { labels: Vec::new() },
-        inputs,
-        outputs: Vec::new(),
-    }
-}
-
-fn blk(wid: u32, factor: u32) -> ConstraintBlock {
-    ConstraintBlock {
-        wire_ids: vec![wid],
-        factors: vec![BigUint::from(factor)],
-    }
-}
-
-fn p7() -> BigUint {
-    BigUint::from(7u32)
-}
+// ─── Test fixtures ───────────────────────────────────────────────────
+// The shared builders (`r1cs`, `blk`, `p7`, …) live in `picus_r1cs::testkit`.
 
 /// Lower a constraint-free R1CS into the crate-local `PolySystem`, with the
 /// target disequality already materialised at `(target, n_wires + target)`.
 fn empty_ir(p: BigUint, n_wires: usize, inputs: Vec<usize>, target: usize) -> PolySystem {
-    let r1cs = make_r1cs(p, n_wires as u32, inputs, Vec::new());
-    lower_two_copy(&r1cs, target)
+    let file = r1cs(p, n_wires as u32, inputs, Vec::new());
+    lower_two_copy(&file, target)
 }
 
 // ─── to_constraint_system ────────────────────────────────────────
@@ -145,7 +106,7 @@ fn prop_to_constraint_system_includes_user_constraints() {
         b: blk(2, 1),
         c: blk(3, 1),
     };
-    let r1cs = make_r1cs(p7(), 4, vec![0], vec![cons]);
+    let r1cs = r1cs(p7(), 4, vec![0], vec![cons]);
     let ir = lower_two_copy(&r1cs, 1);
     let cs = ir.to_constraint_system();
     assert_eq!(cs.equalities.len(), 3);
@@ -252,7 +213,7 @@ fn prop_pre_eliminate_linear_preserves_metadata_when_applied() {
     // sets, n_wires, target) lives on `UniquenessQuery` in picus-analysis,
     // not on the slim `PolySystem` this operation returns, so there is nothing
     // else to preserve at this layer.
-    let r1cs = make_r1cs(p7(), 4, vec![0, 1], Vec::new());
+    let r1cs = r1cs(p7(), 4, vec![0, 1], Vec::new());
     let ir = lower_two_copy(&r1cs, 3);
     let cancel = CancelToken::none();
     if let Some(reduced) = ir.pre_eliminate_linear(&cancel) {

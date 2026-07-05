@@ -6,9 +6,8 @@ use std::sync::Arc;
 use num_bigint::BigUint;
 use picus_core::ff::field::PrimeField;
 use picus_core::poly::FfPolyRing;
-use picus_r1cs::grammar::{
-    Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
-};
+use picus_r1cs::grammar::Constraint;
+use picus_r1cs::testkit::{blk, p7, r1cs, zero_blk};
 use picus_smt::poly_system::PolySystem;
 
 use crate::uniqueness::{r1cs_to_uniqueness_query, LowerError, UniquenessQuery};
@@ -97,61 +96,13 @@ fn add_known_wire_is_equality_noop_for_input_wire() {
 // pinning, copy symmetry, field-poly gating, error paths, and the wire
 // overlay it records.
 
-/// Build a minimal in-memory R1csFile with the supplied prime, n_wires,
-/// inputs, and constraints (each as triples of (a, b, c) blocks).
-fn make_r1cs(
-    prime: BigUint,
-    n_wires: u32,
-    inputs: Vec<usize>,
-    constraints: Vec<Constraint>,
-) -> R1csFile {
-    let m = constraints.len() as u32;
-    R1csFile {
-        magic: *b"r1cs",
-        version: 1,
-        n_sections: 3,
-        header: HeaderSection {
-            field_size: 32,
-            prime_number: prime,
-            n_wires,
-            n_pub_out: 0,
-            n_pub_in: 0,
-            n_prv_in: 0,
-            n_labels: 0,
-            m_constraints: m,
-        },
-        constraints: ConstraintSection { constraints },
-        w2l: W2lSection { labels: Vec::new() },
-        inputs,
-        outputs: Vec::new(),
-    }
-}
-
-/// Single-term constraint block: `factor * x_wid`.
-fn blk(wid: u32, factor: u32) -> ConstraintBlock {
-    ConstraintBlock {
-        wire_ids: vec![wid],
-        factors: vec![BigUint::from(factor)],
-    }
-}
-
-/// Empty (zero) constraint block.
-fn zero_blk() -> ConstraintBlock {
-    ConstraintBlock {
-        wire_ids: vec![],
-        factors: vec![],
-    }
-}
-
-/// GF(7) prime.
-fn p7() -> BigUint {
-    BigUint::from(7u32)
-}
+// Fixture builders (`r1cs`, `blk`, `zero_blk`, `p7`) live in
+// `picus_r1cs::testkit`.
 
 #[test]
 fn r1cs_target_out_of_bounds_returns_err() {
     // Doc spec: target_signal ≥ n_wires must return WireOutOfBounds.
-    let r1cs = make_r1cs(p7(), 3, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 3, vec![0], Vec::new());
     let r = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 3);
     assert!(matches!(r, Err(LowerError::WireOutOfBounds { .. })));
 }
@@ -159,14 +110,14 @@ fn r1cs_target_out_of_bounds_returns_err() {
 #[test]
 fn r1cs_target_equal_n_wires_is_err() {
     // Edge: equality is OOB (wires are 0-indexed up to n_wires-1).
-    let r1cs = make_r1cs(p7(), 2, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 2, vec![0], Vec::new());
     assert!(r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 2).is_err());
 }
 
 #[test]
 fn r1cs_ring_has_2n_vars() {
     // Doc spec: "the ring carries `2 * n_wires` variables".
-    let r1cs = make_r1cs(p7(), 5, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 5, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert_eq!(ir.ir.ring.n_vars(), 10);
 }
@@ -174,7 +125,7 @@ fn r1cs_ring_has_2n_vars() {
 #[test]
 fn r1cs_var_names_layout() {
     // First `n_wires` are `xN`, then `n_wires` are `yN`.
-    let r1cs = make_r1cs(p7(), 3, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 3, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     let names = ir.ir.ring.var_names();
     assert_eq!(names, &["x0", "x1", "x2", "y0", "y1", "y2"]);
@@ -185,7 +136,7 @@ fn r1cs_emits_wire0_pinned_to_one() {
     // Doc spec: "Wire 0 pinned to 1. … backends still observe `x_0`
     // as a ring variable and need an equality to pin it." Even with
     // no source constraints, an `x_0 - 1 = 0` equality must appear.
-    let r1cs = make_r1cs(p7(), 3, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 3, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert!(
         !ir.ir.equalities.is_empty(),
@@ -197,7 +148,7 @@ fn r1cs_emits_wire0_pinned_to_one() {
 fn r1cs_disequality_at_target() {
     // The target disequality is materialised by `set_target`; after it,
     // the underlying PolySystem carries a single `(target_x, target_y)` pair.
-    let r1cs = make_r1cs(p7(), 4, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 4, vec![0], Vec::new());
     let mut ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 2).unwrap();
     ir.set_target(2);
     assert_eq!(ir.ir.disequalities, vec![(2, 6)]);
@@ -207,7 +158,7 @@ fn r1cs_disequality_at_target() {
 fn r1cs_small_prime_enables_field_polys() {
     // Doc spec: "field polys enabled iff the prime is small" — gate
     // is `prime <= 1000`. GF(7) is small.
-    let r1cs = make_r1cs(p7(), 3, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 3, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert!(ir.ir.add_field_polys, "GF(7) ≤ 1000 ⇒ add_field_polys=true");
 }
@@ -216,7 +167,7 @@ fn r1cs_small_prime_enables_field_polys() {
 fn r1cs_big_prime_disables_field_polys() {
     // Boundary: BN128 prime is way above 1000.
     let big = picus_r1cs::bn128_prime().clone();
-    let r1cs = make_r1cs(big, 3, vec![0], Vec::new());
+    let r1cs = r1cs(big, 3, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert!(
         !ir.ir.add_field_polys,
@@ -231,7 +182,7 @@ fn r1cs_threshold_at_1000() {
     // BigUint comparison, not primality). Test just verifies the
     // `<=` direction.
     let p = BigUint::from(1000u32);
-    let r1cs = make_r1cs(p, 3, vec![0], Vec::new());
+    let r1cs = r1cs(p, 3, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert!(ir.ir.add_field_polys, "1000 ≤ 1000 boundary");
 }
@@ -240,14 +191,14 @@ fn r1cs_threshold_at_1000() {
 fn r1cs_above_threshold_disables_field_polys() {
     // 1001 exceeds the gate.
     let p = BigUint::from(1001u32);
-    let r1cs = make_r1cs(p, 3, vec![0], Vec::new());
+    let r1cs = r1cs(p, 3, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert!(!ir.ir.add_field_polys, "1001 > 1000 boundary");
 }
 
 #[test]
 fn r1cs_inputs_propagated() {
-    let r1cs = make_r1cs(p7(), 5, vec![0, 1, 3], Vec::new());
+    let r1cs = r1cs(p7(), 5, vec![0, 1, 3], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 2).unwrap();
     for w in [0usize, 1, 3] {
         assert!(ir.input_indices.contains(&w), "wire {} is an input", w);
@@ -260,7 +211,7 @@ fn r1cs_inputs_propagated() {
 fn r1cs_known_signals_seeded_from_argument() {
     let mut known = HashSet::new();
     known.insert(3usize);
-    let r1cs = make_r1cs(p7(), 5, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 5, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &known, 2).unwrap();
     assert!(ir.known_signals.contains(&3));
 }
@@ -278,7 +229,7 @@ fn r1cs_copy_symmetry_emits_two_constraints_per_block() {
         b: blk(2, 1),
         c: blk(3, 1),
     };
-    let r1cs = make_r1cs(p7(), 4, vec![0], vec![cons]);
+    let r1cs = r1cs(p7(), 4, vec![0], vec![cons]);
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     // wire-0 pin (1) + orig (1) + alt (1) = 3
     assert!(
@@ -297,7 +248,7 @@ fn r1cs_zero_constraint_dropped() {
         b: zero_blk(),
         c: zero_blk(),
     };
-    let r1cs = make_r1cs(p7(), 3, vec![0], vec![cons]);
+    let r1cs = r1cs(p7(), 3, vec![0], vec![cons]);
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     // Only the wire-0 pin should be present.
     assert_eq!(
@@ -316,7 +267,7 @@ fn r1cs_out_of_bounds_wire_id_returns_err() {
         b: blk(1, 1),
         c: zero_blk(),
     };
-    let r1cs = make_r1cs(p7(), 3, vec![0], vec![cons]);
+    let r1cs = r1cs(p7(), 3, vec![0], vec![cons]);
     let r = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1);
     assert!(matches!(r, Err(LowerError::WireOutOfBounds { .. })));
 }
@@ -325,7 +276,7 @@ fn r1cs_out_of_bounds_wire_id_returns_err() {
 fn r1cs_assignments_and_bitsums_empty_after_lowering() {
     // Doc spec: R1CS lowering does NOT populate assignments / bitsums
     // (those are for SMT2/CDCL(T) producers).
-    let r1cs = make_r1cs(p7(), 3, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 3, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert!(ir.ir.assignments.is_empty());
     assert!(ir.ir.bitsums.is_empty());
@@ -334,14 +285,14 @@ fn r1cs_assignments_and_bitsums_empty_after_lowering() {
 
 #[test]
 fn r1cs_n_wires_recorded() {
-    let r1cs = make_r1cs(p7(), 7, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 7, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert_eq!(ir.n_wires, 7);
 }
 
 #[test]
 fn r1cs_target_signal_recorded() {
-    let r1cs = make_r1cs(p7(), 5, vec![0], Vec::new());
+    let r1cs = r1cs(p7(), 5, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 3).unwrap();
     assert_eq!(ir.target_signal, 3);
 }

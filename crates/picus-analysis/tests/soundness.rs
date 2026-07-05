@@ -12,25 +12,10 @@ use num_bigint::BigUint;
 use picus_analysis::dpvl::{run_dpvl, DpvlConfig, DpvlResult, LemmaSet};
 use picus_analysis::selector::SelectorKind;
 use picus_r1cs::grammar::{
-    Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
+    Constraint, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
+use picus_r1cs::testkit::{block, empty_block};
 use picus_smt::{SolverKind, Theory};
-
-fn block(pairs: &[(u32, u32)]) -> ConstraintBlock {
-    let wire_ids: Vec<u32> = pairs.iter().map(|&(w, _)| w).collect();
-    let factors: Vec<BigUint> = pairs.iter().map(|&(_, f)| BigUint::from(f)).collect();
-    ConstraintBlock {
-        wire_ids,
-        factors,
-    }
-}
-
-fn empty_block() -> ConstraintBlock {
-    ConstraintBlock {
-        wire_ids: vec![],
-        factors: vec![],
-    }
-}
 
 fn propagation_only_config() -> DpvlConfig {
     DpvlConfig {

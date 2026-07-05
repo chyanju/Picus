@@ -1,6 +1,9 @@
 pub mod grammar;
 pub mod parser;
 
+#[cfg(feature = "testkit")]
+pub mod testkit;
+
 use num_bigint::BigUint;
 use std::sync::LazyLock;
 

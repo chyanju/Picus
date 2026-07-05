@@ -21,8 +21,9 @@ use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
 use picus_r1cs::grammar::{
-    Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
+    Constraint, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
+use picus_r1cs::testkit::{block, empty_block};
 use crate::uniqueness::{r1cs_to_uniqueness_query, UniquenessQuery};
 
 use crate::propagation::range::RangeValue;
@@ -30,16 +31,7 @@ use crate::propagation::range::RangeValue;
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
-
-fn block(pairs: &[(u32, u32)]) -> ConstraintBlock {
-    let wire_ids: Vec<u32> = pairs.iter().map(|&(w, _)| w).collect();
-    let factors: Vec<BigUint> = pairs.iter().map(|&(_, f)| BigUint::from(f)).collect();
-    ConstraintBlock { wire_ids, factors }
-}
-
-fn empty_block() -> ConstraintBlock {
-    ConstraintBlock { wire_ids: vec![], factors: vec![] }
-}
+// `block` / `empty_block` live in `picus_r1cs::testkit`.
 
 /// Minimal R1CS with a single trivial constraint, used to obtain a
 /// valid PolySystem with the requested wire count and prime so we can test

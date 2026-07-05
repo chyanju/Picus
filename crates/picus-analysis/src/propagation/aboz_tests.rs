@@ -13,8 +13,9 @@ use std::collections::{HashMap, HashSet};
 use num_bigint::BigUint;
 use picus_core::config::ConfigGuard;
 use picus_r1cs::grammar::{
-    Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
+    Constraint, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
+use picus_r1cs::testkit::{block, empty_block};
 use crate::uniqueness::r1cs_to_uniqueness_query;
 
 use super::*;
@@ -22,22 +23,7 @@ use crate::propagation::lemma::{PropagationCtx, PropagationLemma};
 use crate::propagation::range::RangeValue;
 
 // ── helpers ────────────────────────────────────────────────────────
-
-fn block(pairs: &[(u32, u32)]) -> ConstraintBlock {
-    let wire_ids: Vec<u32> = pairs.iter().map(|&(w, _)| w).collect();
-    let factors: Vec<BigUint> = pairs.iter().map(|&(_, f)| BigUint::from(f)).collect();
-    ConstraintBlock {
-        wire_ids,
-        factors,
-    }
-}
-
-fn empty_block() -> ConstraintBlock {
-    ConstraintBlock {
-        wire_ids: vec![],
-        factors: vec![],
-    }
-}
+// `block` / `empty_block` live in `picus_r1cs::testkit`.
 
 /// GF(7) ABOZ-shape system mirroring the prose:
 ///   sel*y0 = 0,  sel*y1 = 0,  (y0 + sel + c_extra + y1)*1 = 0

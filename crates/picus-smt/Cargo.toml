@@ -33,6 +33,11 @@ cvc5-ff = { path = "../cvc5-ff", optional = true }
 picus-solver = { path = "../picus-solver" }
 picus-core = { path = "../picus-core" }
 
+[dev-dependencies]
+# Enables the shared R1CS fixture builders (`picus_r1cs::testkit`) for the
+# crate's unit tests.
+picus-r1cs = { path = "../picus-r1cs", features = ["testkit"] }
+
 # NOTE: no dev-dependency on picus-analysis. The integration tests that need
 # the R1CS two-copy lowering (`picus_analysis::uniqueness::r1cs_to_uniqueness_query`)
 # live in `picus-analysis/tests/` (which depends on picus-smt downward), so

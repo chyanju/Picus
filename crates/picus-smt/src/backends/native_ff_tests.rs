@@ -9,50 +9,15 @@ use crate::Theory;
 
 use num_bigint::BigUint;
 use picus_core::timeout::CancelToken;
-use picus_r1cs::grammar::{
-    Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
-};
+use picus_r1cs::grammar::Constraint;
+use picus_r1cs::testkit::*;
 
 // ─── Test fixtures ────────────────────────────────────────────────
-
-fn make_r1cs(
-    prime: BigUint,
-    n_wires: u32,
-    inputs: Vec<usize>,
-    constraints: Vec<Constraint>,
-) -> R1csFile {
-    let m = constraints.len() as u32;
-    R1csFile {
-        magic: *b"r1cs",
-        version: 1,
-        n_sections: 3,
-        header: HeaderSection {
-            field_size: 32,
-            prime_number: prime,
-            n_wires,
-            n_pub_out: 0,
-            n_pub_in: 0,
-            n_prv_in: 0,
-            n_labels: 0,
-            m_constraints: m,
-        },
-        constraints: ConstraintSection { constraints },
-        w2l: W2lSection { labels: Vec::new() },
-        inputs,
-        outputs: Vec::new(),
-    }
-}
-
-fn blk(wid: u32, factor: u32) -> ConstraintBlock {
-    ConstraintBlock {
-        wire_ids: vec![wid],
-        factors: vec![BigUint::from(factor)],
-    }
-}
+// The shared builders (`r1cs`, `blk`, …) live in `picus_r1cs::testkit`.
 
 fn empty_ir(p: BigUint, n_wires: usize, inputs: Vec<usize>, target: usize) -> PolySystem {
-    let r1cs = make_r1cs(p, n_wires as u32, inputs, Vec::new());
-    crate::test_lowering::lower_two_copy(&r1cs, target)
+    let file = r1cs(p, n_wires as u32, inputs, Vec::new());
+    crate::test_lowering::lower_two_copy(&file, target)
 }
 
 // ─── Constructor + default ─────────────────────────────────────────
@@ -213,7 +178,7 @@ fn smoke_solve_forced_unsat_returns_unsat() {
         b: blk(1, 1),
         c: blk(0, 3),
     };
-    let r1cs = make_r1cs(BigUint::from(7u32), 3, vec![0], vec![c1, c2]);
+    let r1cs = r1cs(BigUint::from(7u32), 3, vec![0], vec![c1, c2]);
     let ir = crate::test_lowering::lower_two_copy(&r1cs, 1);
 
     let mut backend = NativeFfBackend::new();

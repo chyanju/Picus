@@ -8,6 +8,12 @@ license.workspace = true
 repository.workspace = true
 edition.workspace = true
 
+[features]
+# Exposes `picus_r1cs::testkit`, a `pub` set of shared R1CS test-fixture
+# builders for other crates' unit and integration tests. Off by default so
+# it never ships in a normal build.
+testkit = []
+
 [dependencies]
 num-bigint = { workspace = true }
 byteorder = { workspace = true }

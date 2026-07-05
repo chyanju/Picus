@@ -329,17 +329,9 @@ fn test_dpvl_error_from_lower_error_variant() {
 // ---------------------------------------------------------------------------
 
 use picus_r1cs::grammar::{
-    Constraint, ConstraintBlock, ConstraintSection, HeaderSection, R1csFile, W2lSection,
+    Constraint, ConstraintSection, HeaderSection, R1csFile, W2lSection,
 };
-
-fn block(pairs: &[(u32, u32)]) -> ConstraintBlock {
-    let wire_ids: Vec<u32> = pairs.iter().map(|&(w, _)| w).collect();
-    let factors: Vec<BigUint> = pairs.iter().map(|&(_, f)| BigUint::from(f)).collect();
-    ConstraintBlock {
-        wire_ids,
-        factors,
-    }
-}
+use picus_r1cs::testkit::block;
 
 /// Build a minimal R1CS with a single trivial `1 * 1 = 1` constraint over
 /// GF(`p`) with `n_wires` wires, the given `inputs` and `outputs`. Used as

@@ -13,11 +13,7 @@ use picus_core::ff::field::PrimeField;
 use picus_core::poly::FfPolyRing;
 
 use crate::poly_system::PolySystem;
-
-/// GF(7) prime.
-fn p7() -> BigUint {
-    BigUint::from(7u32)
-}
+use picus_r1cs::testkit::p7;
 
 /// Build a bare `PolySystem` over GF(p) with `n_vars` variables named
 /// `x0..x{n-1}` and no constraints — enough to exercise the `PolySystem`

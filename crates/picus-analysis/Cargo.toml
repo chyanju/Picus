@@ -28,3 +28,8 @@ log = { workspace = true }
 inventory = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+# Enables the shared R1CS fixture builders (`picus_r1cs::testkit`) for the
+# crate's unit and integration tests.
+picus-r1cs = { path = "../picus-r1cs", features = ["testkit"] }
