@@ -1,14 +1,14 @@
 //! Tests for `RangeValue` lattice operations + `initial_ranges` seed.
 //!
 //! Spec invariants (from doc comments in `range.rs`):
-//!   - `Bottom` = unconstrained top; `Values(set)` = finite enumeration;
+//!   - `Unconstrained` = unconstrained top; `Values(set)` = finite enumeration;
 //!     empty set encodes contradiction.
-//!   - `intersect`: Bottom adopts new set wholesale; Values intersects.
+//!   - `intersect`: Unconstrained adopts new set wholesale; Values intersects.
 //!   - `is_singleton`: exactly one element.
-//!   - `is_binary`: NON-EMPTY subset of {0, 1}. Bottom and empty are NOT
+//!   - `is_binary`: NON-EMPTY subset of {0, 1}. Unconstrained and empty are NOT
 //!     binary (so a consumer can't admit a "bit" on vacuously-true range).
-//!   - `is_empty`: empty set (NOT Bottom).
-//!   - `excludes_zero`: Bottom = false; empty = false (contradictory
+//!   - `is_empty`: empty set (NOT Unconstrained).
+//!   - `excludes_zero`: Unconstrained = false; empty = false (contradictory
 //!     state, drawing conclusions is unsafe); otherwise checks no zero.
 //!   - `initial_ranges`: seeds wire 0 -> {1}. Wire 0 = R1CS one-wire.
 
@@ -25,7 +25,7 @@ fn vals(items: &[u32]) -> HashSet<BigUint> {
 
 #[test]
 fn prop_is_singleton_bottom_is_false() {
-    assert!(!RangeValue::Bottom.is_singleton());
+    assert!(!RangeValue::Unconstrained.is_singleton());
 }
 
 #[test]
@@ -47,8 +47,8 @@ fn prop_is_singleton_two_elements_is_false() {
 
 #[test]
 fn prop_is_binary_bottom_is_false() {
-    // Doc: "Bottom (unconstrained) ... not binary"
-    assert!(!RangeValue::Bottom.is_binary());
+    // Doc: "Unconstrained (unconstrained) ... not binary"
+    assert!(!RangeValue::Unconstrained.is_binary());
 }
 
 #[test]
@@ -86,8 +86,8 @@ fn prop_is_binary_singleton_two_is_false() {
 
 #[test]
 fn prop_is_empty_bottom_is_false() {
-    // Doc: empty means Values({}) only, not Bottom.
-    assert!(!RangeValue::Bottom.is_empty());
+    // Doc: empty means Values({}) only, not Unconstrained.
+    assert!(!RangeValue::Unconstrained.is_empty());
 }
 
 #[test]
@@ -104,8 +104,8 @@ fn prop_is_empty_nonempty_is_false() {
 
 #[test]
 fn prop_excludes_zero_bottom_is_false() {
-    // Doc: "Bottom (unconstrained) ... return false"
-    assert!(!RangeValue::Bottom.excludes_zero());
+    // Doc: "Unconstrained (unconstrained) ... return false"
+    assert!(!RangeValue::Unconstrained.excludes_zero());
 }
 
 #[test]
@@ -134,13 +134,13 @@ fn prop_excludes_zero_singleton_nonzero_is_true() {
 
 #[test]
 fn prop_intersect_bottom_adopts_wholesale() {
-    let mut r = RangeValue::Bottom;
+    let mut r = RangeValue::Unconstrained;
     r.intersect(vals(&[1, 2, 3]));
     match r {
         RangeValue::Values(v) => {
             assert_eq!(v, vals(&[1, 2, 3]));
         }
-        RangeValue::Bottom => panic!("Bottom must transition to Values"),
+        RangeValue::Unconstrained => panic!("Unconstrained must transition to Values"),
     }
 }
 
@@ -152,7 +152,7 @@ fn prop_intersect_values_intersects() {
         RangeValue::Values(v) => {
             assert_eq!(v, vals(&[1, 2]));
         }
-        RangeValue::Bottom => panic!("must stay Values"),
+        RangeValue::Unconstrained => panic!("must stay Values"),
     }
 }
 
@@ -169,7 +169,7 @@ fn prop_intersect_idempotent() {
     r.intersect(vals(&[0, 1]));
     match r {
         RangeValue::Values(v) => assert_eq!(v, vals(&[0, 1])),
-        RangeValue::Bottom => panic!("must stay Values"),
+        RangeValue::Unconstrained => panic!("must stay Values"),
     }
 }
 
@@ -194,7 +194,7 @@ fn prop_initial_ranges_pins_wire0_to_one() {
             assert!(set.contains(&BigUint::one()));
             assert!(!set.contains(&BigUint::zero()));
         }
-        RangeValue::Bottom => panic!("wire 0 must be Values"),
+        RangeValue::Unconstrained => panic!("wire 0 must be Values"),
     }
 }
 

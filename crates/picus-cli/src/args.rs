@@ -55,7 +55,8 @@ pub(crate) enum Commands {
 
         /// Propagation lemmas to enable.
         /// Formats: all, none, all-X,Y (exclude), none+X,Y (include).
-        /// Names: linear, binary01, basis2, aboz, bim. [default: all]
+        /// Names are validated against the live registry (an unknown name
+        /// lists the valid ones); see docs/lemmas.md. [default: all]
         #[arg(long)]
         lemmas: Option<String>,
 

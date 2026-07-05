@@ -24,7 +24,7 @@ picus check --r1cs circuit.r1cs --dump-smt /tmp/smt/         # dump SMT queries
 | `--theory <ff\|nia>` | `ff` | `ff` (finite field) or `nia` (integer mod) |
 | `--timeout <ms>` | `5000` | Per-query solver timeout |
 | `--selector <first\|counter>` | `counter` | Signal selection heuristic |
-| `--lemmas <spec>` | `all` | `all`, `none`, `all-X,Y` (exclude), `none+X,Y` (include). Names: `linear`, `binary01`, `basis2`, `aboz`, `bim` |
+| `--lemmas <spec>` | `all` | `all`, `none`, `all-X,Y` (exclude), `none+X,Y` (include). Names are validated against the live registry (an unknown name lists the valid ones); see [lemmas.md](lemmas.md) |
 | `--format <human\|json>` | `human` | Output format |
 | `--dump-smt <dir>` | — | Dump SMT-LIB queries to a directory |
 | `--profile <none\|wall>` | `none` | Emit per-site wall-clock profile to stderr |

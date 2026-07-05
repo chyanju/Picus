@@ -1,16 +1,16 @@
 use super::*;
 
-/// Drift guard: every `EngineOverlay` field must be consumed by
+/// Drift guard: every `RuntimeOverlay` field must be consumed by
 /// `apply_overlay`. Sets every overlay field to a value distinct from
 /// the compiled default and asserts the merged config equals an explicit
 /// all-overridden `expected`. If a knob is added to `RuntimeConfig` /
-/// `EngineOverlay` but not wired into `apply_overlay`, that field stays
+/// `RuntimeOverlay` but not wired into `apply_overlay`, that field stays
 /// at its default and the assert fails. The explicit struct literals
 /// also fail to compile until the new field is added here, forcing this
 /// test to track the config surface.
 #[test]
 fn apply_overlay_consumes_every_field() {
-    let overlay = EngineOverlay {
+    let overlay = RuntimeOverlay {
         gb_strategy: Some(GbStrategy::ByHomog),
         use_f4: Some(true),
         dnf_cap: Some(42),

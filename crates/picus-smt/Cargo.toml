@@ -9,18 +9,14 @@ repository.workspace = true
 edition.workspace = true
 
 [features]
-# Default is `native` only — pure-Rust in-tree FF solver, no
-# external build chains. The cvc5 (~15-20 min vendored build) and z3
-# (vendored build) backends are opt-in via `--features cvc5` /
-# `--features z3` (combine as needed). Top-level crates (picus,
-# picus-cli) forward these feature names verbatim.
-default = ["native"]
-native = []
+# The pure-Rust in-tree FF solver is always compiled (no feature gate).
+# The cvc5 (~15-20 min vendored build) and z3 (vendored build) backends
+# are opt-in via `--features cvc5` / `--features z3` (combine as needed).
+# Top-level crates (picus, picus-cli) forward these feature names verbatim.
 cvc5 = ["dep:cvc5-ff"]
 z3 = ["dep:z3"]
 
 [dependencies]
-picus-r1cs = { path = "../picus-r1cs" }
 num-bigint = { workspace = true }
 num-traits = { workspace = true }
 thiserror = { workspace = true }

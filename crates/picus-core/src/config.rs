@@ -29,6 +29,21 @@ pub enum GbStrategy {
     Auto,
 }
 
+impl std::str::FromStr for GbStrategy {
+    type Err = String;
+    /// Parse the kebab-case name (matching the serde representation).
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "direct" => Ok(GbStrategy::Direct),
+            "by-homog" => Ok(GbStrategy::ByHomog),
+            "auto" => Ok(GbStrategy::Auto),
+            other => Err(format!(
+                "unknown gb-strategy '{other}'. Valid: direct, by-homog, auto"
+            )),
+        }
+    }
+}
+
 /// Polynomial storage representation, selected at ring construction and
 /// carried by `ff::PolyRing.repr`. Applies to the IR (`PolySystem` equalities/
 /// disjunctions, lemma `learned` buffers) and the native Gröbner solve.
@@ -46,10 +61,22 @@ pub enum ReprKind {
     Sparse,
 }
 
+impl std::str::FromStr for ReprKind {
+    type Err = String;
+    /// Parse the kebab-case name (matching the serde representation).
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "dense" => Ok(ReprKind::Dense),
+            "sparse" => Ok(ReprKind::Sparse),
+            other => Err(format!("unknown poly-repr '{other}'. Valid: dense, sparse")),
+        }
+    }
+}
+
 /// Declarative source of truth for the solver's runtime knobs. From one
 /// annotated `name: Type = default` field list this generates the
 /// [`RuntimeConfig`] struct (with per-field docs), its [`Default`] impl,
-/// the parallel [`EngineOverlay`] (each field wrapped in `Option`), and
+/// the parallel [`RuntimeOverlay`] (each field wrapped in `Option`), and
 /// [`RuntimeConfig::apply_overlay`] — so every knob is named exactly once.
 macro_rules! runtime_config {
     (
@@ -85,7 +112,7 @@ macro_rules! runtime_config {
         /// rather than a silent no-op.
         #[derive(Default, Debug, Clone, Serialize, Deserialize)]
         #[serde(default, deny_unknown_fields)]
-        pub struct EngineOverlay {
+        pub struct RuntimeOverlay {
             $(
                 pub $field: Option<$ty>,
             )*
@@ -95,7 +122,7 @@ macro_rules! runtime_config {
             /// Merge the `Some` fields of `o` onto `self`; `None` fields are
             /// left untouched. This is the overlay/merge step that layers a
             /// config file, environment, or CLI flags onto a base config.
-            pub fn apply_overlay(&mut self, o: &EngineOverlay) {
+            pub fn apply_overlay(&mut self, o: &RuntimeOverlay) {
                 $(
                     if let Some(v) = o.$field { self.$field = v; }
                 )*

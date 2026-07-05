@@ -54,8 +54,8 @@ picus info --r1cs circuit.r1cs --constraints      # inspect R1CS metadata
 
 ```toml
 [dependencies]
-# Tracks the main branch (the stable branch); default features = native
-# solver only, no external build chain.
+# Tracks the main branch (the stable branch); the native FF solver is
+# always built, no external build chain. cvc5 / z3 are opt-in.
 picus = { git = "https://github.com/chyanju/Picus", branch = "main" }
 
 # To also build the cvc5 / z3 backends:

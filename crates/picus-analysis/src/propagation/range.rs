@@ -32,23 +32,22 @@ use num_traits::{One, Zero};
 
 /// Finite-set constraint on a wire's value.
 ///
-/// `Bottom` is the unconstrained lattice top — no information yet
-/// available. `Values(set)` is a finite enumeration of possible field
-/// elements; the empty set encodes a contradictory state.
+/// `Unconstrained` = no information yet. `Values(set)` enumerates the
+/// wire's possible field elements; the empty set encodes a contradiction.
 #[derive(Debug, Clone)]
 pub enum RangeValue {
-    /// Unconstrained.
-    Bottom,
+    /// No information yet (the identity element of [`Self::intersect`]).
+    Unconstrained,
     /// Finite enumeration of the wire's possible values.
     Values(HashSet<BigUint>),
 }
 
 impl RangeValue {
-    /// Tighten this range by intersecting with `new_vals`. A `Bottom`
-    /// range adopts `new_vals` wholesale.
+    /// Tighten this range by intersecting with `new_vals`. An
+    /// `Unconstrained` range adopts `new_vals` wholesale.
     pub fn intersect(&mut self, new_vals: HashSet<BigUint>) {
         match self {
-            RangeValue::Bottom => *self = RangeValue::Values(new_vals),
+            RangeValue::Unconstrained => *self = RangeValue::Values(new_vals),
             RangeValue::Values(existing) => {
                 *existing = existing.intersection(&new_vals).cloned().collect();
             }
@@ -61,14 +60,14 @@ impl RangeValue {
         matches!(self, RangeValue::Values(v) if v.len() == 1)
     }
 
-    /// Range is a non-empty subset of `{0, 1}`. `Bottom` (unconstrained)
-    /// and the empty set (contradictory) are both not binary — matching
+    /// Range is a non-empty subset of `{0, 1}`. `Unconstrained` and the
+    /// empty set (contradictory) are both not binary — matching
     /// [`Self::excludes_zero`], so a consumer can't admit a wire as a
     /// "bit" on a vacuously-true empty range.
     #[must_use]
     pub fn is_binary(&self) -> bool {
         match self {
-            RangeValue::Bottom => false,
+            RangeValue::Unconstrained => false,
             RangeValue::Values(v) => {
                 !v.is_empty() && v.iter().all(|x| x.is_zero() || x == &BigUint::one())
             }
@@ -82,14 +81,14 @@ impl RangeValue {
     }
 
     /// Proves the wire's value is not zero in every satisfying witness.
-    /// `Bottom` (unconstrained) and an empty value set both return
-    /// `false`: an empty set encodes a contradictory state, where
-    /// drawing further conclusions risks unsoundness if the
-    /// contradiction is later resolved by other learned facts.
+    /// `Unconstrained` and an empty value set both return `false`: an
+    /// empty set encodes a contradictory state, where drawing further
+    /// conclusions risks unsoundness if the contradiction is later
+    /// resolved by other learned facts.
     #[must_use]
     pub fn excludes_zero(&self) -> bool {
         match self {
-            RangeValue::Bottom => false,
+            RangeValue::Unconstrained => false,
             RangeValue::Values(v) => !v.is_empty() && !v.contains(&BigUint::zero()),
         }
     }

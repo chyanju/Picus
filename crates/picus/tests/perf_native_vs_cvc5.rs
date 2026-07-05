@@ -19,7 +19,7 @@
 //! catches refactor-induced regressions even where the
 //! expected-verdict table doesn't cover a fixture.
 
-#![cfg(all(feature = "cvc5", feature = "native"))]
+#![cfg(feature = "cvc5")]
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

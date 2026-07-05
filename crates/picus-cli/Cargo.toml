@@ -12,10 +12,8 @@ name = "picus"
 path = "src/main.rs"
 
 [features]
-# Default = `native` only. cvc5 and z3 are opt-in: enable with
+# The native FF engine is always compiled. cvc5 and z3 are opt-in:
 # `cargo build --features cvc5` / `--features z3` (combine as needed).
-default = ["native"]
-native = ["picus/native"]
 cvc5 = ["picus/cvc5"]
 z3 = ["picus/z3"]
 

@@ -71,7 +71,7 @@ pub use picus_core::config::RuntimeConfig as EngineConfig;
 pub use picus_analysis::dpvl::DpvlOverlay as AnalysisOverlay;
 
 /// Partial overlay (all fields optional) for the engine layer.
-pub use picus_core::config::EngineOverlay;
+pub use picus_core::config::RuntimeOverlay as EngineOverlay;
 
 /// Raw solver verdict discriminants, surfaced through [`ir::Solution`]
 /// ([`ir::PolyIR::solve`]): `Sat(model)`, `Unsat`, or `Unknown(reason)`.
@@ -113,10 +113,6 @@ pub enum PicusError {
     /// Failed to parse the R1CS binary file.
     #[error("R1CS parse error: {0}")]
     Parse(#[from] R1csParseError),
-
-    /// Solver returned an error or failed to initialize.
-    #[error("solver error: {0}")]
-    Solver(String),
 
     /// DPVL analysis error (R1CS lowering or backend construction).
     #[error("analysis error: {0}")]

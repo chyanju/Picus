@@ -35,7 +35,7 @@ impl PropagationLemma for Binary01Lemma {
             if let Some(wire) = match_x_squared_minus_x(q, poly)
                 && self.binary_wires.insert(wire)
             {
-                let entry = ctx.ranges.entry(wire).or_insert(RangeValue::Bottom);
+                let entry = ctx.ranges.entry(wire).or_insert(RangeValue::Unconstrained);
                 entry.intersect(binary_set.clone());
             }
         }

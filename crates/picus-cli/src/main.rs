@@ -72,15 +72,12 @@ fn main() {
                     dump_smt,
                 },
                 engine: EngineOverlay {
-                    // Prefer the canonical --gb-strategy; fall back to the
+                    // Prefer the canonical --gb-strategy (parsed by the enum's
+                    // FromStr, rejecting unknown values); fall back to the
                     // deprecated --gb-by-homog alias (off/on/auto).
                     gb_strategy: gb_strategy
                         .as_deref()
-                        .map(|s| match s {
-                            "by-homog" => GbStrategy::ByHomog,
-                            "auto" => GbStrategy::Auto,
-                            _ => GbStrategy::Direct,
-                        })
+                        .map(|s| s.parse::<GbStrategy>().unwrap_or_else(|e| exit_error(&e)))
                         .or_else(|| {
                             gb_by_homog.as_deref().map(|s| match s {
                                 "on" => GbStrategy::ByHomog,
@@ -88,10 +85,9 @@ fn main() {
                                 _ => GbStrategy::Direct,
                             })
                         }),
-                    poly_repr: poly_repr.as_deref().map(|s| match s {
-                        "dense" => ReprKind::Dense,
-                        _ => ReprKind::Sparse,
-                    }),
+                    poly_repr: poly_repr
+                        .as_deref()
+                        .map(|s| s.parse::<ReprKind>().unwrap_or_else(|e| exit_error(&e))),
                     use_f4: use_f4.then_some(true),
                     dnf_enabled: dnf.then_some(true),
                     dnf_cap,

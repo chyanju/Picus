@@ -634,7 +634,6 @@ dependencies = [
  "picus-core",
  "picus-r1cs",
  "picus-smt",
- "picus-solver",
  "serde",
  "thiserror",
  "toml",

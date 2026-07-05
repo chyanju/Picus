@@ -9,11 +9,9 @@ repository.workspace = true
 edition.workspace = true
 
 [features]
-# Forwards picus-smt's backend features. Default = `native` only;
-# `cvc5` / `z3` are opt-in. Tests that need a specific backend
+# Forwards picus-smt's backend features. The native FF engine is always
+# compiled; `cvc5` / `z3` are opt-in. Tests that need a specific backend
 # enable the corresponding feature on this crate.
-default = ["native"]
-native = ["picus-smt/native"]
 cvc5 = ["picus-smt/cvc5"]
 z3 = ["picus-smt/z3"]
 

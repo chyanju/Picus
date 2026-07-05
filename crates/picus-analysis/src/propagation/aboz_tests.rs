@@ -196,7 +196,7 @@ fn prop_aboz_does_not_promote_when_selector_can_be_zero() {
     assert!(!known_set.contains(&4));
 }
 
-/// Soundness gate (Bottom range = unconstrained). With no recorded
+/// Soundness gate (Unconstrained range). With no recorded
 /// range for `sel`, the lemma cannot prove `sel ≠ 0`; it must NOT
 /// promote.
 #[test]
@@ -216,7 +216,7 @@ fn prop_aboz_does_not_promote_when_selector_range_is_bottom() {
     let mut unknown: HashSet<usize> = HashSet::new();
     unknown.insert(1);
     unknown.insert(4);
-    // No range entry for wire 2 = Bottom (excludes_zero ⇒ false).
+    // No range entry for wire 2 = Unconstrained (excludes_zero ⇒ false).
     let mut ranges: HashMap<usize, RangeValue> = HashMap::new();
     let mut learned: Vec<picus_core::poly::Poly> = Vec::new();
     let mut learned_disj: Vec<Vec<picus_core::poly::Poly>> = Vec::new();
