@@ -3,6 +3,8 @@ use std::ffi::CString;
 use std::fmt;
 use std::marker::PhantomData;
 
+use crate::ffi_util::cstr_to_string;
+
 /// Solver statistics collected during solving.
 ///
 /// The raw `cvc5_ff_sys::Statistics` is a borrowed view into the owning
@@ -45,11 +47,7 @@ impl<'tm> Statistics<'tm> {
     pub fn iter_next(&self) -> (String, Stat<'tm>) {
         let mut name: *const std::os::raw::c_char = std::ptr::null();
         let s = unsafe { stats_iter_next(self.inner, &mut name) };
-        let n = unsafe {
-            std::ffi::CStr::from_ptr(name)
-                .to_string_lossy()
-                .into_owned()
-        };
+        let n = unsafe { cstr_to_string(name) };
         (n, Stat { inner: s, _phantom: PhantomData })
     }
 
@@ -67,9 +65,8 @@ impl fmt::Debug for Statistics<'_> {
 
 impl fmt::Display for Statistics<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { stats_to_string(self.inner) };
         write!(f, "{}", unsafe {
-            std::ffi::CStr::from_ptr(s).to_string_lossy()
+            cstr_to_string(stats_to_string(self.inner))
         })
     }
 }
@@ -124,11 +121,7 @@ impl Stat<'_> {
 
     /// Get the string value of this statistic.
     pub fn get_string(&self) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(stat_get_string(self.inner))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(stat_get_string(self.inner)) }
     }
 
     /// Get the histogram value as a list of `(key, count)` pairs.
@@ -139,9 +132,7 @@ impl Stat<'_> {
         unsafe { stat_get_histogram(self.inner, &mut keys, &mut values, &mut size) };
         (0..size)
             .map(|i| unsafe {
-                let k = std::ffi::CStr::from_ptr(*keys.add(i))
-                    .to_string_lossy()
-                    .into_owned();
+                let k = cstr_to_string(*keys.add(i));
                 let v = *values.add(i);
                 (k, v)
             })
@@ -157,9 +148,6 @@ impl fmt::Debug for Stat<'_> {
 
 impl fmt::Display for Stat<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { stat_to_string(self.inner) };
-        write!(f, "{}", unsafe {
-            std::ffi::CStr::from_ptr(s).to_string_lossy()
-        })
+        write!(f, "{}", unsafe { cstr_to_string(stat_to_string(self.inner)) })
     }
 }

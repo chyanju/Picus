@@ -33,6 +33,7 @@ use std::ffi::CString;
 use std::fmt;
 use std::rc::Rc;
 
+use crate::ffi_util::{collect_raw_array, cstr_to_str, cstr_to_string};
 use crate::{Solver, Sort, Term, TermManager};
 
 struct RawSymbolManager(*mut cvc5_ff_sys::parser::SymbolManager);
@@ -95,10 +96,7 @@ impl SymbolManager {
     ///
     /// The underlying C API asserts that the logic has been set.
     pub fn get_logic(&self) -> &str {
-        unsafe {
-            let s = sm_get_logic(self.ptr());
-            std::ffi::CStr::from_ptr(s).to_str().unwrap_or("")
-        }
+        unsafe { cstr_to_str(sm_get_logic(self.ptr())) }
     }
 
     /// Get the sorts declared via `declare-sort` commands.
@@ -107,9 +105,7 @@ impl SymbolManager {
     pub fn get_declared_sorts(&self) -> Vec<Sort<'_>> {
         let mut size = 0usize;
         let ptr = unsafe { sm_get_declared_sorts(self.ptr(), &mut size) };
-        (0..size)
-            .map(|i| Sort::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Sort::from_raw(raw)) }
     }
 
     /// Get the terms declared via `declare-fun` and `declare-const` commands.
@@ -118,9 +114,7 @@ impl SymbolManager {
     pub fn get_declared_terms(&self) -> Vec<Term<'_>> {
         let mut size = 0usize;
         let ptr = unsafe { sm_get_declared_terms(self.ptr(), &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Get terms that have been given names via the `:named` attribute.
@@ -134,9 +128,7 @@ impl SymbolManager {
         (0..size)
             .map(|i| unsafe {
                 let t = Term::from_raw(*terms.add(i));
-                let n = std::ffi::CStr::from_ptr(*names.add(i))
-                    .to_string_lossy()
-                    .into_owned();
+                let n = cstr_to_string(*names.add(i));
                 (t, n)
             })
             .collect()
@@ -170,27 +162,18 @@ impl Command {
     /// Returns any output produced by the command (e.g. `sat`, `unsat`,
     /// model output, etc.).
     pub fn invoke(&self, solver: &mut Solver<'_>, sm: &mut SymbolManager) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(cmd_invoke(self.inner, solver.inner, sm.ptr()))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(cmd_invoke(self.inner, solver.inner, sm.ptr())) }
     }
 
     /// Get the name of this command (e.g. `"assert"`, `"check-sat"`).
     pub fn name(&self) -> &str {
-        unsafe {
-            let s = cmd_get_name(self.inner);
-            std::ffi::CStr::from_ptr(s).to_str().unwrap_or("")
-        }
+        unsafe { cstr_to_str(cmd_get_name(self.inner)) }
     }
 }
 
 impl fmt::Display for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { cmd_to_string(self.inner) };
-        let cs = unsafe { std::ffi::CStr::from_ptr(s) };
-        write!(f, "{}", cs.to_string_lossy())
+        write!(f, "{}", unsafe { cstr_to_string(cmd_to_string(self.inner)) })
     }
 }
 
@@ -310,9 +293,7 @@ impl<'tm> InputParser<'tm> {
         let mut error_msg: *const std::os::raw::c_char = std::ptr::null();
         let cmd = unsafe { parser_next_command(self.inner, &mut error_msg) };
         if !error_msg.is_null() {
-            let msg = unsafe { std::ffi::CStr::from_ptr(error_msg) }
-                .to_string_lossy()
-                .into_owned();
+            let msg = unsafe { cstr_to_string(error_msg) };
             return Err(msg);
         }
         if cmd.is_null() {
@@ -334,9 +315,7 @@ impl<'tm> InputParser<'tm> {
         let mut error_msg: *const std::os::raw::c_char = std::ptr::null();
         let term = unsafe { parser_next_term(self.inner, &mut error_msg) };
         if !error_msg.is_null() {
-            let msg = unsafe { std::ffi::CStr::from_ptr(error_msg) }
-                .to_string_lossy()
-                .into_owned();
+            let msg = unsafe { cstr_to_string(error_msg) };
             return Err(msg);
         }
         if term.is_null() {

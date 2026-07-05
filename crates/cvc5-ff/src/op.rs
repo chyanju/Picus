@@ -41,11 +41,6 @@ impl<'tm> Op<'tm> {
         unsafe { op_get_kind(self.inner) }
     }
 
-    /// Create a copy of this operator (increments the internal reference count).
-    pub fn copy(&self) -> Op<'tm> {
-        Op::from_raw(unsafe { op_copy(self.inner) })
-    }
-
     /// Check disequality with another operator.
     pub fn is_disequal(&self, other: &Op) -> bool {
         unsafe { op_is_disequal(self.inner, other.inner) }

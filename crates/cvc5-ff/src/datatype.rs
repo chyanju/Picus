@@ -3,6 +3,7 @@ use std::ffi::CString;
 use std::fmt;
 use std::marker::PhantomData;
 
+use crate::ffi_util::{collect_raw_array, cstr_to_str, cstr_to_string};
 use crate::{Sort, Term};
 
 // ---------------------------------------------------------------------------
@@ -60,9 +61,8 @@ impl<'tm> DatatypeConstructorDecl<'tm> {
 
 impl fmt::Display for DatatypeConstructorDecl<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { dt_cons_decl_to_string(self.inner) };
         write!(f, "{}", unsafe {
-            std::ffi::CStr::from_ptr(s).to_string_lossy()
+            cstr_to_string(dt_cons_decl_to_string(self.inner))
         })
     }
 }
@@ -119,11 +119,6 @@ impl<'tm> DatatypeDecl<'tm> {
         }
     }
 
-    /// Create a copy of this declaration (increments the internal reference count).
-    pub fn copy(&self) -> DatatypeDecl<'tm> {
-        DatatypeDecl::from_raw(unsafe { dt_decl_copy(self.inner) })
-    }
-
     /// Add a constructor declaration to this datatype.
     pub fn add_constructor(&mut self, ctor: &DatatypeConstructorDecl) {
         unsafe { dt_decl_add_constructor(self.inner, ctor.inner) }
@@ -146,19 +141,14 @@ impl<'tm> DatatypeDecl<'tm> {
 
     /// Get the name of this datatype declaration.
     pub fn name(&self) -> &str {
-        unsafe {
-            std::ffi::CStr::from_ptr(dt_decl_get_name(self.inner))
-                .to_str()
-                .unwrap_or("")
-        }
+        unsafe { cstr_to_str(dt_decl_get_name(self.inner)) }
     }
 }
 
 impl fmt::Display for DatatypeDecl<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { dt_decl_to_string(self.inner) };
         write!(f, "{}", unsafe {
-            std::ffi::CStr::from_ptr(s).to_string_lossy()
+            cstr_to_string(dt_decl_to_string(self.inner))
         })
     }
 }
@@ -215,18 +205,9 @@ impl<'tm> DatatypeSelector<'tm> {
         }
     }
 
-    /// Create a copy of this selector (increments the internal reference count).
-    pub fn copy(&self) -> DatatypeSelector<'tm> {
-        DatatypeSelector::from_raw(unsafe { dt_sel_copy(self.inner) })
-    }
-
     /// Get the name of this selector.
     pub fn name(&self) -> &str {
-        unsafe {
-            std::ffi::CStr::from_ptr(dt_sel_get_name(self.inner))
-                .to_str()
-                .unwrap_or("")
-        }
+        unsafe { cstr_to_str(dt_sel_get_name(self.inner)) }
     }
 
     /// Get the selector function as a term.
@@ -247,9 +228,8 @@ impl<'tm> DatatypeSelector<'tm> {
 
 impl fmt::Display for DatatypeSelector<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { dt_sel_to_string(self.inner) };
         write!(f, "{}", unsafe {
-            std::ffi::CStr::from_ptr(s).to_string_lossy()
+            cstr_to_string(dt_sel_to_string(self.inner))
         })
     }
 }
@@ -308,11 +288,7 @@ impl<'tm> DatatypeConstructor<'tm> {
 
     /// Get the name of this constructor.
     pub fn name(&self) -> &str {
-        unsafe {
-            std::ffi::CStr::from_ptr(dt_cons_get_name(self.inner))
-                .to_str()
-                .unwrap_or("")
-        }
+        unsafe { cstr_to_str(dt_cons_get_name(self.inner)) }
     }
 
     /// Get the constructor function as a term.
@@ -349,9 +325,8 @@ impl<'tm> DatatypeConstructor<'tm> {
 
 impl fmt::Display for DatatypeConstructor<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { dt_cons_to_string(self.inner) };
         write!(f, "{}", unsafe {
-            std::ffi::CStr::from_ptr(s).to_string_lossy()
+            cstr_to_string(dt_cons_to_string(self.inner))
         })
     }
 }
@@ -411,11 +386,6 @@ impl<'tm> Datatype<'tm> {
         }
     }
 
-    /// Create a copy of this datatype (increments the internal reference count).
-    pub fn copy(&self) -> Datatype<'tm> {
-        Datatype::from_raw(unsafe { dt_copy(self.inner) })
-    }
-
     /// Get the constructor at the given index.
     pub fn constructor(&self, index: usize) -> DatatypeConstructor<'tm> {
         DatatypeConstructor::from_raw(unsafe { dt_get_constructor(self.inner, index) })
@@ -435,11 +405,7 @@ impl<'tm> Datatype<'tm> {
 
     /// Get the name of this datatype.
     pub fn name(&self) -> &str {
-        unsafe {
-            std::ffi::CStr::from_ptr(dt_get_name(self.inner))
-                .to_str()
-                .unwrap_or("")
-        }
+        unsafe { cstr_to_str(dt_get_name(self.inner)) }
     }
 
     /// Get the number of constructors.
@@ -451,9 +417,7 @@ impl<'tm> Datatype<'tm> {
     pub fn parameters(&self) -> Vec<Sort<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { dt_get_parameters(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Sort::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Sort::from_raw(raw)) }
     }
 
     /// Return `true` if this datatype is parametric.
@@ -489,10 +453,7 @@ impl<'tm> Datatype<'tm> {
 
 impl fmt::Display for Datatype<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { dt_to_string(self.inner) };
-        write!(f, "{}", unsafe {
-            std::ffi::CStr::from_ptr(s).to_string_lossy()
-        })
+        write!(f, "{}", unsafe { cstr_to_string(dt_to_string(self.inner)) })
     }
 }
 

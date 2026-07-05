@@ -2,6 +2,7 @@ use cvc5_ff_sys::*;
 use std::ffi::CString;
 use std::rc::Rc;
 
+use crate::ffi_util::collect_raw_array;
 use crate::{DatatypeConstructorDecl, DatatypeDecl, Op, Sort, Statistics, Term};
 
 struct RawTermManager(*mut cvc5_ff_sys::TermManager);
@@ -94,9 +95,7 @@ impl TermManager {
     pub fn mk_dt_sorts(&self, decls: &[DatatypeDecl]) -> Vec<Sort<'_>> {
         let raw: Vec<cvc5_ff_sys::DatatypeDecl> = decls.iter().map(|d| d.inner).collect();
         let ptr = unsafe { mk_dt_sorts(self.ptr(), raw.len(), raw.as_ptr()) };
-        (0..decls.len())
-            .map(|i| Sort::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, decls.len(), |raw| Sort::from_raw(raw)) }
     }
 
     /// Create a function sort with the given domain and codomain sorts.

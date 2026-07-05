@@ -5,7 +5,10 @@ use std::collections::HashMap;
 use z3::ast::Int;
 use z3::{Params, SatResult, Solver};
 
-use crate::backends::{poly_to_smtlib_nia, SolverBackend, SolverBackendDescriptor, SolverError, SolverResult, UnknownReason};
+use crate::backends::{
+    dump_smt_nia, preflight, resolve_disequalities, SolverBackend, SolverBackendDescriptor,
+    SolverError, SolverResult, UnknownReason,
+};
 use crate::Theory;
 use picus_core::timeout::CancelToken;
 use crate::poly_system::PolySystem;
@@ -31,17 +34,10 @@ impl SolverBackend for Z3NiaBackend {
         timeout_ms: u64,
         cancel: &CancelToken,
     ) -> Result<SolverResult, SolverError> {
-        // Entry-only cancellation; see comment on `Cvc5FfBackend::solve`.
-        if cancel.is_cancelled() {
-            return Ok(SolverResult::Unknown(UnknownReason::Timeout));
-        }
-        // This backend lowers only equalities + the target disequality.
-        // Disjunctions / assignments / bitsums would silently weaken the
-        // query (dropping constraints → spurious SAT), so refuse rather
-        // than solve a different problem. The R1CS uniqueness query never
-        // populates these, so this is inert on the supported path.
-        if !ir.disjunctions.is_empty() || !ir.assignments.is_empty() || !ir.bitsums.is_empty() {
-            return Ok(SolverResult::Unknown(UnknownReason::IncompleteTheory));
+        // NIA lowers only equalities + the target disequality, so it refuses
+        // disjunctions (`allow_disjunctions = false`).
+        if let Some(r) = preflight(ir, cancel, false) {
+            return Ok(r);
         }
         let solver = Solver::new();
         let mut params = Params::new();
@@ -66,25 +62,11 @@ impl SolverBackend for Z3NiaBackend {
             solver.assert(sum.rem(&p_ast).eq(Int::from_u64(0)));
         }
 
-        // Disequalities: each `(a, b)` becomes `(not (= var_a var_b))`. A
-        // missing var would silently drop the constraint → trivially SAT →
-        // spurious counter-example; error out (→ Unknown) instead of a false
-        // UNSAFE. (A uniqueness query carries the single target pair.)
-        {
-            let names = ir.ring.var_names();
-            for &(a, b) in &ir.disequalities {
-                match (vars.get(&names[a]), vars.get(&names[b])) {
-                    (Some(x), Some(y)) => {
-                        solver.assert(x.eq(y).not());
-                    }
-                    _ => {
-                        return Err(SolverError::Internal(format!(
-                            "disequality ({}, {}) missing a declared variable",
-                            a, b
-                        )));
-                    }
-                }
-            }
+        // Disequalities: each resolved `(a, b)` becomes `(not (= a b))`.
+        for (na, nb) in resolve_disequalities(ir)? {
+            let x = &vars[&na];
+            let y = &vars[&nb];
+            solver.assert(x.eq(y).not());
         }
 
         match solver.check() {
@@ -107,29 +89,7 @@ impl SolverBackend for Z3NiaBackend {
     }
 
     fn dump_smt(&self, ir: &PolySystem) -> String {
-        let p = ir.ring.field().prime();
-        let mut lines = Vec::new();
-        lines.push("(set-logic QF_NIA)".to_string());
-        for name in ir.ring.var_names() {
-            lines.push(format!("(declare-const {} Int)", name));
-            lines.push(format!("(assert (and (>= {0} 0) (< {0} {1})))", name, p));
-        }
-        for poly in &ir.equalities {
-            lines.push(format!(
-                "(assert (= (rem {} {}) 0))",
-                poly_to_smtlib_nia(ir, poly),
-                p
-            ));
-        }
-        {
-            let names = ir.ring.var_names();
-            for &(a, b) in &ir.disequalities {
-                lines.push(format!("(assert (not (= {} {})))", names[a], names[b]));
-            }
-        }
-        lines.push("(check-sat)".to_string());
-        lines.push("(get-model)".to_string());
-        lines.join("\n")
+        dump_smt_nia(ir, "rem")
     }
 }
 

@@ -2,6 +2,7 @@ use cvc5_ff_sys::*;
 use std::fmt;
 use std::marker::PhantomData;
 
+use crate::ffi_util::collect_raw_array;
 use crate::Term;
 
 /// A cvc5 proof object.
@@ -41,11 +42,6 @@ impl<'tm> Proof<'tm> {
         unsafe { proof_get_rule(self.inner) }
     }
 
-    /// Create a copy of this proof (increments the internal reference count).
-    pub fn copy(&self) -> Proof<'tm> {
-        Proof::from_raw(unsafe { proof_copy(self.inner) })
-    }
-
     /// Check disequality with another proof.
     pub fn is_disequal(&self, other: &Proof) -> bool {
         unsafe { proof_is_disequal(self.inner, other.inner) }
@@ -65,18 +61,14 @@ impl<'tm> Proof<'tm> {
     pub fn children(&self) -> Vec<Proof<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { proof_get_children(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Proof::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Proof::from_raw(raw)) }
     }
 
     /// Get the arguments of this proof node as terms.
     pub fn arguments(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { proof_get_arguments(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 }
 

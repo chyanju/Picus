@@ -3,12 +3,11 @@ use std::ffi::CString;
 use std::fmt;
 use std::marker::PhantomData;
 
+use crate::ffi_util::{collect_raw_array, cstr_to_str, cstr_to_string};
 use crate::{
     DatatypeConstructorDecl, Grammar, Proof, Result, Sort, Statistics, SynthResult, Term,
     TermManager,
 };
-
-const ERROR_NOT_UTF8: &str = "Not UTF-8";
 
 #[derive(Clone)]
 pub enum OptionInfoKind<'a> {
@@ -62,10 +61,8 @@ impl OptionInfo<'_> {
                 current: self.inner.info_bool.cur,
             },
             K::Str => OptionInfoKind::String {
-                default: unsafe { std::ffi::CStr::from_ptr(self.inner.info_str.dflt).to_str() }
-                    .expect(ERROR_NOT_UTF8),
-                current: unsafe { std::ffi::CStr::from_ptr(self.inner.info_str.cur).to_str() }
-                    .expect(ERROR_NOT_UTF8),
+                default: unsafe { cstr_to_str(self.inner.info_str.dflt) },
+                current: unsafe { cstr_to_str(self.inner.info_str.cur) },
             },
             K::Int64 => OptionInfoKind::Int64 {
                 default: self.inner.info_int.dflt,
@@ -110,15 +107,10 @@ impl OptionInfo<'_> {
                 },
             },
             K::Modes => OptionInfoKind::Mode {
-                default: unsafe { std::ffi::CStr::from_ptr(self.inner.info_mode.dflt).to_str() }
-                    .expect(ERROR_NOT_UTF8),
-                current: unsafe { std::ffi::CStr::from_ptr(self.inner.info_mode.cur).to_str() }
-                    .expect(ERROR_NOT_UTF8),
+                default: unsafe { cstr_to_str(self.inner.info_mode.dflt) },
+                current: unsafe { cstr_to_str(self.inner.info_mode.cur) },
                 modes: (0..self.inner.info_mode.num_modes)
-                    .map(|i| {
-                        let p = unsafe { *self.inner.info_mode.modes.add(i) };
-                        unsafe { std::ffi::CStr::from_ptr(p).to_str() }.expect(ERROR_NOT_UTF8)
-                    })
+                    .map(|i| unsafe { cstr_to_str(*self.inner.info_mode.modes.add(i)) })
                     .collect(),
             },
         }
@@ -127,35 +119,28 @@ impl OptionInfo<'_> {
         self.inner.category
     }
     pub fn name(&self) -> impl AsRef<str> {
-        unsafe { std::ffi::CStr::from_ptr(self.inner.name).to_string_lossy() }
+        unsafe { cstr_to_string(self.inner.name) }
     }
     pub fn is_set_by_user(&self) -> bool {
         self.inner.is_set_by_user
     }
     pub fn aliases(&self) -> Vec<impl AsRef<str>> {
         (0..self.inner.num_aliases)
-            .map(|i| {
-                let p = unsafe { *self.inner.aliases.add(i) };
-                unsafe { std::ffi::CStr::from_ptr(p).to_string_lossy() }
-            })
+            .map(|i| unsafe { cstr_to_string(*self.inner.aliases.add(i)) })
             .collect()
     }
     pub fn no_supports(&self) -> Vec<impl AsRef<str>> {
         (0..self.inner.num_no_supports)
-            .map(|i| {
-                let p = unsafe { *self.inner.no_supports.add(i) };
-                unsafe { std::ffi::CStr::from_ptr(p).to_string_lossy() }
-            })
+            .map(|i| unsafe { cstr_to_string(*self.inner.no_supports.add(i)) })
             .collect()
     }
 }
 
 impl fmt::Display for OptionInfo<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe {
-            std::ffi::CStr::from_ptr(option_info_to_string(&self.inner)).to_string_lossy()
-        };
-        write!(f, "{}", s)
+        write!(f, "{}", unsafe {
+            cstr_to_string(option_info_to_string(&self.inner))
+        })
     }
 }
 
@@ -200,11 +185,7 @@ impl<'tm> Solver<'tm> {
 
     /// Get the currently set logic as a string.
     pub fn get_logic(&self) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(get_logic(self.inner))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(get_logic(self.inner)) }
     }
 
     /// Set a solver option (e.g. `"produce-models"`, `"true"`).
@@ -217,11 +198,7 @@ impl<'tm> Solver<'tm> {
     /// Get the current value of a solver option.
     pub fn get_option(&self, option: &str) -> String {
         let o = CString::new(option).unwrap();
-        unsafe {
-            std::ffi::CStr::from_ptr(get_option(self.inner, o.as_ptr()))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(get_option(self.inner, o.as_ptr())) }
     }
 
     /// Get the list of all option names.
@@ -229,11 +206,7 @@ impl<'tm> Solver<'tm> {
         let mut size = 0usize;
         let ptr = unsafe { get_option_names(self.inner, &mut size) };
         (0..size)
-            .map(|i| unsafe {
-                std::ffi::CStr::from_ptr(*ptr.add(i))
-                    .to_string_lossy()
-                    .into_owned()
-            })
+            .map(|i| unsafe { cstr_to_string(*ptr.add(i)) })
             .collect()
     }
 
@@ -247,11 +220,7 @@ impl<'tm> Solver<'tm> {
     /// Get solver information (SMT-LIB `get-info`).
     pub fn get_info(&self, flag: &str) -> String {
         let f = CString::new(flag).unwrap();
-        unsafe {
-            std::ffi::CStr::from_ptr(get_info(self.inner, f.as_ptr()))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(get_info(self.inner, f.as_ptr())) }
     }
 
     // ── Assertions & checking ──────────────────────────────────────
@@ -276,9 +245,7 @@ impl<'tm> Solver<'tm> {
     pub fn get_assertions(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_assertions(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     // ── Simplification ─────────────────────────────────────────────
@@ -300,18 +267,14 @@ impl<'tm> Solver<'tm> {
         let raw: Vec<cvc5_ff_sys::Term> = terms.iter().map(|t| t.inner).collect();
         let mut rsize = 0usize;
         let ptr = unsafe { get_values(self.inner, raw.len(), raw.as_ptr(), &mut rsize) };
-        (0..rsize)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, rsize, |raw| Term::from_raw(raw)) }
     }
 
     /// Get the domain elements of an uninterpreted sort in the current model.
     pub fn get_model_domain_elements(&self, sort: Sort) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_model_domain_elements(self.inner, sort.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Return `true` if the given variable is a model core symbol.
@@ -324,15 +287,13 @@ impl<'tm> Solver<'tm> {
         let rs: Vec<cvc5_ff_sys::Sort> = sorts.iter().map(|s| s.inner).collect();
         let rt: Vec<cvc5_ff_sys::Term> = consts.iter().map(|t| t.inner).collect();
         unsafe {
-            std::ffi::CStr::from_ptr(get_model(
+            cstr_to_string(get_model(
                 self.inner,
                 rs.len(),
                 rs.as_ptr(),
                 rt.len(),
                 rt.as_ptr(),
             ))
-            .to_string_lossy()
-            .into_owned()
         }
     }
 
@@ -470,27 +431,21 @@ impl<'tm> Solver<'tm> {
     pub fn get_unsat_core(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_unsat_core(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Get the lemmas used in the unsat core.
     pub fn get_unsat_core_lemmas(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_unsat_core_lemmas(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Get the unsat assumptions (subset of assumptions from `check_sat_assuming`).
     pub fn get_unsat_assumptions(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_unsat_assumptions(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     // ── Proofs ─────────────────────────────────────────────────────
@@ -499,9 +454,7 @@ impl<'tm> Solver<'tm> {
     pub fn get_proof(&self, c: cvc5_ff_sys::ProofComponent) -> Vec<Proof<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_proof(self.inner, c, &mut size) };
-        (0..size)
-            .map(|i| Proof::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Proof::from_raw(raw)) }
     }
 
     /// Convert a proof to a string in the given format.
@@ -516,7 +469,7 @@ impl<'tm> Solver<'tm> {
         let cnames: Vec<CString> = names.iter().map(|n| CString::new(*n).unwrap()).collect();
         let mut ptrs: Vec<*const std::ffi::c_char> = cnames.iter().map(|c| c.as_ptr()).collect();
         unsafe {
-            std::ffi::CStr::from_ptr(proof_to_string(
+            cstr_to_string(proof_to_string(
                 self.inner,
                 proof.inner,
                 format,
@@ -524,8 +477,6 @@ impl<'tm> Solver<'tm> {
                 rt.as_ptr(),
                 ptrs.as_mut_ptr(),
             ))
-            .to_string_lossy()
-            .into_owned()
         }
     }
 
@@ -535,9 +486,7 @@ impl<'tm> Solver<'tm> {
     pub fn get_learned_literals(&self, lit_type: cvc5_ff_sys::LearnedLitType) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_learned_literals(self.inner, lit_type, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Get the difficulty of each assertion as `(inputs, values)` pairs.
@@ -546,12 +495,8 @@ impl<'tm> Solver<'tm> {
         let mut inputs: *mut cvc5_ff_sys::Term = std::ptr::null_mut();
         let mut values: *mut cvc5_ff_sys::Term = std::ptr::null_mut();
         unsafe { get_difficulty(self.inner, &mut size, &mut inputs, &mut values) };
-        let i = (0..size)
-            .map(|j| Term::from_raw(unsafe { *inputs.add(j) }))
-            .collect();
-        let v = (0..size)
-            .map(|j| Term::from_raw(unsafe { *values.add(j) }))
-            .collect();
+        let i = unsafe { collect_raw_array(inputs, size, |raw| Term::from_raw(raw)) };
+        let v = unsafe { collect_raw_array(values, size, |raw| Term::from_raw(raw)) };
         (i, v)
     }
 
@@ -562,9 +507,7 @@ impl<'tm> Solver<'tm> {
         let mut result: cvc5_ff_sys::Result = std::ptr::null_mut();
         let mut size = 0usize;
         let ptr = unsafe { get_timeout_core(self.inner, &mut result, &mut size) };
-        let terms = (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect();
+        let terms = unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) };
         (Result::from_raw(result), terms)
     }
 
@@ -576,9 +519,7 @@ impl<'tm> Solver<'tm> {
         let ptr = unsafe {
             get_timeout_core_assuming(self.inner, raw.len(), raw.as_ptr(), &mut result, &mut rsize)
         };
-        let terms = (0..rsize)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect();
+        let terms = unsafe { collect_raw_array(ptr, rsize, |raw| Term::from_raw(raw)) };
         (Result::from_raw(result), terms)
     }
 
@@ -678,11 +619,7 @@ impl<'tm> Solver<'tm> {
 
     /// Get a string representation of all quantifier instantiations.
     pub fn get_instantiations(&self) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(get_instantiations(self.inner))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(get_instantiations(self.inner)) }
     }
 
     // ── SyGuS ──────────────────────────────────────────────────────
@@ -742,9 +679,7 @@ impl<'tm> Solver<'tm> {
     pub fn get_sygus_constraints(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_sygus_constraints(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Add a SyGuS assumption.
@@ -756,9 +691,7 @@ impl<'tm> Solver<'tm> {
     pub fn get_sygus_assumptions(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { get_sygus_assumptions(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Add a SyGuS invariant constraint.
@@ -787,9 +720,7 @@ impl<'tm> Solver<'tm> {
     pub fn get_synth_solutions(&self, terms: &[Term]) -> Vec<Term<'tm>> {
         let raw: Vec<cvc5_ff_sys::Term> = terms.iter().map(|t| t.inner).collect();
         let ptr = unsafe { get_synth_solutions(self.inner, raw.len(), raw.as_ptr()) };
-        (0..terms.len())
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, terms.len(), |raw| Term::from_raw(raw)) }
     }
 
     /// Find a synthesis target of the given type.
@@ -907,11 +838,7 @@ impl<'tm> Solver<'tm> {
 
     /// Get the cvc5 version string.
     pub fn version(&self) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(get_version(self.inner))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(get_version(self.inner)) }
     }
 }
 

@@ -193,5 +193,151 @@ pub fn poly_to_smtlib_ff(ir: &PolySystem, poly: &picus_core::poly::Poly) -> Stri
     }
 }
 
+// ─── Shared backend logic (cvc5 / z3) ──────────────────────────────
+
+/// Emit the complete SMT-LIB `QF_NIA` script shared by the cvc5 and z3
+/// NIA backends. Their `dump_smt` bodies are byte-identical except for the
+/// modulo operator: cvc5 emits `mod`, z3 emits `rem` (both reduce the
+/// polynomial modulo the prime on the `[0, p)`-ranged variables this
+/// declares). Callers pass `mod_op` (`"mod"` / `"rem"`) accordingly.
+#[cfg(any(feature = "cvc5", feature = "z3"))]
+pub fn dump_smt_nia(ir: &PolySystem, mod_op: &str) -> String {
+    let p = ir.ring.field().prime();
+    let mut lines = Vec::new();
+    lines.push("(set-logic QF_NIA)".to_string());
+    for name in ir.ring.var_names() {
+        lines.push(format!("(declare-const {} Int)", name));
+        lines.push(format!("(assert (and (>= {0} 0) (< {0} {1})))", name, p));
+    }
+    for poly in &ir.equalities {
+        lines.push(format!(
+            "(assert (= ({} {} {}) 0))",
+            mod_op,
+            poly_to_smtlib_nia(ir, poly),
+            p
+        ));
+    }
+    {
+        let names = ir.ring.var_names();
+        for &(a, b) in &ir.disequalities {
+            lines.push(format!("(assert (not (= {} {})))", names[a], names[b]));
+        }
+    }
+    lines.push("(check-sat)".to_string());
+    lines.push("(get-model)".to_string());
+    lines.join("\n")
+}
+
+/// Entry guard run at the top of every external backend's `solve()`.
+/// Returns `Some(result)` when the query must short-circuit before any
+/// solver work, or `None` to proceed.
+///
+/// * **Cancellation is honoured at entry only.** These backends can't
+///   interrupt an in-flight solve (cvc5 runs in-process via the `cvc5-ff`
+///   bindings, which expose no mid-call cancel hook; z3's own `timeout`
+///   param covers the wall-clock budget), so a pre-cancelled token returns
+///   `Unknown(Timeout)` immediately and the per-call budget covers the rest.
+/// * **Unsupported IR features are refused, not silently dropped.** Each
+///   backend lowers equalities and the target disequality (plus, when
+///   `allow_disjunctions`, `or` clauses). Any `assignments` / `bitsums`
+///   (and `disjunctions` on the NIA backends, which set `allow_disjunctions`
+///   to `false`) it can't lower would weaken the query — dropped constraints
+///   → spurious SAT → a false counter-example — so refuse with
+///   `Unknown(IncompleteTheory)` rather than solve a different problem. The
+///   R1CS uniqueness query never populates these, so the guard is inert on
+///   the supported path.
+#[cfg(any(feature = "cvc5", feature = "z3"))]
+pub fn preflight(
+    ir: &PolySystem,
+    cancel: &CancelToken,
+    allow_disjunctions: bool,
+) -> Option<SolverResult> {
+    if cancel.is_cancelled() {
+        return Some(SolverResult::Unknown(UnknownReason::Timeout));
+    }
+    let unsupported_disjunctions = !allow_disjunctions && !ir.disjunctions.is_empty();
+    if unsupported_disjunctions || !ir.assignments.is_empty() || !ir.bitsums.is_empty() {
+        return Some(SolverResult::Unknown(UnknownReason::IncompleteTheory));
+    }
+    None
+}
+
+/// Resolve each `(a, b)` index pair in `ir.disequalities` to the pair of
+/// declared variable names `(names[a], names[b])`. Returns
+/// `Err(SolverError::Internal(..))` naming the offending pair if either
+/// index has no declared variable: silently dropping the constraint would
+/// leave the query trivially SAT (a spurious counter-example / false
+/// UNSAFE), so backends surface it as an error (→ `Unknown`) instead. A
+/// uniqueness query carries the single target pair; other producers may add
+/// more.
+///
+/// Each backend then emits its own API-specific `(not (= a b))` assertion
+/// over the returned names.
+#[cfg(any(feature = "cvc5", feature = "z3"))]
+pub fn resolve_disequalities(ir: &PolySystem) -> Result<Vec<(String, String)>, SolverError> {
+    let names = ir.ring.var_names();
+    let mut out = Vec::with_capacity(ir.disequalities.len());
+    for &(a, b) in &ir.disequalities {
+        match (names.get(a), names.get(b)) {
+            (Some(na), Some(nb)) => out.push((na.clone(), nb.clone())),
+            _ => {
+                return Err(SolverError::Internal(format!(
+                    "disequality ({}, {}) missing a declared variable",
+                    a, b
+                )));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Build a cvc5 `Term` for a single `Poly`, shared by the cvc5 FF and NIA
+/// backends. The two lowerings differ only in the theory-specific pieces,
+/// which the caller supplies:
+///
+/// * `mul_kind` / `add_kind` — the product / sum `Kind`
+///   (`FiniteFieldMult` + `FiniteFieldAdd` for FF; `Mult` + `Add` for NIA),
+/// * `mk_coeff` — construct a coefficient literal from its `BigUint` value,
+/// * `mk_zero` — construct the additive-identity literal (empty polynomial),
+/// * `mk_var` — construct the fallback constant for a monomial variable not
+///   present in `vars` (a defensive path; `vars` holds every ring variable).
+///
+/// Each `(coeff, monomial_vars)` term becomes `mk_term(mul_kind, [coeff,
+/// v1, ...])` (or the bare coefficient when the monomial is constant); the
+/// sum is wrapped in `mk_term(add_kind, ..)` when it has more than one term.
+#[cfg(feature = "cvc5")]
+#[allow(clippy::too_many_arguments)]
+pub fn build_poly_cvc5<'a>(
+    tm: &'a ::cvc5_ff::TermManager,
+    vars: &HashMap<String, ::cvc5_ff::Term<'a>>,
+    ir: &PolySystem,
+    poly: &picus_core::poly::Poly,
+    mul_kind: ::cvc5_ff::Kind,
+    add_kind: ::cvc5_ff::Kind,
+    mk_coeff: impl Fn(&BigUint) -> ::cvc5_ff::Term<'a>,
+    mk_zero: impl Fn() -> ::cvc5_ff::Term<'a>,
+    mk_var: impl Fn(&str) -> ::cvc5_ff::Term<'a>,
+) -> ::cvc5_ff::Term<'a> {
+    let mut sum_parts: Vec<::cvc5_ff::Term<'a>> = Vec::new();
+    for (coeff, var_names) in ir.poly_terms(poly) {
+        let c = mk_coeff(&coeff);
+        if var_names.is_empty() {
+            sum_parts.push(c);
+            continue;
+        }
+        let mut factors: Vec<::cvc5_ff::Term<'a>> = Vec::with_capacity(var_names.len() + 1);
+        factors.push(c);
+        for n in var_names {
+            factors.push(vars.get(&n).cloned().unwrap_or_else(|| mk_var(&n)));
+        }
+        sum_parts.push(tm.mk_term(mul_kind, &factors));
+    }
+    match sum_parts.len() {
+        0 => mk_zero(),
+        1 => sum_parts.into_iter().next().unwrap(),
+        _ => tm.mk_term(add_kind, &sum_parts),
+    }
+}
+
 #[cfg(test)]
 mod tests;

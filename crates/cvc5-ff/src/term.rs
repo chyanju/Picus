@@ -2,6 +2,7 @@ use cvc5_ff_sys::*;
 use std::fmt;
 use std::marker::PhantomData;
 
+use crate::ffi_util::{collect_raw_array, cstr_to_str, cstr_to_string};
 use crate::{Op, Sort};
 
 /// A cvc5 term (expression or formula).
@@ -42,11 +43,6 @@ impl<'tm> Term<'tm> {
         unsafe { term_get_kind(self.inner) }
     }
 
-    /// Create a copy of this term (increments the internal reference count).
-    pub fn copy(&self) -> Term<'tm> {
-        Term::from_raw(unsafe { term_copy(self.inner) })
-    }
-
     /// Check disequality with another term.
     pub fn is_disequal(&self, other: &Term) -> bool {
         unsafe { term_is_disequal(self.inner, other.inner) }
@@ -79,10 +75,7 @@ impl<'tm> Term<'tm> {
 
     /// Get the symbol (name) of this term.
     pub fn symbol(&self) -> &str {
-        unsafe {
-            let s = term_get_symbol(self.inner);
-            std::ffi::CStr::from_ptr(s).to_str().unwrap_or("")
-        }
+        unsafe { cstr_to_str(term_get_symbol(self.inner)) }
     }
 
     /// Return `true` if this term has an associated operator.
@@ -165,11 +158,7 @@ impl<'tm> Term<'tm> {
     }
     /// Get the integer value as a decimal string.
     pub fn integer_value(&self) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(term_get_integer_value(self.inner))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(term_get_integer_value(self.inner)) }
     }
 
     /// Return `true` if this term is a string value.
@@ -235,11 +224,7 @@ impl<'tm> Term<'tm> {
     }
     /// Get the real value as a decimal string (e.g. `"1/3"`).
     pub fn real_value(&self) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(term_get_real_value(self.inner))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(term_get_real_value(self.inner)) }
     }
 
     /// Return `true` if this term is a constant array value.
@@ -257,11 +242,7 @@ impl<'tm> Term<'tm> {
     }
     /// Get the bit-vector value as a string in the given base (2, 10, or 16).
     pub fn bv_value(&self, base: u32) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(term_get_bv_value(self.inner, base))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(term_get_bv_value(self.inner, base)) }
     }
 
     /// Return `true` if this term is a finite field value.
@@ -270,11 +251,7 @@ impl<'tm> Term<'tm> {
     }
     /// Get the finite field value as a string.
     pub fn ff_value(&self) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(term_get_ff_value(self.inner))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(term_get_ff_value(self.inner)) }
     }
 
     /// Return `true` if this term is an uninterpreted sort value.
@@ -283,11 +260,7 @@ impl<'tm> Term<'tm> {
     }
     /// Get the uninterpreted sort value as a string.
     pub fn uninterpreted_sort_value(&self) -> String {
-        unsafe {
-            std::ffi::CStr::from_ptr(term_get_uninterpreted_sort_value(self.inner))
-                .to_string_lossy()
-                .into_owned()
-        }
+        unsafe { cstr_to_string(term_get_uninterpreted_sort_value(self.inner)) }
     }
 
     /// Return `true` if this term is a tuple value.
@@ -298,9 +271,7 @@ impl<'tm> Term<'tm> {
     pub fn tuple_value(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { term_get_tuple_value(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Return `true` if this term is a rounding mode value.
@@ -352,9 +323,7 @@ impl<'tm> Term<'tm> {
     pub fn set_value(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { term_get_set_value(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Return `true` if this term is a sequence value.
@@ -365,9 +334,7 @@ impl<'tm> Term<'tm> {
     pub fn sequence_value(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { term_get_sequence_value(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 
     /// Return `true` if this term is a cardinality constraint.
@@ -413,17 +380,13 @@ impl<'tm> Term<'tm> {
     pub fn skolem_indices(&self) -> Vec<Term<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { term_get_skolem_indices(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Term::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Term::from_raw(raw)) }
     }
 }
 
 impl fmt::Display for Term<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { term_to_string(self.inner) };
-        let cs = unsafe { std::ffi::CStr::from_ptr(s) };
-        write!(f, "{}", cs.to_string_lossy())
+        write!(f, "{}", unsafe { cstr_to_string(term_to_string(self.inner)) })
     }
 }
 

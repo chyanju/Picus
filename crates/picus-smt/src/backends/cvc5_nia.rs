@@ -3,7 +3,10 @@
 use num_bigint::BigUint;
 use std::collections::HashMap;
 
-use crate::backends::{poly_to_smtlib_nia, SolverBackend, SolverBackendDescriptor, SolverError, SolverResult, UnknownReason};
+use crate::backends::{
+    build_poly_cvc5, dump_smt_nia, preflight, resolve_disequalities, SolverBackend,
+    SolverBackendDescriptor, SolverError, SolverResult, UnknownReason,
+};
 use crate::Theory;
 use picus_core::timeout::CancelToken;
 use crate::poly_system::PolySystem;
@@ -29,17 +32,10 @@ impl SolverBackend for Cvc5NiaBackend {
         timeout_ms: u64,
         cancel: &CancelToken,
     ) -> Result<SolverResult, SolverError> {
-        // Entry-only cancellation; see comment on `Cvc5FfBackend::solve`.
-        if cancel.is_cancelled() {
-            return Ok(SolverResult::Unknown(UnknownReason::Timeout));
-        }
-        // This backend lowers only equalities + the target disequality.
-        // Disjunctions / assignments / bitsums would silently weaken the
-        // query (dropping constraints → spurious SAT), so refuse rather
-        // than solve a different problem. The R1CS uniqueness query never
-        // populates these, so this is inert on the supported path.
-        if !ir.disjunctions.is_empty() || !ir.assignments.is_empty() || !ir.bitsums.is_empty() {
-            return Ok(SolverResult::Unknown(UnknownReason::IncompleteTheory));
+        // NIA lowers only equalities + the target disequality, so it refuses
+        // disjunctions (`allow_disjunctions = false`).
+        if let Some(r) = preflight(ir, cancel, false) {
+            return Ok(r);
         }
         let tm = cvc5_ff::TermManager::new();
         let mut solver = cvc5_ff::Solver::new(&tm);
@@ -65,35 +61,34 @@ impl SolverBackend for Cvc5NiaBackend {
             vars.insert(name.clone(), v);
         }
 
+        // Theory-specific term constructors for `build_poly_cvc5` (NIA).
+        let mk_coeff = |c: &BigUint| tm.mk_integer_from_str(&c.to_string());
+        let mk_zero = || tm.mk_integer(0);
+        let mk_var = |n: &str| tm.mk_const(tm.integer_sort(), n);
+
         // Equalities: `(mod poly p) = 0`.
         for poly in &ir.equalities {
-            let lhs = build_poly_nia(&tm, &vars, ir, poly);
+            let lhs = build_poly_cvc5(
+                &tm,
+                &vars,
+                ir,
+                poly,
+                cvc5_ff::Kind::Mult,
+                cvc5_ff::Kind::Add,
+                &mk_coeff,
+                &mk_zero,
+                &mk_var,
+            );
             let modded = tm.mk_term(cvc5_ff::Kind::IntsModulus, &[lhs, p_term.clone()]);
             solver.assert_formula(
                 tm.mk_term(cvc5_ff::Kind::Equal, &[modded, zero_term.clone()]),
             );
         }
 
-        // Disequalities: each `(a, b)` becomes `(not (= var_a var_b))`. A
-        // missing var would silently drop the constraint → trivially SAT →
-        // spurious counter-example; error out (→ Unknown) instead of a false
-        // UNSAFE. (A uniqueness query carries the single target pair.)
-        {
-            let names = ir.ring.var_names();
-            for &(a, b) in &ir.disequalities {
-                match (vars.get(&names[a]).cloned(), vars.get(&names[b]).cloned()) {
-                    (Some(x), Some(y)) => {
-                        let eq = tm.mk_term(cvc5_ff::Kind::Equal, &[x, y]);
-                        solver.assert_formula(tm.mk_term(cvc5_ff::Kind::Not, &[eq]));
-                    }
-                    _ => {
-                        return Err(SolverError::Internal(format!(
-                            "disequality ({}, {}) missing a declared variable",
-                            a, b
-                        )));
-                    }
-                }
-            }
+        // Disequalities: each resolved `(a, b)` becomes `(not (= a b))`.
+        for (na, nb) in resolve_disequalities(ir)? {
+            let eq = tm.mk_term(cvc5_ff::Kind::Equal, &[vars[&na].clone(), vars[&nb].clone()]);
+            solver.assert_formula(tm.mk_term(cvc5_ff::Kind::Not, &[eq]));
         }
 
         let result = solver.check_sat();
@@ -114,60 +109,7 @@ impl SolverBackend for Cvc5NiaBackend {
     }
 
     fn dump_smt(&self, ir: &PolySystem) -> String {
-        let p = ir.ring.field().prime();
-        let mut lines = Vec::new();
-        lines.push("(set-logic QF_NIA)".to_string());
-        for name in ir.ring.var_names() {
-            lines.push(format!("(declare-const {} Int)", name));
-            lines.push(format!("(assert (and (>= {0} 0) (< {0} {1})))", name, p));
-        }
-        for poly in &ir.equalities {
-            lines.push(format!(
-                "(assert (= (mod {} {}) 0))",
-                poly_to_smtlib_nia(ir, poly),
-                p
-            ));
-        }
-        {
-            let names = ir.ring.var_names();
-            for &(a, b) in &ir.disequalities {
-                lines.push(format!("(assert (not (= {} {})))", names[a], names[b]));
-            }
-        }
-        lines.push("(check-sat)".to_string());
-        lines.push("(get-model)".to_string());
-        lines.join("\n")
-    }
-}
-
-fn build_poly_nia<'a>(
-    tm: &'a cvc5_ff::TermManager,
-    vars: &HashMap<String, cvc5_ff::Term<'a>>,
-    ir: &PolySystem,
-    poly: &picus_core::poly::Poly,
-) -> cvc5_ff::Term<'a> {
-    let mut sum_parts: Vec<cvc5_ff::Term<'a>> = Vec::new();
-    for (coeff, var_names) in ir.poly_terms(poly) {
-        let c = tm.mk_integer_from_str(&coeff.to_string());
-        if var_names.is_empty() {
-            sum_parts.push(c);
-            continue;
-        }
-        let mut factors: Vec<cvc5_ff::Term<'a>> = Vec::with_capacity(var_names.len() + 1);
-        factors.push(c);
-        for n in var_names {
-            factors.push(
-                vars.get(&n)
-                    .cloned()
-                    .unwrap_or_else(|| tm.mk_const(tm.integer_sort(), &n)),
-            );
-        }
-        sum_parts.push(tm.mk_term(cvc5_ff::Kind::Mult, &factors));
-    }
-    match sum_parts.len() {
-        0 => tm.mk_integer(0),
-        1 => sum_parts.into_iter().next().unwrap(),
-        _ => tm.mk_term(cvc5_ff::Kind::Add, &sum_parts),
+        dump_smt_nia(ir, "mod")
     }
 }
 

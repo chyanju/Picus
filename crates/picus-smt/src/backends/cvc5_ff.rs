@@ -7,7 +7,10 @@
 use num_bigint::BigUint;
 use std::collections::HashMap;
 
-use crate::backends::{poly_to_smtlib_ff, SolverBackend, SolverBackendDescriptor, SolverError, SolverResult, UnknownReason};
+use crate::backends::{
+    build_poly_cvc5, poly_to_smtlib_ff, preflight, resolve_disequalities, SolverBackend,
+    SolverBackendDescriptor, SolverError, SolverResult, UnknownReason,
+};
 use crate::Theory;
 use picus_core::timeout::CancelToken;
 use crate::poly_system::PolySystem;
@@ -33,22 +36,9 @@ impl SolverBackend for Cvc5FfBackend {
         timeout_ms: u64,
         cancel: &CancelToken,
     ) -> Result<SolverResult, SolverError> {
-        // Mid-solve cancellation requires terminating the cvc5
-        // subprocess mid-call, which the `cvc5-ff` bindings do not
-        // expose. The token is honoured at entry only: a
-        // pre-cancelled query returns immediately, and cvc5's own
-        // `tlimit` covers the wall-clock budget.
-        if cancel.is_cancelled() {
-            return Ok(SolverResult::Unknown(UnknownReason::Timeout));
-        }
-        // This backend lowers equalities, the target disequality, and
-        // disjunctions, but not `assignments` or `bitsums`. Silently
-        // ignoring them would weaken the query (dropped constraints ->
-        // spurious SAT), so refuse rather than solve a different problem —
-        // matching the NIA backends' guard. The R1CS uniqueness query never
-        // populates these, so the guard is inert on the supported path.
-        if !ir.assignments.is_empty() || !ir.bitsums.is_empty() {
-            return Ok(SolverResult::Unknown(UnknownReason::IncompleteTheory));
+        // This backend allows disjunctions (its QF_FF DPLL(T) handles `or`).
+        if let Some(r) = preflight(ir, cancel, true) {
+            return Ok(r);
         }
         let tm = cvc5_ff::TermManager::new();
         let mut solver = cvc5_ff::Solver::new(&tm);
@@ -71,34 +61,34 @@ impl SolverBackend for Cvc5FfBackend {
 
         let zero = tm.mk_ff_elem("0", ff.clone(), 10);
 
+        // Theory-specific term constructors for `build_poly_cvc5` (FF).
+        let mk_coeff = |c: &BigUint| tm.mk_ff_elem(&c.to_string(), ff.clone(), 10);
+        let mk_zero = || tm.mk_ff_elem("0", ff.clone(), 10);
+        let mk_var = |n: &str| tm.mk_const(ff.clone(), n);
+        let build = |poly: &picus_core::poly::Poly| {
+            build_poly_cvc5(
+                &tm,
+                &vars,
+                ir,
+                poly,
+                cvc5_ff::Kind::FiniteFieldMult,
+                cvc5_ff::Kind::FiniteFieldAdd,
+                &mk_coeff,
+                &mk_zero,
+                &mk_var,
+            )
+        };
+
         // Equalities.
         for poly in &ir.equalities {
-            let lhs = build_poly_term(&tm, &vars, ir, poly, ff.clone());
+            let lhs = build(poly);
             solver.assert_formula(tm.mk_term(cvc5_ff::Kind::Equal, &[lhs, zero.clone()]));
         }
 
-        // Disequalities: each `(a, b)` becomes `(not (= var_a var_b))`. Both
-        // vars must be declared; a missing one would silently drop the
-        // constraint, leaving the query trivially SAT — a spurious
-        // counter-example. Surface it as an error (→ Unknown) rather than a
-        // false UNSAFE. (A uniqueness query carries the single target
-        // `(x_target, y_target)` pair; other producers may add more.)
-        {
-            let names = ir.ring.var_names();
-            for &(a, b) in &ir.disequalities {
-                match (vars.get(&names[a]).cloned(), vars.get(&names[b]).cloned()) {
-                    (Some(x), Some(y)) => {
-                        let eq = tm.mk_term(cvc5_ff::Kind::Equal, &[x, y]);
-                        solver.assert_formula(tm.mk_term(cvc5_ff::Kind::Not, &[eq]));
-                    }
-                    _ => {
-                        return Err(SolverError::Internal(format!(
-                            "disequality ({}, {}) missing a declared variable",
-                            a, b
-                        )));
-                    }
-                }
-            }
+        // Disequalities: each resolved `(a, b)` becomes `(not (= a b))`.
+        for (na, nb) in resolve_disequalities(ir)? {
+            let eq = tm.mk_term(cvc5_ff::Kind::Equal, &[vars[&na].clone(), vars[&nb].clone()]);
+            solver.assert_formula(tm.mk_term(cvc5_ff::Kind::Not, &[eq]));
         }
 
         // Disjunctions: clause `[p_1, ..., p_k]` ⇒ `(or (= p_1 0) ... (=
@@ -108,7 +98,7 @@ impl SolverBackend for Cvc5FfBackend {
         for clause in &ir.disjunctions {
             let mut alts: Vec<cvc5_ff::Term> = Vec::with_capacity(clause.len());
             for poly in clause {
-                let lhs = build_poly_term(&tm, &vars, ir, poly, ff.clone());
+                let lhs = build(poly);
                 alts.push(tm.mk_term(cvc5_ff::Kind::Equal, &[lhs, zero.clone()]));
             }
             match alts.len() {
@@ -174,38 +164,6 @@ impl SolverBackend for Cvc5FfBackend {
         lines.push("(check-sat)".to_string());
         lines.push("(get-model)".to_string());
         lines.join("\n")
-    }
-}
-
-fn build_poly_term<'a>(
-    tm: &'a cvc5_ff::TermManager,
-    vars: &HashMap<String, cvc5_ff::Term<'a>>,
-    ir: &PolySystem,
-    poly: &picus_core::poly::Poly,
-    ff: cvc5_ff::Sort<'a>,
-) -> cvc5_ff::Term<'a> {
-    let mut sum_parts: Vec<cvc5_ff::Term<'a>> = Vec::new();
-    for (coeff, var_names) in ir.poly_terms(poly) {
-        let c = tm.mk_ff_elem(&coeff.to_string(), ff.clone(), 10);
-        if var_names.is_empty() {
-            sum_parts.push(c);
-            continue;
-        }
-        let mut factors: Vec<cvc5_ff::Term<'a>> = Vec::with_capacity(var_names.len() + 1);
-        factors.push(c);
-        for n in var_names {
-            factors.push(
-                vars.get(&n)
-                    .cloned()
-                    .unwrap_or_else(|| tm.mk_const(ff.clone(), &n)),
-            );
-        }
-        sum_parts.push(tm.mk_term(cvc5_ff::Kind::FiniteFieldMult, &factors));
-    }
-    match sum_parts.len() {
-        0 => tm.mk_ff_elem("0", ff, 10),
-        1 => sum_parts.into_iter().next().unwrap(),
-        _ => tm.mk_term(cvc5_ff::Kind::FiniteFieldAdd, &sum_parts),
     }
 }
 

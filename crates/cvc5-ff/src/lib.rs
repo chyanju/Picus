@@ -28,6 +28,7 @@
 //! ```
 
 mod datatype;
+mod ffi_util;
 mod grammar;
 mod op;
 #[cfg(feature = "parser")]
@@ -69,11 +70,7 @@ pub use parser::{Command, InputParser, SymbolManager};
 /// Get a string representation of an [`InputLanguage`].
 #[cfg(feature = "parser")]
 pub fn input_language_to_string(lang: InputLanguage) -> String {
-    unsafe {
-        std::ffi::CStr::from_ptr(cvc5_ff_sys::modes_input_language_to_string(lang))
-            .to_string_lossy()
-            .into_owned()
-    }
+    unsafe { ffi_util::cstr_to_string(cvc5_ff_sys::modes_input_language_to_string(lang)) }
 }
 
 // ---------------------------------------------------------------------------
@@ -84,11 +81,7 @@ macro_rules! enum_to_string_fn {
     ($(#[$meta:meta])* $fn_name:ident, $ty:ty, $c_fn:path) => {
         $(#[$meta])*
         pub fn $fn_name(val: $ty) -> String {
-            unsafe {
-                std::ffi::CStr::from_ptr($c_fn(val))
-                    .to_string_lossy()
-                    .into_owned()
-            }
+            unsafe { $crate::ffi_util::cstr_to_string($c_fn(val)) }
         }
     };
 }

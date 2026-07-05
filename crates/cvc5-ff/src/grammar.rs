@@ -35,11 +35,6 @@ impl<'tm> Grammar<'tm> {
         }
     }
 
-    /// Create a copy of this grammar (increments the internal reference count).
-    pub fn copy(&self) -> Grammar<'tm> {
-        Grammar::from_raw(unsafe { grammar_copy(self.inner) })
-    }
-
     /// Check disequality with another grammar.
     pub fn is_disequal(&self, other: &Grammar) -> bool {
         unsafe { grammar_is_disequal(self.inner, other.inner) }

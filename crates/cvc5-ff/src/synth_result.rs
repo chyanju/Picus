@@ -36,11 +36,6 @@ impl<'tm> SynthResult<'tm> {
         unsafe { synth_result_is_null(self.inner) }
     }
 
-    /// Create a copy of this synthesis result (increments the internal reference count).
-    pub fn copy(&self) -> SynthResult<'tm> {
-        SynthResult::from_raw(unsafe { synth_result_copy(self.inner) })
-    }
-
     /// Check disequality with another synthesis result.
     pub fn is_disequal(&self, other: &SynthResult) -> bool {
         unsafe { synth_result_is_disequal(self.inner, other.inner) }

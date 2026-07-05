@@ -36,11 +36,6 @@ impl<'tm> Result<'tm> {
         unsafe { result_is_null(self.inner) }
     }
 
-    /// Create a copy of this result (increments the internal reference count).
-    pub fn copy(&self) -> Result<'tm> {
-        Result::from_raw(unsafe { result_copy(self.inner) })
-    }
-
     /// Check disequality with another result.
     pub fn is_disequal(&self, other: &Result) -> bool {
         unsafe { result_is_disequal(self.inner, other.inner) }

@@ -2,6 +2,7 @@ use cvc5_ff_sys::*;
 use std::fmt;
 use std::marker::PhantomData;
 
+use crate::ffi_util::{collect_raw_array, cstr_to_str, cstr_to_string};
 use crate::Datatype;
 
 /// A cvc5 sort (type).
@@ -43,11 +44,6 @@ impl<'tm> Sort<'tm> {
         unsafe { sort_get_kind(self.inner) }
     }
 
-    /// Create a copy of this sort (increments the internal reference count).
-    pub fn copy(&self) -> Sort<'tm> {
-        Sort::from_raw(unsafe { sort_copy(self.inner) })
-    }
-
     /// Check disequality with another sort.
     pub fn is_disequal(&self, other: &Sort) -> bool {
         unsafe { sort_is_disequal(self.inner, other.inner) }
@@ -60,10 +56,7 @@ impl<'tm> Sort<'tm> {
 
     /// Get the symbol (name) of this sort.
     pub fn symbol(&self) -> &str {
-        unsafe {
-            let s = sort_get_symbol(self.inner);
-            std::ffi::CStr::from_ptr(s).to_str().unwrap_or("")
-        }
+        unsafe { cstr_to_str(sort_get_symbol(self.inner)) }
     }
 
     /// Return `true` if this is the Boolean sort.
@@ -195,9 +188,7 @@ impl<'tm> Sort<'tm> {
     pub fn instantiated_parameters(&self) -> Vec<Sort<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { sort_get_instantiated_parameters(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Sort::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Sort::from_raw(raw)) }
     }
 
     /// Substitute `s` with `replacement` in this sort.
@@ -222,9 +213,7 @@ impl<'tm> Sort<'tm> {
     pub fn dt_constructor_domain(&self) -> Vec<Sort<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { sort_dt_constructor_get_domain(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Sort::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Sort::from_raw(raw)) }
     }
     /// Get the codomain sort of a datatype constructor sort.
     pub fn dt_constructor_codomain(&self) -> Sort<'tm> {
@@ -254,9 +243,7 @@ impl<'tm> Sort<'tm> {
     pub fn fun_domain(&self) -> Vec<Sort<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { sort_fun_get_domain(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Sort::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Sort::from_raw(raw)) }
     }
     /// Get the codomain sort of a function sort.
     pub fn fun_codomain(&self) -> Sort<'tm> {
@@ -296,10 +283,7 @@ impl<'tm> Sort<'tm> {
     }
     /// Get the size (modulus) of a finite field sort as a string.
     pub fn ff_size(&self) -> String {
-        unsafe {
-            let s = sort_ff_get_size(self.inner);
-            std::ffi::CStr::from_ptr(s).to_string_lossy().into_owned()
-        }
+        unsafe { cstr_to_string(sort_ff_get_size(self.inner)) }
     }
     /// Get the exponent size of a floating-point sort.
     pub fn fp_exponent_size(&self) -> u32 {
@@ -321,9 +305,7 @@ impl<'tm> Sort<'tm> {
     pub fn tuple_element_sorts(&self) -> Vec<Sort<'tm>> {
         let mut size = 0usize;
         let ptr = unsafe { sort_tuple_get_element_sorts(self.inner, &mut size) };
-        (0..size)
-            .map(|i| Sort::from_raw(unsafe { *ptr.add(i) }))
-            .collect()
+        unsafe { collect_raw_array(ptr, size, |raw| Sort::from_raw(raw)) }
     }
     /// Get the element sort of a nullable sort.
     pub fn nullable_element_sort(&self) -> Sort<'tm> {
@@ -333,9 +315,7 @@ impl<'tm> Sort<'tm> {
 
 impl fmt::Display for Sort<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = unsafe { sort_to_string(self.inner) };
-        let cs = unsafe { std::ffi::CStr::from_ptr(s) };
-        write!(f, "{}", cs.to_string_lossy())
+        write!(f, "{}", unsafe { cstr_to_string(sort_to_string(self.inner)) })
     }
 }
 
