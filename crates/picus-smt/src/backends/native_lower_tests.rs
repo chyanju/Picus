@@ -60,7 +60,7 @@ fn prop_to_constraint_system_field_polys_flag_propagates_small_prime() {
 
 #[test]
 fn prop_to_constraint_system_field_polys_flag_off_for_large_prime() {
-    let big = picus_r1cs::bn128_prime().clone();
+    let big = picus_r1cs::testkit::bn128();
     let ir = empty_ir(big, 3, vec![0], 1);
     let cs = ir.to_constraint_system();
     assert!(!cs.add_field_polys);

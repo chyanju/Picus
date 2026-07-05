@@ -20,6 +20,15 @@ pub fn p7() -> BigUint {
     BigUint::from(7u32)
 }
 
+/// The BN128 scalar-field prime — the single source of truth for the constant
+/// across test fixtures.
+#[must_use]
+pub fn bn128() -> BigUint {
+    "21888242871839275222246405745257275088548364400416034343698204186575808495617"
+        .parse()
+        .unwrap()
+}
+
 /// Build a constraint block from `(wire_id, factor)` pairs.
 #[must_use]
 pub fn block(pairs: &[(u32, u32)]) -> ConstraintBlock {

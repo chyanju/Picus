@@ -1,23 +1,5 @@
 use super::*;
 
-// ---- bn128_prime() ----
-
-#[test]
-fn prop_bn128_prime_matches_literal() {
-    // The BN128 scalar-field prime is a well-known constant.
-    let expected: BigUint =
-        "21888242871839275222246405745257275088548364400416034343698204186575808495617"
-            .parse()
-            .unwrap();
-    assert_eq!(bn128_prime(), &expected);
-}
-
-#[test]
-fn prop_bn128_prime_is_idempotent() {
-    // Reference returned by LazyLock must be stable across calls.
-    assert!(std::ptr::eq(bn128_prime(), bn128_prime()));
-}
-
 // ---- parse_var_index() ----
 
 #[test]

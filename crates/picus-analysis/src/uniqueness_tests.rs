@@ -166,7 +166,7 @@ fn r1cs_small_prime_enables_field_polys() {
 #[test]
 fn r1cs_big_prime_disables_field_polys() {
     // Boundary: BN128 prime is way above 1000.
-    let big = picus_r1cs::bn128_prime().clone();
+    let big = picus_r1cs::testkit::bn128();
     let r1cs = r1cs(big, 3, vec![0], Vec::new());
     let ir = r1cs_to_uniqueness_query(&r1cs, &HashSet::new(), 1).unwrap();
     assert!(
