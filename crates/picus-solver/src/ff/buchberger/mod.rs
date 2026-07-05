@@ -1381,7 +1381,16 @@ impl BuchbergerState {
             // contributing pair's `i` / `j` plus all reducer basis
             // indices feed `on_pair_reducers`. `GbTracer` unions
             // both sides into the new entry's deps.
-            let batch_sugar = lowest_sugar;
+            // Every pair in `batch` was drained at exactly `chosen_sugar`
+            // (both drain branches filter on it), so the batch label must
+            // be `chosen_sugar`: with Hilbert selection the batch's
+            // S-polynomials legitimately reach degree `chosen_sugar` >
+            // `lowest_sugar`, and descendant pair sugars derive from it.
+            let batch_sugar = chosen_sugar;
+            debug_assert!(
+                batch.iter().all(|p| p.sugar == batch_sugar),
+                "F4 batch must be sugar-homogeneous at the chosen level"
+            );
             for output in new_polys {
                 self.check_cancel()?;
                 let super::f4::F4Output { poly, from_pairs, from_reducers } = output;
