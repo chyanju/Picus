@@ -47,7 +47,6 @@ picus-solver second architecture pass. Verdict-preserving; native + cvc5/z3 suit
 ### Tests
 - New `knob_grid_soundness` harness: exhaustive-enumeration ground truth (GF(7)/GF(17), 42 systems) × 22 configs covering every solve-core knob's non-default value; verdict must match or be Unknown, models re-evaluated, anti-vacuity floors.
 - Three knob parity tests actually flip their knob off now; `cache_enabled=false` / `linear_elim=true` get backend-level coverage; always-run scaled-down F4 LT-parity covers `f4_hilbert_select=off` / `f4_sparse_reducer_cache=off`; BN254 bitsum probe gains an always-run 8-bit sibling; engine-parity suites gain decided-baseline floors.
-- GitHub Actions CI (native default-members build + test + strict rustdoc) and a `rust-toolchain.toml` pin.
 
 ## [1.8.28] - 2026-07-06
 
