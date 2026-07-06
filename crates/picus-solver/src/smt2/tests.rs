@@ -331,7 +331,7 @@ fn no_prime_anywhere_defaults_bool_only_but_rejects_ff_ops() {
 
 /// parse_boolean preamble with FF vars x, y and a Bool var b, plus one
 /// body assert.
-fn parse_boolean_with_assert(body: &str) -> Result<crate::boolean::BooleanQuery, ParseError> {
+fn parse_boolean_with_assert(body: &str) -> Result<crate::frontend::formula::BooleanQuery, ParseError> {
     let src = format!(
         "(set-logic QF_FF)\n\
          (define-sort F () (_ FiniteField 7))\n\

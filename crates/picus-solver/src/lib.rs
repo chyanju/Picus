@@ -14,6 +14,7 @@
 // integration tests. Everything else is pub(crate).
 pub mod boolean;
 pub mod cdclt;
+pub(crate) mod dnf;
 pub(crate) mod ff;
 pub mod frontend;
 pub mod gb;

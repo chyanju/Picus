@@ -34,9 +34,9 @@ fn mk_ctx(prime: u32, vars: &[(&str, VarSort)], macros: Vec<(&str, MacroDef)>) -
 /// conjunction into `LHS − RHS` equality polynomials (the shape the
 /// evaluator consumes), plus the interned variable names.
 fn parse_conjunct_eq_polys(src: &str) -> (BigUint, Vec<String>, Vec<Vec<PolyTerm>>) {
-    fn walk(f: &crate::boolean::Formula, prime: &BigUint, out: &mut Vec<Vec<PolyTerm>>) {
+    fn walk(f: &crate::frontend::formula::Formula, prime: &BigUint, out: &mut Vec<Vec<PolyTerm>>) {
         match f {
-            crate::boolean::Formula::Lit(crate::boolean::Literal::Eq(l, r)) => {
+            crate::frontend::formula::Formula::Lit(crate::frontend::formula::Literal::Eq(l, r)) => {
                 let mut poly = l.clone();
                 for t in r {
                     let mut nt = t.clone();
@@ -47,12 +47,12 @@ fn parse_conjunct_eq_polys(src: &str) -> (BigUint, Vec<String>, Vec<Vec<PolyTerm
                 }
                 out.push(poly);
             }
-            crate::boolean::Formula::And(fs) => {
+            crate::frontend::formula::Formula::And(fs) => {
                 for g in fs {
                     walk(g, prime, out);
                 }
             }
-            crate::boolean::Formula::True => {}
+            crate::frontend::formula::Formula::True => {}
             other => panic!("expected a flat conjunction of equalities, got {:?}", other),
         }
     }

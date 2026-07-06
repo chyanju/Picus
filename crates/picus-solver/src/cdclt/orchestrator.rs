@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use num_bigint::BigUint;
 
-use crate::boolean::Formula;
+use crate::frontend::formula::Formula;
 use crate::solve::SolveOutcome;
 use crate::sat::{LBool, Lit, Solver, Var};
 use crate::timeout::CancelToken;
@@ -170,7 +170,7 @@ fn run_with_optional_ee<T: Theory>(
 #[doc(hidden)]
 #[allow(dead_code)] // parked: no production caller yet
 pub(crate) fn solve_formula_multi(
-    primes_subs: Vec<(BigUint, Vec<String>, crate::boolean::Formula)>,
+    primes_subs: Vec<(BigUint, Vec<String>, crate::frontend::formula::Formula)>,
     cancel: &CancelToken,
 ) -> SolveOutcome {
     if primes_subs.len() == 1 {

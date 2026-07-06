@@ -1,5 +1,5 @@
 use super::*;
-use crate::boolean::{Formula, Literal};
+use crate::frontend::formula::{Formula, Literal};
 use crate::frontend::encoder::PolyTerm;
 use crate::sat::LBool;
 use crate::sat::solver::SolveResult;

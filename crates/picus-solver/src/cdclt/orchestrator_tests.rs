@@ -1,5 +1,5 @@
 use super::*;
-use crate::boolean::{Formula, Literal};
+use crate::frontend::formula::{Formula, Literal};
 use crate::frontend::encoder::PolyTerm;
 use num_bigint::BigUint;
 
@@ -81,7 +81,7 @@ fn apply_theory_conflict_with_assigned_core_learns_lemma() {
 
 // `coeff * <var idx> != rhs_const` (disequality literal).
 fn neq(coeff_lhs: u64, var_idx: u32, rhs_const: u64) -> Formula {
-    Formula::Lit(crate::boolean::Literal::Neq(
+    Formula::Lit(crate::frontend::formula::Literal::Neq(
         vec![PolyTerm {
             coeff: BigUint::from(coeff_lhs),
             vars: vec![(var_idx, 1)],
@@ -1079,7 +1079,7 @@ fn hardprobe_theory_propagation_then_postcheck_push_pop_ledger_balanced() {
 
 /// Bit-constraint literal for variable `idx`: `b_idx^2 = b_idx`.
 fn bit_constraint(var_idx: u32) -> Formula {
-    Formula::Lit(crate::boolean::Literal::Eq(
+    Formula::Lit(crate::frontend::formula::Literal::Eq(
         vec![PolyTerm {
             coeff: BigUint::from(1u32),
             vars: vec![(var_idx, 2)],
@@ -1105,7 +1105,7 @@ fn bitsum_eq_const(bit_idxs: &[u32], v: u64) -> Formula {
         coeff: BigUint::from(v),
         vars: vec![],
     }];
-    Formula::Lit(crate::boolean::Literal::Eq(lhs, rhs))
+    Formula::Lit(crate::frontend::formula::Literal::Eq(lhs, rhs))
 }
 
 /// HARD-PROBE: pin under fitting prime gives unique decomposition.
@@ -1240,7 +1240,7 @@ fn hardprobe_non_powerof2_coeffs_still_solvable() {
         PolyTerm { coeff: BigUint::from(5u32), vars: vec![(2, 1)] },
     ];
     let rhs = vec![PolyTerm { coeff: BigUint::from(4u32), vars: vec![] }];
-    let bs_eq = Formula::Lit(crate::boolean::Literal::Eq(lhs, rhs));
+    let bs_eq = Formula::Lit(crate::frontend::formula::Literal::Eq(lhs, rhs));
     let f = Formula::And(vec![
         bit_constraint(0),
         bit_constraint(1),
@@ -1284,7 +1284,7 @@ fn hardprobe_parity_violation_unsat() {
         bit_constraint(0),
         bit_constraint(1),
         bit_constraint(2),
-        Formula::Lit(crate::boolean::Literal::Eq(lhs, rhs)),
+        Formula::Lit(crate::frontend::formula::Literal::Eq(lhs, rhs)),
     ]);
     let r = solve_formula(prime, &vn, &f, &CancelToken::none());
     assert!(matches!(r, SolveOutcome::Unsat(_)),

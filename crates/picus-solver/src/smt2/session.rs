@@ -18,7 +18,7 @@ use super::{
     assert_to_formula, classify_declare, collect_ff_literal_primes, finite_field_prime_str,
     has_ff_op, parse_define_fun, MacroDef, ParseCtx, ParseError, Polynomial, VarSort,
 };
-use crate::boolean::{Formula, Literal};
+use crate::frontend::formula::{Formula, Literal};
 use crate::frontend::encoder::{ConstraintSystemBuilder, PolyTerm};
 
 /// Verdict returned by `(check-sat)`.

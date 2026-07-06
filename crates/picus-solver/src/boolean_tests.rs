@@ -1,4 +1,8 @@
 use super::*;
+use crate::boolean::{solve_boolean_query, solve_boolean_query_dnf};
+use crate::frontend::encoder::encode;
+use crate::solve::SolveOutcome;
+use crate::timeout::CancelToken;
 
 /// PolyTerm constructor: `coeff * <idx>^exp` (exp=0 → constant).
 fn pt(coeff: u64, idx: u32, exp: u16) -> PolyTerm {

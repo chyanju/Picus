@@ -8,5 +8,6 @@
 
 pub mod bench_fixtures;
 pub mod encoder;
+pub mod formula;
 pub(crate) mod parse;
 pub(crate) mod rewriter;

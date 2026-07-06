@@ -8,7 +8,7 @@
 //! `define-fun` macros.
 //!
 //! [`parse_boolean`] is the entry point: it handles the full structure
-//! above and returns a [`crate::boolean::BooleanQuery`]. Term-level
+//! above and returns a [`crate::frontend::formula::BooleanQuery`]. Term-level
 //! `(ite c x y)` over FF terms is skolem-eliminated into a fresh FF
 //! variable plus two conditional equalities at the formula level.
 //!
@@ -280,7 +280,7 @@ pub(in crate::smt2) fn has_ff_op(s: &Sexpr) -> bool {
 
 // ─────────────────────── Boolean structure parser ────────────────────────
 
-use crate::boolean::{BooleanQuery, Formula, Literal};
+use crate::frontend::formula::{BooleanQuery, Formula, Literal};
 
 /// Parser state for `parse_boolean`. Threads through
 /// `assert_to_formula` and `build_poly_with_ctx`, hosting the

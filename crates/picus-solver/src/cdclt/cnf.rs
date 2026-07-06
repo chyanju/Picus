@@ -6,7 +6,7 @@
 //! `True` / `False` constants are folded statically so they never
 //! reach the SAT solver.
 
-use crate::boolean::{Formula, Literal};
+use crate::frontend::formula::{Formula, Literal};
 use crate::sat::{Lit, Solver};
 
 use super::atoms::{AtomTable, InternLit};
