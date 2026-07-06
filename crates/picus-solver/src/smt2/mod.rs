@@ -97,8 +97,8 @@ pub(in crate::smt2) fn classify_sort(s: Option<&Sexpr>) -> Option<VarSort> {
 
 /// If `sort` is `(_ FiniteField <p>)`, return the prime literal `<p>` as a
 /// string; otherwise `None`. Centralises the shape detection repeated at
-/// every sort site (define-sort / declare-fun / declare-const, conjunctive
-/// and Boolean parsers, and the session). Callers apply their own
+/// every sort site (define-sort / declare-fun / declare-const, the
+/// Boolean parser, and the session). Callers apply their own
 /// prime-parse policy (error vs. ignore) to the returned string.
 pub(in crate::smt2) fn finite_field_prime_str(sort: &Sexpr) -> Option<&str> {
     if let Sexpr::List(inner) = sort {
@@ -120,10 +120,10 @@ pub(in crate::smt2) fn finite_field_prime_str(sort: &Sexpr) -> Option<&str> {
 /// classified sort (`None` if unrecognised), and `inferred prime` the
 /// modulus parsed from an inline `(_ FiniteField p)` sort, if present.
 /// Returns `None` when the form is too short or the name is not an atom.
-/// Centralises the declaration scan shared by the conjunctive parser, the
-/// Boolean parser, and the incremental session; each caller applies its own
-/// policy to the result (reject Bool, default to `Ff`, thread the prime,
-/// track declaration order).
+/// Centralises the declaration scan shared by the Boolean parser and the
+/// incremental session; each caller applies its own policy to the result
+/// (reject Bool, default to `Ff`, thread the prime, track declaration
+/// order).
 pub(in crate::smt2) fn classify_declare(
     head: &str,
     list: &[Sexpr],
@@ -273,10 +273,6 @@ pub(in crate::smt2) fn has_ff_op(s: &Sexpr) -> bool {
         Sexpr::List(elts) => elts.iter().any(has_ff_op),
     }
 }
-
-// ─────────────────────── Assert handler ──────────────────────────────────
-
-// ─────────────────────── Top-level loop ──────────────────────────────────
 
 // ─────────────────────── Boolean structure parser ────────────────────────
 
@@ -1005,8 +1001,8 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
 /// only (its define-sort path keeps one prime); wiring this in requires
 /// reworking session prime handling and a corpus regression pass, so the
 /// pair stays hidden until multi-prime support is a product decision.
-#[doc(hidden)]
-pub fn parse_boolean_multi(src: &str) -> Result<Vec<BooleanQuery>, ParseError> {
+#[allow(dead_code)] // parked: no production caller yet
+pub(crate) fn parse_boolean_multi(src: &str) -> Result<Vec<BooleanQuery>, ParseError> {
     let toks = tokenize(src);
     let sexprs = parse_sexprs(&toks)?;
 

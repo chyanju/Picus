@@ -14,7 +14,7 @@
 //! 5. Interreduce in `P` (drop LM-divisible duplicates, normal-form survivors).
 //!
 //! Rationale: in `Ph`, every input is exactly degree `d_i`, so the
-//! in-tree sugar-degree S-pair selector ([`ff::buchberger`]) has
+//! in-tree sugar-degree S-pair selector ([`crate::engine::buchberger`]) has
 //! `sugar = wdeg` without mispredictions; pairs are processed in
 //! strict ascending degree, avoiding the "intermediate expression
 //! swell" that stalls bit-decomposition ideals.

@@ -20,7 +20,7 @@ pub(crate) struct Clause {
     pub lits: Vec<Lit>,
     /// `true` for learnt clauses (created by conflict analysis),
     /// `false` for input clauses.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // parked: reserved for clause-DB reduction
     pub learnt: bool,
 }
 

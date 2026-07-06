@@ -232,8 +232,9 @@ fn main() {
     }
 }
 
-/// Deserialize a flat `RuntimeOverlay` TOML, apply it over the compiled
-/// defaults, install it for this process, and record the resolved
+/// Read engine-knob overrides (flat `RuntimeOverlay` TOML or the panel
+/// form with an `[engine]` table), apply them over the compiled
+/// defaults, install them for this process, and record the resolved
 /// non-default knobs on stderr — a head-to-head run must carry its
 /// configuration, not silently benchmark compiled defaults.
 fn apply_config_file(path: &str) {
@@ -241,15 +242,46 @@ fn apply_config_file(path: &str) {
         eprintln!("read {}: {}", path, e);
         std::process::exit(1);
     });
-    let overlay: picus_core::config::RuntimeOverlay =
-        toml::from_str(&text).unwrap_or_else(|e| {
-            eprintln!("parse {}: {}", path, e);
-            std::process::exit(1);
-        });
+    let overlay = parse_overlay(&text, path, "cvc5_compare");
     let mut cfg = picus_core::config::RuntimeConfig::default();
     cfg.apply_overlay(&overlay);
     if cfg != picus_core::config::RuntimeConfig::default() {
         eprintln!("[cvc5_compare] non-default config: {:?}", overlay);
     }
     picus_core::config::set(cfg);
+}
+
+/// Accept both `--config` shapes: the flat `RuntimeOverlay` form first,
+/// then the `[engine]`-table panel form. Unknown keys inside either
+/// shape stay a hard error (`deny_unknown_fields` on `RuntimeOverlay`);
+/// `[analysis]` keys are CLI-level and are ignored with a note.
+fn parse_overlay(text: &str, path: &str, who: &str) -> picus_core::config::RuntimeOverlay {
+    match toml::from_str::<picus_core::config::RuntimeOverlay>(text) {
+        Ok(o) => o,
+        Err(flat_err) => {
+            let value: toml::Value = toml::from_str(text).unwrap_or_else(|e| {
+                eprintln!("parse {}: {}", path, e);
+                std::process::exit(1);
+            });
+            let table = value.as_table();
+            match table.and_then(|t| t.get("engine")).cloned() {
+                Some(engine) => {
+                    if table.is_some_and(|t| t.contains_key("analysis")) {
+                        eprintln!(
+                            "[{}] note: [analysis] keys are not applicable to this harness; ignored",
+                            who
+                        );
+                    }
+                    engine.try_into().unwrap_or_else(|e| {
+                        eprintln!("parse {} [engine]: {}", path, e);
+                        std::process::exit(1);
+                    })
+                }
+                None => {
+                    eprintln!("parse {}: {}", path, flat_err);
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
 }

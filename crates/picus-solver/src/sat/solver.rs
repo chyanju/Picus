@@ -522,7 +522,8 @@ impl Solver {
         self.arena.len()
     }
 
-    #[allow(dead_code)]
+    /// Direct arena access. Test-only, like [`Self::n_clauses`].
+    #[cfg(test)]
     pub(crate) fn arena(&self) -> &ClauseArena {
         &self.arena
     }

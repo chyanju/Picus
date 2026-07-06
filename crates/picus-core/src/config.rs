@@ -139,13 +139,18 @@ runtime_config! {
     /// Use F4 matrix reduction for batched same-sugar S-pairs.
     ///
     /// Dense-engine only (as are `f4_hilbert_select`,
-    /// `f4_sparse_reducer_cache`, and `reducer_index_cache`): under the
-    /// default `poly_repr = sparse`, from-scratch conjunctive solves
-    /// route through the sparse engine and never consult these knobs;
-    /// the always-dense paths (the traced/UNSAT-core pipeline that
-    /// CDCL(T) disjunction checks run, and the cdclt incremental
-    /// theory) do. Incremental extends pin `use_f4 = false` regardless
-    /// (tiny batches never amortize the matrix; result-identical).
+    /// `f4_sparse_reducer_cache`, and `reducer_index_cache`). Under the
+    /// default `poly_repr = sparse` the dense-routed legs are: every
+    /// stateless conjunctive solve (a first-seen constraint digest under
+    /// the default cache, every solve under `cache_enabled = false`, and
+    /// cached-path fallbacks — all of which run the traced/UNSAT-core
+    /// pipeline, which is dense-only), each DNF disjunct, CDCL(T)
+    /// per-check solves, and the cdclt incremental theory. The sparse
+    /// engine serves the untraced legs (cache rebuild/extend and
+    /// untraced model-search GB calls); the traced route stays dense by
+    /// design until a sparse traced core lands. Incremental extends pin
+    /// `use_f4 = false` regardless (tiny batches never amortize the
+    /// matrix; result-identical).
     use_f4: bool = false,
     /// DNF expansion cap (max disjunct count) before
     /// `solve_boolean_query_dnf` (in picus-solver) returns `Unknown`.
@@ -167,6 +172,15 @@ runtime_config! {
     /// amortises split-GB across calls whose constraint set didn't
     /// change. Disabling it forces every call to rebuild the basis from
     /// scratch — useful for benchmarking or for diagnosing cache bugs.
+    ///
+    /// Note the two legs run different pipelines, not just cache-on vs
+    /// cache-off: stateless solves (every solve when disabled; the
+    /// first-seen digest of each constraint set when enabled; cached-path
+    /// fallbacks) go through the traced pipeline, which is dense-only and
+    /// consults the dense-engine knob group (`use_f4` etc.), while
+    /// cache-backed solves run the untraced pipeline under the configured
+    /// `poly_repr`. A cache-on/off A/B on repeat-query workloads therefore
+    /// measures engine routing together with cache reuse.
     cache_enabled: bool = true,
     /// Representation of the IR poly type ([`ReprKind`]). Defaults to
     /// `Sparse` so lowering + the cvc5 path scale on wide rings (the dense
@@ -223,12 +237,14 @@ runtime_config! {
     /// field-specific fact such as `d` being a non-residue — is not in `√I` and
     /// falls through. CLI: --radical-membership on|off.
     radical_membership: bool = false,
-    /// Compute the native split-GB under an elimination term order on the
+    /// Build the solve ring under an elimination term order on the
     /// alt-copy (`y`) variables instead of DegRevLex, driving those
     /// variables out of the leading terms first (see
-    /// [`crate::ff::matrix_order::MatrixOrder::elim`]). The split-GB engine
-    /// reads its order from the ring, so this only changes which (equally
-    /// valid) reduced GB of the same ideal is computed; SAT/UNSAT verdicts
+    /// [`crate::ff::matrix_order::MatrixOrder::elim`]). Today the GB core
+    /// itself still requests DegRevLex regardless of the ring order; the
+    /// ring-carried elimination order shapes the surrounding stages —
+    /// pre-reduction, interreduction, the membership fast-path reduction,
+    /// and the model search. SAT/UNSAT verdicts
     /// are preserved (`verify_model` / whole-ring detection are
     /// order-independent). Off by default: the elimination order's
     /// leading-term structure can make the model search (`find_zero`)
@@ -242,9 +258,10 @@ runtime_config! {
     /// elimination order only for rings of at least
     /// `frontend::encoder::DYNAMIC_ORDER_MIN_VARS` variables, and DegRevLex
     /// below that — the elimination order helps only large systems (EdDSA
-    /// family) and regresses tiny ones. The split-GB is
-    /// order-agnostic, so this only changes which equally valid GB is
-    /// computed; verdicts are guarded independently of the order. On by
+    /// family) and regresses tiny ones. As with `matrix_elim_order`, the
+    /// ring-carried order shapes the stages around the GB core (which
+    /// still requests DegRevLex itself); verdicts are guarded
+    /// independently of the order. On by
     /// default: the size guard routes small rings, where the elimination
     /// order regresses, to DegRevLex.
     dynamic_order: bool = true,
@@ -287,9 +304,11 @@ runtime_config! {
     /// lift exists (`smt2::parse_boolean_multi` feeding
     /// `solve_formula_multi`) but is not wired into `SmtSession`, whose
     /// define-sort path still keeps a single prime — so with the flag on
-    /// the router runs in single-slot mode (path-equivalent to
-    /// `FfTheory` on the same input). Off by default until the session
-    /// is reworked to emit per-prime atom tables.
+    /// the router runs in single-slot mode: verdict-equivalent to
+    /// `FfTheory` on the same input (it may degrade to `Unknown` under
+    /// `cdclt_iter_cap`), but without `FfTheory`'s theory propagation —
+    /// the router does not forward `propagate`/`explain`. Off by default
+    /// until the session is reworked to emit per-prime atom tables.
     cdclt_multi_prime_router: bool = false,
     /// Interpose `cdclt::equality_engine::EqualityEngine` before the
     /// FF theory at fact-notification time. `Fresh` facts forward,
@@ -316,9 +335,10 @@ runtime_config! {
     /// IncrementalFfTheoryState`, which carries an `IncrementalGB`
     /// across SAT decisions instead of rebuilding the basis per
     /// `post_check`. Off by default; the wire-up ports the tier1+tier2
-    /// propagation from `FfTheory` and falls back to Unknown on
-    /// large-prime non-trivial bases (BN254/BabyJubJub) pending model
-    /// extraction.
+    /// propagation from `FfTheory` and extracts models via a bounded
+    /// search on a user-namespaced facade ring. Non-trivial bases whose
+    /// decision needs more than the bounded round-robin search (typical
+    /// for large primes such as BN254/BabyJubJub) degrade to Unknown.
     cdclt_incremental_theory: bool = false,
 }
 

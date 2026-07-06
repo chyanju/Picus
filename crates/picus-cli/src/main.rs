@@ -102,8 +102,6 @@ fn main() {
                     cache_enabled: no_cache.then_some(false),
                     profile_enabled: profile.as_deref().map(|s| s == "wall"),
                     linear_elim: linear_elim.then_some(true),
-                    // Config-file only (no CLI flag): precise inter-reduce
-                    // core tracking is a niche knob; set it via picus.toml.
                     split_triangular: on_off(&split_triangular),
                     membership_fastpath: on_off(&membership_fastpath),
                     radical_membership: on_off(&radical_membership),

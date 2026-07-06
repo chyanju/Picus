@@ -255,7 +255,7 @@ pub fn split_zero_extend_cancel<'r>(
 
         // Linear-only quick UNSAT pre-check. Before the full split-GB
         // extension on a candidate, test if adding the assignment to
-        // the linear basis (basis 0) alone makes it the whole ring.
+        // partition 0 (linear) alone makes it the whole ring.
         //
         // For a basis whose elements all have degree <= 1, Buchberger
         // reduces to Gaussian elimination, so the test is exact:

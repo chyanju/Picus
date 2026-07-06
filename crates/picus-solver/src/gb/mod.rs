@@ -1,10 +1,10 @@
 //! Higher-level Gröbner-basis orchestration, layered over the low-level
-//! engine in `crate::ff`. The split: `crate::ff` holds the algorithms
-//! (Buchberger, F4, sparse GB, Cantor-Zassenhaus root finding) over
-//! [`picus_core::ff`]'s GF(p) data types; this `gb` module groups the
+//! engine in `crate::engine`. The split: `crate::engine` holds the
+//! algorithms (Buchberger, F4, sparse GB, Cantor-Zassenhaus root finding)
+//! over [`picus_core::ff`]'s GF(p) data types; this `gb` module groups the
 //! work that drives them — the ideal API ([`ideal`]), model construction
 //! (`model`), root extraction ([`roots`]), the FGLM order change
-//! (`fglm`), homogenisation (`gb_homog` / `homog_ring`), and
+//! (`fglm`), homogenisation (`homog` / `homog_ring`), and
 //! UNSAT-core tracing (`tracer`). Both
 //! are named for GF(p) algebra but sit at different layers.
 

@@ -250,7 +250,7 @@ fn compute_gb_dispatch(
 
 // ──────────────────── compute_gb_with_order family ────────────────────────
 
-/// Build a per-call `ff::PolyRing` whose monomial order matches `order`.
+/// Build a per-call `PolyRing` whose monomial order matches `order`.
 /// Cheap (an `Arc<PolyRing>` with the same field/var-name data).
 pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::sync::Arc<crate::engine::polynomial::PolyRing> {
     let ctx = poly_ring.ctx();
@@ -280,7 +280,7 @@ pub(crate) fn use_sparse_gb(poly_ring: &FfPolyRing) -> bool {
     poly_ring.ctx().repr == crate::config::ReprKind::Sparse
 }
 
-/// Compute a Gröbner basis through the sparse engine (`ff::sparse_gb`)
+/// Compute a Gröbner basis through the sparse engine (`engine::sparse_gb`)
 /// when the ring's representation is sparse: extract each generator's
 /// sparse arm, compute and inter-reduce sparsely, and return a sparse-arm
 /// basis (the polynomials stay resident-sparse, no dense materialisation).

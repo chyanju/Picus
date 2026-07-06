@@ -44,7 +44,11 @@ aboz_emit_disjunctions = true
 #   "by-homog" — homogenize -> GB on P[h] -> dehomogenize -> interreduce;
 #   "auto"     — pick by-homog iff some input is non-homogeneous.
 gb_strategy = "direct"
-# Use F4 matrix reduction for batched same-sugar S-pairs.
+# Use F4 matrix reduction for batched same-sugar S-pairs. Dense-engine only:
+# under the default poly_repr = "sparse" it engages on the dense-routed legs
+# (stateless/traced solves — first-seen constraint digests, cache off,
+# cached-path fallbacks — plus DNF disjuncts and CDCL(T) checks); pair with
+# poly_repr = "dense" to exercise it on every solve.
 use_f4 = false
 # Pick DNF instead of CNF for the boolean layer.
 dnf_enabled = false
@@ -53,13 +57,18 @@ dnf_cap = 100000
 # CDCL(T) outer-iteration cap; 0 = immediate Unknown (test helper).
 cdclt_iter_cap = 1000000
 # Reuse the incremental Buchberger cache between successive solve() calls.
+# Note: the two legs run different pipelines — stateless solves (every solve
+# when off; first-seen digests and fallbacks when on) go through the
+# dense-only traced pipeline and consult the dense-engine knobs, while
+# cache-backed solves run untraced under poly_repr. A cache on/off A/B
+# measures engine routing together with cache reuse.
 cache_enabled = true
 # Opt-in linear (Gaussian) pre-elimination before solving: reduce the
 # nonlinear constraints modulo a Groebner basis of the linear subsystem.
-# Off by default — split-GB already handles linear constraints in basis 0,
-# and the substitution densifies the nonlinear part / adds per-solve
-# overhead (net loss on the general workload). May help linear-heavy
-# conjunctive circuits.
+# Off by default — split-GB already handles linear constraints in
+# partition 0, and the substitution densifies the nonlinear part / adds
+# per-solve overhead (net loss on the general workload). May help
+# linear-heavy conjunctive circuits.
 linear_elim = false
 # Triangular model construction (cvc5 `multi_roots` analogue) on the default
 # split-GB path: decide a zero-dimensional combined system by univariate-root
@@ -71,6 +80,7 @@ split_triangular = false
 # Cache the reducer's divisor index (DivMask buckets + degree order) across
 # S-pair reductions with an unchanged active basis. Result-preserving. Off by
 # default: a growing basis makes cache misses, and the rebuild, frequent.
+# Dense-engine only — same routing caveat as use_f4 above.
 # CLI: --reducer-index-cache on|off.
 reducer_index_cache = false
 # Ideal-membership Safe fast-path: before extending the cached split-GB basis
@@ -91,9 +101,11 @@ radical_membership = false
 # order only on rings of at least encoder::DYNAMIC_ORDER_MIN_VARS variables,
 # DegRevLex below. On by default. CLI: --dynamic-order on|off.
 dynamic_order = true
-# Always compute the split-GB under the alt-copy elimination order (overrides
-# the dynamic_order size gate). Off by default — regresses the model search on
-# most circuits. CLI: --matrix-elim-order on|off.
+# Always build the solve ring under the alt-copy elimination order (overrides
+# the dynamic_order size gate). The ring order shapes pre-reduction,
+# interreduction, the membership fast-path, and the model search; the GB core
+# itself still requests DegRevLex. Off by default — regresses the model search
+# on most circuits. CLI: --matrix-elim-order on|off.
 matrix_elim_order = false
 # Zech (discrete-log) multiply/inverse/power tables for prime fields with
 # prime <= ff::field::ZECH_LOG_MAX_PRIME (2^20). Result-identical. Off by
@@ -107,15 +119,21 @@ frobenius_cache = true
 # Result-preserving. On by default. CLI: --branching-incremental-gb on|off.
 branching_incremental_gb = true
 # Reorder F4 S-pair batches by predicted Hilbert-function drop (Bigatti–Caboara–
-# Robbiano oracle). On by default; inert unless use_f4. CLI: --f4-hilbert-select.
+# Robbiano oracle). On by default; inert unless use_f4 (dense-engine only,
+# same routing caveat as use_f4 above). CLI: --f4-hilbert-select.
 f4_hilbert_select = true
 # F4 reducer cache keyed on leading monomial (HashMap<MonoKey, usize>),
-# rematerialising the reducer on a hit. On by default; inert unless use_f4.
+# rematerialising the reducer on a hit. On by default; inert unless use_f4
+# (dense-engine only, same routing caveat as use_f4 above).
 # CLI: --f4-sparse-reducer-cache on|off.
 f4_sparse_reducer_cache = true
-# CDCL(T) capability wires for non-R1CS paths (SMT-LIB multi-prime routing,
-# cross-decision incremental FF theory, equality-engine atom dedup). All off by
-# default; inert on the R1CS/PLDI path. CLI: --cdclt-multi-prime-router /
+# CDCL(T) capability wires (SMT-LIB multi-prime routing, cross-decision
+# incremental FF theory, equality-engine atom dedup). All off by default. On
+# the R1CS path they engage only for disjunction-bearing queries (the
+# zero-product disjunctions the aboz lemma emits when its selector-nonzero
+# proof fails); the multi-prime router runs in single-slot mode there, and
+# the incremental theory / equality engine change the theory pipeline for
+# those checks. CLI: --cdclt-multi-prime-router /
 # --cdclt-incremental-theory / --cdclt-equality-engine on|off.
 cdclt_multi_prime_router = false
 cdclt_incremental_theory = false

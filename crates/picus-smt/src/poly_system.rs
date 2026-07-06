@@ -38,7 +38,7 @@ pub struct PolySystem {
     pub assignments: Vec<(usize, BigUint)>,
     /// Bitsum chain declarations: each `[b_0, ..., b_{k-1}]` defines an
     /// auxiliary `__bitsum_N = sum(2^i · x_{b_i})`, routed into
-    /// `bitsum_polys` (basis-0 only for split-GB).
+    /// `bitsum_polys` (partition 0 only for split-GB).
     pub bitsums: Vec<Vec<usize>>,
     /// Append `x^p - x = 0` field polynomials for every ring variable when
     /// `prime <= 1000` (the encoder still gates on the prime size; this flag

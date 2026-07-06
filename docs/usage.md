@@ -41,11 +41,16 @@ picus check --r1cs circuit.r1cs --dump-smt /tmp/smt/         # dump SMT queries
 | `--cdclt-iter-cap <N>` | `1000000` | CDCL(T) outer-iteration cap |
 | `--gb-stats` | off | Emit per-run GB statistics to stderr (`native`) |
 | `--gb-trace` | off | Emit GB trace events to stderr (`native`) |
-| `--no-cache` | off | Disable the native FF backend's incremental Buchberger cache between successive `solve()` calls |
+| `--no-cache` | off | Disable the native FF backend's incremental Buchberger cache between successive `solve()` calls. Cache-off solves run the dense-only traced pipeline, so this also changes engine routing, not just cache reuse |
 | `--no-aboz-disj` | off | Disable the `aboz` lemma's entailed zero-product disjunctions (`native`) |
 | `--linear-elim` | off | Linear (Gaussian) pre-elimination before solving (`native`); may help linear-heavy circuits |
 | `--split-triangular <on\|off>` | off | Triangular model construction for a zero-dimensional combined system on the split-GB path, in place of the brancher DFS (`native`) |
-| `--reducer-index-cache <on\|off>` | off | Cache the reducer's divisor index across reductions with an unchanged active basis (`native`) |
+| `--membership-fastpath <on\|off>` | on | Ideal-membership Safe fast-path for uniqueness queries on the cached split-GB path: reduce `x_a − x_b` against the constraint-side basis and return UNSAT directly on a zero remainder (`native`) |
+| `--radical-membership <on\|off>` | off | Monolithic-GB radical Safe fast-path: whole-ring test on the GB of `I ∪ {(x_a−x_b)·w − 1}`, catching forced-equal outputs the partition reduction misses; bounded by a sub-budget (`native`) |
+| `--matrix-elim-order <on\|off>` | off | Build the solve ring under the alt-copy elimination order instead of DegRevLex; shapes the stages around the GB core (`native`) |
+| `--dynamic-order <on\|off>` | on | Size-adaptive term order: alt-copy elimination order on rings of ≥ `DYNAMIC_ORDER_MIN_VARS` variables, DegRevLex below (`native`) |
+| `--zech-log-small-fp <on\|off>` | off | Zech (discrete-log) multiply/inverse/power tables for primes ≤ 2^20; result-identical, small-prime path only (`native`) |
+| `--reducer-index-cache <on\|off>` | off | Cache the reducer's divisor index across reductions with an unchanged active basis (dense engine only) (`native`) |
 | `--frobenius-cache <on\|off>` | on | Memoize `x^p mod poly` across Cantor–Zassenhaus calls on the same `(prime, poly)` (`native`) |
 | `--branching-incremental-gb <on\|off>` | on | Extend the parent GB with the single branching constraint via `compute_gb_incremental_with_order` instead of recomputing the full basis at each DFS branch (`native`) |
 | `--cdclt-multi-prime-router <on\|off>` | off | Route CDCL(T) facts through `cdclt::multi_prime::FfTheoryRouter` (single-slot when input is single-prime; multi-slot when fed by `parse_boolean_multi`) (`native`) |
@@ -78,7 +83,7 @@ only the keys it sets (later wins):
 key at its default value — copy it and edit. Keys are split into two tables:
 
 - `[analysis]` — `solver`, `theory`, `timeout_ms`, `selector`, `lemmas`, `dump_smt`, and the lemma toggle `aboz_emit_disjunctions`. Backend-agnostic.
-- `[engine]` — Picus's in-tree engine: the native FF Gröbner solver knobs (`gb_strategy`, `use_f4`, `dnf_enabled`, `dnf_cap`, `cdclt_iter_cap`, `cache_enabled`, `linear_elim`, `split_triangular`, `reducer_index_cache`, `frobenius_cache`, `branching_incremental_gb`, `cdclt_multi_prime_router`, `cdclt_equality_engine`, `cdclt_incremental_theory`, `f4_hilbert_select`, `f4_sparse_reducer_cache`) plus the IR knob that also shapes the cvc5 path (`poly_repr`) and the diagnostics (`gb_stats_enabled`, `gb_trace_enabled`, `profile_enabled`). The native-solver-only keys are unused when delegating to cvc5 / z3.
+- `[engine]` — Picus's in-tree engine: the native FF Gröbner solver knobs (`gb_strategy`, `use_f4`, `dnf_enabled`, `dnf_cap`, `cdclt_iter_cap`, `cache_enabled`, `linear_elim`, `split_triangular`, `membership_fastpath`, `radical_membership`, `matrix_elim_order`, `dynamic_order`, `zech_log_small_fp`, `reducer_index_cache`, `frobenius_cache`, `branching_incremental_gb`, `cdclt_multi_prime_router`, `cdclt_equality_engine`, `cdclt_incremental_theory`, `f4_hilbert_select`, `f4_sparse_reducer_cache`) plus the IR knob that also shapes the cvc5 path (`poly_repr`) and the diagnostics (`gb_stats_enabled`, `gb_trace_enabled`, `profile_enabled`). The native-solver-only keys are unused when delegating to cvc5 / z3.
 
 ```toml
 [analysis]

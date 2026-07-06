@@ -158,7 +158,7 @@ the feature-gated `testkit`. The public surface is the curated facade in
 - **`encoder.rs`** — `ConstraintSystem` → polynomial encoding. Runs
   `rewriter::rewrite_system` then `auto_extract_bitsums` before
   `encode_impl`; bitsum-defining polynomials route into
-  `bitsum_polys` (basis 0 only). The `ConstraintSystem` type family
+  `bitsum_polys` (partition 0 only). The `ConstraintSystem` type family
   lives in the `constraint_system` submodule and the bitsum extractor
   (`auto_extract_bitsums`, `bitsum_fits`) in `bitsum_extract`, both
   re-exported.
@@ -232,18 +232,17 @@ the feature-gated `testkit`. The public surface is the curated facade in
   across split bases.
 - **`parse.rs`** — Pattern detection
   (`bit_constraint`, `linear_monomial`, `bit_sums`).
-- **`incremental.rs`** + **`incremental_context.rs`** — Push/pop API
-  + `IncrementalSolverContext` (split-GB cache keyed on the
-  constraint side; resumable mid-build state).
+- **`push_pop.rs`** + **`incremental_context.rs`** — test/bench
+  push-pop harness + `IncrementalSolverContext` (split-GB cache keyed
+  on the constraint side; resumable mid-build state).
 - **`gb/roots.rs`** — Univariate root finding (Cantor-Zassenhaus, see
-  `ff/univariate.rs`).
+  `engine/univariate.rs`).
 - **`smt2/`** — QF_FF SMT-LIB v2 parser
   (`smt2/{mod, tokenizer, session, tests}.rs`).
-  `parse(&str) -> Result<ConstraintSystem, ParseError>` handles the
-  conjunctive subset (`=`, `not =`);
-  `parse_boolean(&str) -> Result<BooleanQuery, ParseError>` accepts
-  `and`, `or`, `not`, `=>`, and assertion-level `ite`. `SmtSession`
-  drives the full SMT-LIB v2 incremental loop.
+  `parse_boolean(&str) -> Result<BooleanQuery, ParseError>` is the
+  one-shot entry: it accepts the conjunctive subset (`=`, `not =`)
+  plus `and`, `or`, `not`, `=>`, and assertion-level `ite`.
+  `SmtSession` drives the full SMT-LIB v2 incremental loop.
 - **`bench_fixtures.rs`** — SMT-LIB QF_FF source builders for the
   bench corpus (`conjunction`, `single_or`, `disj_bit`,
   `and_of_ors_{sat,unsat}`, `implies_chain_unsat`, `bit_sum`,
@@ -257,7 +256,7 @@ the feature-gated `testkit`. The public surface is the curated facade in
   through an external cvc5 process (`--ff-solver split`); prints a
   side-by-side wall-time table. Flags: `--cvc5 <path>`,
   `--timeout-ms <N>`, `--iters <K>`.
-- **`ff/`** — Gröbner-basis / root-finding engine over the `picus-core`
+- **`engine/`** — Gröbner-basis / root-finding engine over the `picus-core`
   algebra: `buchberger/` (Buchberger with the GM-criterion incremental
   path, S-pair criteria, and an F4-lite main loop whose batch
   selection consults a Bigatti–Caboara–Robbiano Hilbert-function

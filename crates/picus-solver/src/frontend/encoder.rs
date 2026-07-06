@@ -11,8 +11,8 @@
 //! for index↔name; equalities carry sparse `Vec<PolyTerm>` with
 //! `(VarIdx, u16)` exponent pairs). [`ConstraintSystemBuilder`] is
 //! the producer-side intern API; every public GB-query producer
-//! (`native_ff` via `PolySystem::encode`, `smt2::parse` /
-//! `parse_boolean`, `boolean::to_disjunct_systems`,
+//! (`native_ff` via `PolySystem::encode`, `smt2::parse_boolean`,
+//! `boolean::to_disjunct_systems`,
 //! `cdclt::ff_theory`) constructs its output through a builder so
 //! variable names are interned in encounter order with no
 //! transient String-keyed struct ever materialised. The cache

@@ -95,7 +95,11 @@ pub(crate) enum Commands {
         poly_repr: Option<String>,
 
         /// Use F4 matrix reduction for batched same-sugar S-pairs
-        /// (native FF backend only). Research flag.
+        /// (native FF backend only). Research flag. Dense-engine only:
+        /// under the default sparse representation it engages on the
+        /// dense-routed legs (stateless/traced solves, DNF disjuncts,
+        /// CDCL(T) checks); pair with --poly-repr dense to exercise it
+        /// on every solve.
         #[arg(long)]
         use_f4: bool,
 
@@ -127,7 +131,9 @@ pub(crate) enum Commands {
 
         /// Disable the native FF backend's incremental Buchberger
         /// cache between successive solve() calls. Useful for
-        /// benchmarking or for diagnosing cache bugs.
+        /// benchmarking or for diagnosing cache bugs. Note: cache-off
+        /// solves run the dense-only traced pipeline, so this also
+        /// changes engine routing, not just cache reuse.
         #[arg(long)]
         no_cache: bool,
 
@@ -165,9 +171,11 @@ pub(crate) enum Commands {
         #[arg(long, value_parser = ["on", "off"])]
         radical_membership: Option<String>,
 
-        /// Compute the native split-GB under an elimination term order on
-        /// the alt-copy (y) variables instead of DegRevLex (native FF
-        /// backend only): on | off. Omit to use the built-in default.
+        /// Build the solve ring under an elimination term order on the
+        /// alt-copy (y) variables instead of DegRevLex (native FF backend
+        /// only): on | off. The ring order shapes the stages around the
+        /// GB core (pre-reduction, interreduction, fast-paths, model
+        /// search). Omit to use the built-in default.
         #[arg(long, value_parser = ["on", "off"])]
         matrix_elim_order: Option<String>,
 
@@ -185,8 +193,9 @@ pub(crate) enum Commands {
         zech_log_small_fp: Option<String>,
 
         /// Cache the reducer's divisor index across reductions with an
-        /// unchanged active basis (native FF backend only): on | off. Omit
-        /// to use the built-in default.
+        /// unchanged active basis (native FF backend only, dense engine
+        /// only — same routing caveat as --use-f4): on | off. Omit to use
+        /// the built-in default.
         #[arg(long, value_parser = ["on", "off"])]
         reducer_index_cache: Option<String>,
 
@@ -228,8 +237,9 @@ pub(crate) enum Commands {
 
         /// Route the FF theory through
         /// `cdclt::ff_theory_incremental::IncrementalFfTheoryState`
-        /// (cross-decision IncrementalGB; large-prime non-trivial
-        /// bases return Unknown until model extraction lands): on | off.
+        /// (cross-decision IncrementalGB; models come from a bounded
+        /// facade-ring search — non-trivial bases needing more than that
+        /// bound, typical for large primes, degrade to Unknown): on | off.
         #[arg(long, value_parser = ["on", "off"])]
         cdclt_incremental_theory: Option<String>,
     },

@@ -4,8 +4,8 @@
 //! [`ConstraintSystemBuilder`] from the accumulated facts and
 //! dispatches to [`crate::solve::solve_encoded_with_cancel`] from
 //! scratch (the real incremental machinery is
-//! `ff::buchberger::IncrementalGB` inside the engine and
-//! `incremental_context::RebuildOnCheckSolverContext` at the backend
+//! `engine::buchberger::IncrementalGB` inside the engine and
+//! `incremental_context::IncrementalSolverContext` at the backend
 //! seam). A push/pop interface backed by a stack of checkpoint
 //! heights into a single `Vec<Constraint>`; no production caller.
 //!

@@ -1,6 +1,6 @@
 //! Ideal operations over GF(p)[x_1, ..., x_n].
 //!
-//! Thin shim over the in-tree `crate::ff` Buchberger / Ideal
+//! Thin shim over the in-tree `crate::engine` Buchberger / Ideal
 //! implementation. Public API: [`Ideal`], [`compute_gb_with_order`],
 //! [`compute_gb_with_order_traced`], `interreduce_basis`,
 //! [`leading_monomial`], [`leading_coefficient`],

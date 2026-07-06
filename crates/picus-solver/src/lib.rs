@@ -67,7 +67,7 @@ pub(crate) use picus_metric_macros::metric;
 use thiserror::Error;
 
 /// Internal error type for the Gröbner-basis engine: the `Err` arm of
-/// `Result<_, EngineError>` throughout `ff::buchberger` and `gb::ideal`,
+/// `Result<_, EngineError>` throughout `engine::buchberger` and `gb::ideal`,
 /// surfacing cooperative cancellation (`EngineError::Timeout`) and internal
 /// failures. Distinct from the backend-facing `picus_smt::backends::SolverError`
 /// returned to `SolverBackend::solve` callers (this one never crosses the
