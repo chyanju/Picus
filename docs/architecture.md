@@ -97,26 +97,32 @@ dependencies.
 
 The QF_FF solving engine built on `picus-core`. Modules are grouped into
 `engine/` (the Buchberger / F4 / sparse-GB / root-finding algorithms over
-the `picus-core` algebra), `gb/` (the drivers that run them: ideals,
-models, root extraction, FGLM, homogenisation, UNSAT-core tracing),
+the `picus-core` algebra; the GF(p) substrate itself is spelled
+`crate::ff` everywhere else, so `use crate::engine` marks a genuine
+kernel dependency), `gb/` (the drivers that run them: ideals, models,
+root extraction, FGLM, homogenisation, UNSAT-core tracing),
 `split_gb/` (the conjunctive split-GB strategy, including `bitprop`),
-`frontend/` (`encoder`, `formula` — the Boolean IR — `parse`, `rewriter`,
+`frontend/` (`encoder`, `formula` — the Boolean IR — `rewriter`,
 `bench_fixtures`), `sat/` + `cdclt/` (the SAT and CDCL(T) layers),
-`smt2/`, and at the root: `solve.rs` (the apex driver; `core` is a
-back-compat alias), `boolean.rs` (the DNF-vs-CDCL(T) router plus
-re-export shims), `dnf.rs` (the DNF strategy), `incremental_context.rs`
+`smt2/`, and at the root: `solve.rs` (the apex driver), `boolean.rs`
+(the DNF-vs-CDCL(T) router plus re-export shims), `dnf.rs` (the DNF
+strategy), `bits.rs` (the bit/linear structure recognizers shared by
+the encoder and split-GB sides), `incremental_context.rs`
 (the backend-facing cache), `push_pop.rs` (a test/bench harness), and
 the feature-gated `testkit`. The public surface is the curated facade in
-`lib.rs` (enforced by `unreachable_pub`); everything else is
-`pub(crate)`.
-- **`ideal.rs`** — the `Ideal` type + `interreduce_basis`. Its
-  `engine` submodule (`ideal/engine.rs`, re-exported so
+`lib.rs` (enforced by `unreachable_pub`), and picus-smt imports through
+it; everything else is `pub(crate)`.
+- **`ideal.rs`** — the `Ideal` type + `interreduce_basis` +
+  `IncrementalIdeal` (the `Poly`-speaking wrapper over the incremental
+  engine). Its `engine` submodule (`ideal/engine.rs`, re-exported so
   `gb::ideal::*` paths are unchanged) holds the `compute_gb_*` family
-  (`with_order`, `_traced`, `_incremental`) and the dense/sparse
-  representation routing. Every public GB entry point routes through
-  `compute_gb_dispatch`, which reads
-  `config::with(|c| c.gb_strategy)` and forwards to the configured
-  `GbAlgorithm` impl. The trait signature is:
+  (`with_order`, `_traced`, `_incremental`), `solve_order` (the single
+  owner of the GB core's term-order request — DegRevLex today), and
+  dispatch. Every batch GB entry routes through `compute_gb_dispatch`,
+  which reads `config::with(|c| c.gb_strategy)` and forwards to the
+  configured `GbAlgorithm` impl; each impl routes the dense/sparse
+  representation internally (from the ring's recorded repr) and records
+  the route it actually executed. The trait signature is:
 
   ```rust
   pub trait GbAlgorithm {
@@ -126,20 +132,25 @@ the feature-gated `testkit`. The public surface is the curated facade in
       fn supports_tracing(&self) -> bool { false }
       fn compute_traced(&self, pr, gens, cancel, order, tracer)
           -> Result<Vec<Poly>, EngineError> { /* default panics */ }
+      fn supports_incremental(&self) -> bool { false }
+      fn extend_incremental(&self, pr, known_gb, new, cancel, order)
+          -> Result<Vec<Poly>, EngineError> { /* default panics */ }
   }
   ```
 
-  Built-in impls: `BuchbergerDirect` (always; supports tracing) and
-  `BuchbergerByHomog` (only meaningful for DegRevLex; tracing not
-  supported, so dispatch falls back to `BuchbergerDirect` for
-  traced requests). `last_dispatched_algorithm()` exposes the most
-  recent algorithm name selected on the current thread — used by
-  tests to confirm strategy dispatch actually fires.
+  Built-in impls: `BuchbergerDirect` (always; supports tracing — the
+  traced route is dense-only by design) and `BuchbergerByHomog` (only
+  meaningful for DegRevLex; tracing not supported, so dispatch falls
+  back to `BuchbergerDirect` for traced requests). Neither opts into
+  `extend_incremental`, so the incremental entries run the built-in
+  seeded-Buchberger extension. `last_dispatched_algorithm()` exposes
+  the route last executed on the current thread — used by tests to
+  confirm dispatch honours the configured strategy.
 
-  `compute_gb_buchberger(_traced)` is the raw entry point that
-  bypasses dispatch; algorithm implementations call it directly to
-  avoid recursive dispatch (e.g. `BuchbergerByHomog` lowers its
-  inner DegRevLex computation through this entry).
+  `compute_gb_buchberger(_traced)` and `compute_gb_direct` are the raw
+  entry points that bypass dispatch; algorithm implementations call
+  them directly to avoid recursive dispatch (e.g. `BuchbergerByHomog`
+  lowers its inner homogeneous GB through `compute_gb_direct`).
 - **`solve.rs`** — `solve_encoded_with_cancel` / `solve_split_gb_cancel`
   and `SolveOutcome` (`Unsat` carries `Option<UnsatCore>`: `None` means
   UNSAT was proved without an attributable core — consumers never see a
@@ -230,8 +241,10 @@ the feature-gated `testkit`. The public surface is the curated facade in
   the merged generator set.
 - **`bitprop.rs`** — Bit propagation (constant + equal bitsum)
   across split bases.
-- **`parse.rs`** — Pattern detection
-  (`bit_constraint`, `linear_monomial`, `bit_sums`).
+- **`bits.rs`** — Pattern detection
+  (`bit_constraint`, `linear_monomial`, `bit_sums`, `bitsum_fits`);
+  the neutral vocabulary shared by the encoder's bitsum extraction
+  and split-GB's bit propagation.
 - **`push_pop.rs`** + **`incremental_context.rs`** — test/bench
   push-pop harness + `IncrementalSolverContext` (split-GB cache keyed
   on the constraint side; resumable mid-build state).

@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
+## [Unreleased]
+
+picus-solver second architecture pass. Verdict-preserving; native gate green per checkpoint.
+
+### Fixed
+- `split_triangular` triangular DFS verifies the full assignment at the leaf (a stray root sequence could surface as a model / be replayed as an exhaustive candidate set → wrong UNSAT).
+- `find_zero` re-verifies extracted assignments against the inputs; a failing point rejects the node and exhaustion degrades to Unknown (a corrupted node basis is no longer trusted for UNSAT).
+- The cdclt incremental theory re-verifies the facade-ring model before forwarding Sat; the multi-prime model join degrades to Unknown on a cross-slot name collision instead of last-writer-wins.
+- Equality-engine polarity migration across a union is trailed (with its witness), so it cannot survive a pop below its decision level.
+- `timeout_ms` bounds the `linear_elim` pre-elimination phase (it ran on a never-firing token); the backend panic guard covers it too.
+- The incremental cache fingerprints the basis-shaping knobs (`poly_repr`, `gb_strategy`, `use_f4`, `dynamic_order`, `matrix_elim_order`); a digest hit after a config flip rebuilds instead of serving a torn config.
+- Cached-base builds scan `bitsum_polys` into BitProp (bitsum-derived propagation was silently absent on every cache-backed solve).
+- SMT-LIB tokenizer: string literals are one atom (`""` escape honoured); unterminated `"` / `|` are parse errors instead of silent absorption to EOF.
+
+### Diagnostics
+- `SolveOutcome::Unknown(UnknownCause)` threads the cause (cancelled / iter cap / dnf cap / bounded search / degraded theory / engine failure / encoding failure / model validation) to the backend seam; only token-fired cases map to `UnknownReason::Timeout` (caps → IncompleteTheory, defects → BackendError with the message).
+- Encoder rejections are logged with their message and counted (previously silent "timeouts"); cap hits get gb-stats debug lines + counters; SAT fail-closed give-ups log at error with the broken invariant named; incremental-theory degradations log with the `EngineError` preserved.
+- The caught-panic net in the native backend keeps the payload, logs at error, and counts (`backend_panics`); gb-stats dump gains `[ideal]` and `[unknown-causes]` lines; CLI default log filter raised `error` → `warn`.
+
+### Config
+- Panel text corrected to the wiring: the dense-engine knob group's real liveness (stateless/traced solves consult it under the default sparse repr), `cache_enabled`'s engine-routing coupling, the `cdclt_*` trio's disjunction-query engagement on the R1CS path, landed incremental-theory model extraction, and the GB core's DegRevLex request on elimination-order rings.
+- usage.md gains the five wired-but-undocumented flags (`membership-fastpath`, `radical-membership`, `matrix-elim-order`, `dynamic-order`, `zech-log-small-fp`).
+- Every boolean CLI knob flag overrides in both directions (`--use-f4 [on|off]` etc.; new `--cache`/`--aboz-disj`; `--no-cache`/`--no-aboz-disj` stay as off shorthands).
+- `run_smt2`/`cvc5_compare` `--config` accepts the `[engine]`-table panel form as well as the flat overlay.
+- No knob was removed, renamed, or re-defaulted.
+
+### Structure
+- The GF(p) algebra is spelled `crate::ff` outside `engine/`; `use crate::engine` marks a genuine kernel dependency (four consumers).
+- Bit/linear recognizers move to a crate-root `bits` module shared by the encoder and split-GB sides; picus-smt imports through the root facade (now load-bearing); the unused `solve as core` alias is removed.
+- GB dispatch is one choke point: representation routing lives inside the `GbAlgorithm` impls; the trait gains `supports_incremental`/`extend_incremental` opt-in; telemetry records the route actually executed.
+- `solve_order()` owns the GB core's term-order request (DegRevLex today); computing under an encoder-pinned elimination order instead stays gated on an EdDSA-class benchmark A/B.
+- One owner each for: the small-prime field-poly policy (`ff::field::small_prime_field_polys`, five sites), the smt2 literal-prime inference, and the Bool `b·b = b` emission; `ReprKind` routing is exhaustive; matrix-order interning dedups structurally equal orders; `IncrementalIdeal` wraps the incremental engine in `Poly` vocabulary (adopted by the cdclt incremental theory).
+- `Theory` gains a defaulted `early_check` hook (all shipped impls keep the default).
+
+### Performance (result-identical, knob-neutral; perf corpus spot-check flat)
+- Sparse reductions borrow same-arm divisors (no per-call deep clone of the divisor basis); GB routes move owned generators into the sparse engine; dense reduction gains by-value entries for owning callers; univariate mul/div_rem accumulate in place; `min_poly` probes coefficients natively per arm; dense interreduce precomputes LTs; Frobenius cache hits skip the vector clone; `bit_sums` indexes by coefficient above 32 entries.
+- Hilbert numerator: budgeted explicit worklist (BCR recursion could run unbounded inside a deadline; callers decline soundly); sparse interreduce and BitProp bit-membership proofs are cancel-aware inside elements.
+
+### Tests
+- New `knob_grid_soundness` harness: exhaustive-enumeration ground truth (GF(7)/GF(17), 42 systems) × 22 configs covering every solve-core knob's non-default value; verdict must match or be Unknown, models re-evaluated, anti-vacuity floors.
+- Three knob parity tests actually flip their knob off now; `cache_enabled=false` / `linear_elim=true` get backend-level coverage; always-run scaled-down F4 LT-parity covers `f4_hilbert_select=off` / `f4_sparse_reducer_cache=off`; BN254 bitsum probe gains an always-run 8-bit sibling; engine-parity suites gain decided-baseline floors.
+- GitHub Actions CI (native default-members build + test + strict rustdoc) and a `rust-toolchain.toml` pin.
+
 ## [1.8.28] - 2026-07-06
 
 picus-solver architecture pass. Verdict-preserving; native + cvc5/z3 suites green.
