@@ -40,8 +40,8 @@ pub(crate) struct CachedBase {
     /// and (optionally) field polys — but NOT from disequalities.
     pub constraint_polys: Vec<Poly>,
     pub bitsum_polys: Vec<Poly>,
-    /// Per-partition basis polys: `split_gb_owned[0]` = linear basis,
-    /// `split_gb_owned[1]` = nonlinear basis.
+    /// Per-partition basis polys: `split_gb_owned[0]` = partition 0
+    /// (linear), `split_gb_owned[1]` = partition 1 (full).
     pub split_gb_owned: Vec<Vec<Poly>>,
     pub bit_prop_state: BitPropState,
     pub digest: u128,
@@ -192,7 +192,7 @@ impl IncrementalSolverContext {
             return Err(());
         }
 
-        // basis 0 (linear) = bitsum polys + admitted originals; basis 1
+        // partition 0 (linear) = bitsum polys + admitted originals; partition 1
         // (nonlinear) = all originals. The provenance is unused here: the
         // cached path does not extract an UNSAT core.
         let (gens, _prov) =

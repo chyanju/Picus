@@ -4,7 +4,7 @@
 //! - Disequality `a ≠ b` → Rabinowitsch trick: `(a - b) * w - 1`
 //! - Bitsum subpatterns in equalities are extracted by
 //!   [`auto_extract_bitsums`] and routed to `bitsum_polys`
-//!   (split-GB basis 0 only).
+//!   (split-GB partition 0 only).
 //!
 //! Single index-keyed type family. [`ConstraintSystem`] is the
 //! canonical system shape (`var_names: Vec<String>` authoritative
@@ -58,8 +58,8 @@ pub struct EncodedSystem {
     pub n_input_equalities: usize,
     /// Bitsum definition polynomials: `b0 + 2*b1 + ... - aux = 0`.
     /// These are kept separate from `polynomials` because the split-GB
-    /// algorithm seeds them only into the linear basis (basis 0), not
-    /// the nonlinear basis (basis 1).
+    /// algorithm seeds them only into partition 0 (linear), not
+    /// partition 1 (full).
     pub bitsum_polys: Vec<Poly>,
     pub var_map: HashMap<String, usize>,
 }

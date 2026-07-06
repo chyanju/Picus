@@ -862,7 +862,8 @@ impl BuchbergerState {
                     let s = &self.profile;
                     let total_ms = run_start.map(|t| t.elapsed().as_secs_f64() * 1000.0).unwrap_or(0.0);
                     let active_count = self.basis.iter().filter(|e| e.active).count();
-                    eprintln!(
+                    log::debug!(
+                        target: "picus::gb_stats",
                         "[picus-gb-stats CANCELLED] pairs={} cop={} gm={} b={} red={} useful={} useless={} initial_open={} remaining_open={} basis_size={} active={} time_run_ms={:.2} time_spoly_ms={:.2} time_reduce_ms={:.2} time_genpairs_ms={:.2}",
                         s.pairs_generated, s.pairs_killed_coprime, s.pairs_killed_gm, s.pairs_killed_b,
                         s.reductions_total, s.reductions_useful, s.reductions_useless,
@@ -912,7 +913,8 @@ impl BuchbergerState {
                         let s = &self.profile;
                         let total_ms = run_start.map(|t| t.elapsed().as_secs_f64() * 1000.0).unwrap_or(0.0);
                         let active_count = self.basis.iter().filter(|e| e.active).count();
-                        eprintln!(
+                        log::debug!(
+                            target: "picus::gb_stats",
                             "[picus-gb-stats CANCELLED-MIDLOOP] pairs={} cop={} gm={} b={} red={} useful={} useless={} initial_open={} remaining_open={} basis_size={} active={} time_run_ms={:.2} time_spoly_ms={:.2} time_reduce_ms={:.2} time_genpairs_ms={:.2}",
                             s.pairs_generated, s.pairs_killed_coprime, s.pairs_killed_gm, s.pairs_killed_b,
                             s.reductions_total, s.reductions_useful, s.reductions_useless,
@@ -993,7 +995,8 @@ impl BuchbergerState {
             let s = &self.profile;
             let total_ms = run_start.map(|t| t.elapsed().as_secs_f64() * 1000.0).unwrap_or(0.0);
             let active_count = self.basis.iter().filter(|e| e.active).count();
-            eprintln!(
+            log::debug!(
+                target: "picus::gb_stats",
                 "[picus-gb-stats] pairs={} cop={} gm={} b={} red={} useful={} useless={} interreduces={} basis_size={} active={} initial_open={} time_run_ms={:.2} time_spoly_ms={:.2} time_reduce_ms={:.2} time_genpairs_ms={:.2}",
                 s.pairs_generated,
                 s.pairs_killed_coprime,
@@ -1385,7 +1388,8 @@ impl BuchbergerState {
                 0.0
             };
             let ws = f4_workspace.stats;
-            eprintln!(
+            log::debug!(
+                target: "picus::gb_stats",
                 "[picus-gb-stats F4] pairs={} cop={} gm={} b={} red={} useful={} useless={} initial_open={} basis_size={} active={} f4_batches={} f4_pair_total={} avg_batch={:.2} fallback_pairs={} cache_hits={} cache_misses={} cache_stale={} time_run_ms={:.2}",
                 s.pairs_generated,
                 s.pairs_killed_coprime,

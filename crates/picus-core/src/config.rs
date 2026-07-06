@@ -178,7 +178,7 @@ runtime_config! {
     /// analogue): before solving, reduce the nonlinear constraints modulo
     /// a Gröbner basis of the linear subsystem, substituting out pivot
     /// variables. Off by default — split-GB already handles linear
-    /// constraints in basis 0, and the substitution can densify the
+    /// constraints in partition 0, and the substitution can densify the
     /// nonlinear part and add per-`solve` overhead. Exposed as a knob for
     /// linear-heavy conjunctive circuits where it may pay off.
     linear_elim: bool = false,

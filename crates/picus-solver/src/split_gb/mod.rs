@@ -1,15 +1,20 @@
 //! Split Groebner Basis solver.
 //!
 //! Implements the algorithm from "Split Groebner Bases for Satisfiability
-//! Modulo Finite Fields" (Ozdemir et al., CAV 2023).
+//! Modulo Finite Fields" (Ozdemir et al., CAV 2024).
 //!
-//! Instead of one big GB over all polynomials, maintain `k` GBs over
-//! disjoint subsets, sharing only admissible polynomials between them.
-//! The default split is two ideals:
+//! Instead of one big GB over all polynomials, maintain one GB per
+//! **partition**, sharing only admissible polynomials between them.
+//! (One noun throughout: a *partition* is the indexed slot; the GB it
+//! carries is "the partition's basis".) The default layout is two
+//! partitions, named by what [`admit`] lets *cross into* them — NOT by
+//! what seeds them:
 //!
-//!   - **ideal 0** ("linear"):    accepts all polynomials with `deg <= 1`.
-//!   - **ideal 1** ("nonlinear"): accepts polynomials with `deg <= 1` and
-//!                                `numTerms <= 2`.
+//!   - **partition 0** ("linear"): seeded with the bitsum definitions
+//!     plus the `deg <= 1` originals; admits shared polys of `deg <= 1`.
+//!   - **partition 1** ("full"): seeded with EVERY original (linear and
+//!     nonlinear alike); admits only shared polys of `deg <= 1` with at
+//!     most 2 terms.
 //!
 //! Submodules:
 //!
@@ -84,12 +89,19 @@ pub(crate) enum SplitFindZeroOutcome {
 
 /// Default split-admission predicate.
 ///
-/// `admit(i, p) = deg(p) <= 1 && (i == 0 || numTerms(p) <= 2)`
+/// `admit(j, p) = deg(p) <= 1 && (j == 0 || numTerms(p) <= 2)`
 ///
-///   - basis 0 (linear):    admits `p` iff `deg(p) <= 1`.
-///   - basis 1 (nonlinear): admits `p` iff `deg(p) <= 1` and
-///                          `numTerms(p) <= 2`.
+///   - partition 0 (linear): admits `p` iff `deg(p) <= 1`.
+///   - partition 1 (full):   admits `p` iff `deg(p) <= 1` and
+///                           `numTerms(p) <= 2`.
 ///   - any other index: never admit.
+///
+/// Admission governs cross-partition SHARING during the propagation
+/// fixpoint, not generator seeding: partition 1 is seeded with every
+/// generator (including nonlinear ones) by [`build_partitions`], yet
+/// admits only near-linear shares. "Fixing" this predicate to accept
+/// nonlinear polys would change what may flow between partitions and
+/// is soundness-relevant.
 pub(crate) fn admit(_pr: &FfPolyRing, idx: usize, p: &Poly) -> bool {
     if total_degree(p) > 1 { return false; }
     match idx {
@@ -102,9 +114,9 @@ pub(crate) fn admit(_pr: &FfPolyRing, idx: usize, p: &Poly) -> bool {
 /// Build the default two-partition split-GB generator sets and their
 /// per-generator provenance.
 ///
-///   - basis 0 (linear):    the bitsum definition polys, then every
-///                          original admitted by `admit(_, 0, _)`.
-///   - basis 1 (nonlinear): all originals, in order.
+///   - partition 0 (linear): the bitsum definition polys, then every
+///                           original admitted by `admit(_, 0, _)`.
+///   - partition 1 (full):   all originals, in order.
 ///
 /// The returned `(gens, provenance)` are index-parallel within each basis:
 /// `provenance[b][i]` is `Some(orig_idx)` when `gens[b][i]` is original

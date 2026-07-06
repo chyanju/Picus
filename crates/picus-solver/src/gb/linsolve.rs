@@ -1,10 +1,10 @@
 //! Linear (Gaussian) pre-elimination — the in-tree analogue of cvc5's
 //! `theory/ff/gauss.cpp`.
 //!
-//! The split-GB partition admits a polynomial into the nonlinear basis
+//! The split-GB layout shares a polynomial into partition 1 (full)
 //! only when it is linear AND has `<= 2` terms (`split_gb::admit`), so a
 //! multi-term linear relation such as `x = a·y + b·z + c` never reaches
-//! the nonlinear reasoning — its eliminations are stranded in basis 0.
+//! the nonlinear reasoning — its eliminations are stranded in partition 0.
 //! This pass closes that gap: it computes a Gröbner basis of the linear
 //! subsystem (for a linear ideal this is Gaussian elimination — a reduced
 //! row echelon form) and reduces every nonlinear generator modulo it, so

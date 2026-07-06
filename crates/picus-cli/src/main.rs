@@ -12,7 +12,12 @@ use args::{Cli, Commands};
 use commands::{cmd_check, cmd_info, exit_error, install_profile_signal_handler, on_off};
 
 fn main() {
-    env_logger::init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
+        // Keep the knob-gated GB diagnostics reaching stderr as before;
+        // an explicit RUST_LOG overrides this default.
+        "error,picus::gb_stats=debug,picus::gb_trace=trace",
+    ))
+    .init();
     install_profile_signal_handler();
     let cli = Cli::parse();
 

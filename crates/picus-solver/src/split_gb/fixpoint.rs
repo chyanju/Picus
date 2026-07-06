@@ -394,7 +394,8 @@ fn run_fixpoint_impl<'r>(
         metric::trace! {
             let elapsed_ms = iter_clock.map(|t| t.elapsed().as_secs_f64() * 1000.0).unwrap_or(0.0);
             let basis_sizes: Vec<usize> = split_basis.iter().map(|b| b.basis.len()).collect();
-            eprintln!(
+            log::trace!(
+                target: "picus::gb_trace",
                 "[{} call={} iter={}] basis_sizes={:?} polys_in={} polys_out={} contains={} contains_true={} memo_hits={} elapsed_ms={:.2}",
                 trace_tag, call_idx, fixpoint_iter, basis_sizes,
                 iter_polys_in, iter_polys_out,

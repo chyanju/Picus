@@ -29,7 +29,7 @@ impl PolySystem {
     /// substituting out the pivot variables. Applied once per top-level
     /// solve so both the conjunctive and CDCL(T) per-check paths consume
     /// the reduced generators (split-GB's `admit` predicate otherwise
-    /// strands multi-term linear relations in basis 0).
+    /// strands multi-term linear relations in partition 0).
     ///
     /// Returns `Some(reduced_ir)` when elimination changed the equality
     /// set, else `None` (the caller keeps `self`). Variety-preserving, so

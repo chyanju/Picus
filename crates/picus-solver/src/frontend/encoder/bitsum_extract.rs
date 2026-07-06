@@ -45,7 +45,7 @@ pub(crate) fn bitsum_fits(len: usize, p: &BigUint) -> bool {
 ///    chain's terms from the equality, append a `c · __bitsum_N`
 ///    term, append the bit list to `system.bitsums`. The encoder
 ///    emits `b_0 + 2·b_1 + ... + 2^k·b_k − __bitsum_N = 0` into
-///    `bitsum_polys` (split-GB seeder routes those to basis 0 only).
+///    `bitsum_polys` (split-GB seeder routes those to partition 0 only).
 ///
 /// Soundness gate: chain length capped at `floor(log2(prime))` (via
 /// [`bitsum_fits`]) so distinct bit patterns never collide modulo

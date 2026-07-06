@@ -26,7 +26,6 @@ use std::collections::BTreeSet;
 use crate::ff::field::FieldElem;
 use crate::ff::monomial::{Monomial, MonomialOrder};
 use crate::gb::ideal::Ideal;
-use crate::metric;
 use crate::poly::Poly;
 use crate::timeout::CancelToken;
 
@@ -190,13 +189,12 @@ pub(crate) fn fglm_to_lex_cancel(ideal: &Ideal, cancel: &CancelToken) -> Option<
     // basis that may not lie in I, return None so the caller falls back to
     // direct Buchberger Lex (sound). Runs in release, not just debug.
     let hilbert_dim = ideal.quotient_dimension();
-    metric::scope! {
-        eprintln!(
-            "[picus-gb-stats] fglm_dim={} hilbert_dim={:?}",
-            staircase.len(),
-            hilbert_dim
-        );
-    }
+    log::debug!(
+        target: "picus::gb_stats",
+        "[picus-gb-stats] fglm_dim={} hilbert_dim={:?}",
+        staircase.len(),
+        hilbert_dim
+    );
     if hilbert_dim != Some(staircase.len() as u128) {
         log::warn!(
             "FGLM staircase size {} disagrees with Hilbert dimension {:?}; \
