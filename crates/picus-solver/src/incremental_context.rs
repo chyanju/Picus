@@ -26,7 +26,7 @@ use crate::metric;
 use crate::profile::NATIVE_FF;
 use crate::poly::{FfPolyRing, Poly};
 use crate::split_gb::{
-    admit, build_partitions, classify_propagation, max_fixpoint_iters, seed_self_membership,
+    build_partitions, classify_propagation, max_fixpoint_iters, seed_self_membership,
     split_find_zero_cancel, split_gb_cancel, split_gb_extend_cancel, Propagate, SplitFindZeroOutcome,
 };
 use crate::timeout::CancelToken;
@@ -650,21 +650,7 @@ fn solve_with_cached(
         .collect();
 
     let k = starting.len();
-    let mut new_polys_per_split: Vec<Vec<Poly>> = (0..k).map(|_| Vec::new()).collect();
-    for p in &query_polys {
-        let mut placed = false;
-        if k > 0 && admit(poly_ring, 0, p) {
-            new_polys_per_split[0].push(poly_ring.ring.clone_el(p));
-            placed = true;
-        }
-        if k > 1 {
-            new_polys_per_split[1].push(poly_ring.ring.clone_el(p));
-            placed = true;
-        }
-        if !placed && k > 0 {
-            new_polys_per_split[0].push(poly_ring.ring.clone_el(p));
-        }
-    }
+    let new_polys_per_split = crate::split_gb::route_query_polys(poly_ring, k, &query_polys);
 
     let mut bit_prop = BitProp::from_state(poly_ring, cached.bit_prop_state.clone());
 

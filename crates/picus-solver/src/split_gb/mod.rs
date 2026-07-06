@@ -137,6 +137,35 @@ pub(crate) fn build_partitions(
     (vec![l_gens, nl_gens], vec![l_prov, nl_prov])
 }
 
+/// Route per-query polynomials (Rabinowitsch witnesses) into an existing
+/// `k`-partition layout, mirroring [`build_partitions`]: partition 0
+/// (linear) receives only polys it [`admit`]s; partition 1 (seeded with
+/// every generator) receives every poly. Lives next to
+/// `build_partitions` so the partition layout has a single owner — the
+/// cached solve path must not re-derive it inline.
+pub(crate) fn route_query_polys(
+    poly_ring: &FfPolyRing,
+    k: usize,
+    query_polys: &[Poly],
+) -> Vec<Vec<Poly>> {
+    let mut per_split: Vec<Vec<Poly>> = (0..k).map(|_| Vec::new()).collect();
+    for p in query_polys {
+        let mut placed = false;
+        if k > 0 && admit(poly_ring, 0, p) {
+            per_split[0].push(poly_ring.ring.clone_el(p));
+            placed = true;
+        }
+        if k > 1 {
+            per_split[1].push(poly_ring.ring.clone_el(p));
+            placed = true;
+        }
+        if !placed && k > 0 {
+            per_split[0].push(poly_ring.ring.clone_el(p));
+        }
+    }
+    per_split
+}
+
 /// Outcome of classifying a candidate poly against one partition during
 /// the propagation fixpoint. Shared by all three fixpoint drivers
 /// (`fixpoint::run_fixpoint`, `run_fixpoint_traced`,
