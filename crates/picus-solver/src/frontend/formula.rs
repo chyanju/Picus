@@ -342,6 +342,25 @@ fn try_disjunctive_bit(or_children: &[Formula], prime: &BigUint) -> Option<VarId
     }
 }
 
+/// The bit constraint `b·b = b` as a single-literal formula: the one
+/// constructor for every site that pins a Bool-sorted (or {0,1}-shaped)
+/// variable in the polynomial namespace — the one-shot parser's
+/// Bool-variable emission, the session's check-sat emission, and the
+/// disjunctive-bit rewrite below. A change to the Bool encoding is one
+/// edit here instead of three drifting copies.
+pub(crate) fn bool_bit_constraint(idx: crate::frontend::encoder::VarIdx) -> Formula {
+    Formula::Lit(Literal::Eq(
+        vec![PolyTerm {
+            coeff: BigUint::from(1u32),
+            vars: vec![(idx, 2)],
+        }],
+        vec![PolyTerm {
+            coeff: BigUint::from(1u32),
+            vars: vec![(idx, 1)],
+        }],
+    ))
+}
+
 /// Equivalent of cvc5's disjunctive-bit preprocessing pass.
 /// Rewrites every `(or (= x 0) (= x 1))` subformula to the polynomial
 /// equality `x * x = x` (a single-conjunct literal). Other formula
@@ -350,16 +369,7 @@ pub fn rewrite_disjunctive_bit(f: Formula, prime: &BigUint) -> Formula {
     match f {
         Formula::Or(children) => {
             if let Some(idx) = try_disjunctive_bit(&children, prime) {
-                return Formula::Lit(Literal::Eq(
-                    vec![PolyTerm {
-                        coeff: BigUint::from(1u32),
-                        vars: vec![(idx, 2)],
-                    }],
-                    vec![PolyTerm {
-                        coeff: BigUint::from(1u32),
-                        vars: vec![(idx, 1)],
-                    }],
-                ));
+                return bool_bit_constraint(idx);
             }
             Formula::Or(
                 children

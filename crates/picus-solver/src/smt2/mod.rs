@@ -267,6 +267,30 @@ pub(in crate::smt2) fn collect_ff_literal_primes(s: &Sexpr, primes: &mut BTreeSe
 /// Recursively check whether `s` mentions any `ff.<op>` atom (`ff.add`,
 /// `ff.mul`, `ff.bitsum`, `ff.neg`, etc.) — a non-`define-fun` form's
 /// strongest signal that the session is FF-typed.
+/// Shared literal-prime inference: the unique modulus carried by
+/// `#fNmP` / `(as ffN (_ FiniteField p))` literals under `sexprs`, or
+/// `Malformed` when two distinct moduli appear (Picus is single-prime
+/// per session/query). `Ok(None)` means no literal carried a prime —
+/// the caller decides between the Bool-only default and
+/// [`ParseError::MissingPrime`] via [`has_ff_op`]. One owner for the
+/// policy the one-shot parser and the incremental session must agree
+/// on.
+pub(in crate::smt2) fn infer_prime_from_ff_literals<'a>(
+    sexprs: impl IntoIterator<Item = &'a Sexpr>,
+) -> Result<Option<BigUint>, ParseError> {
+    let mut lit_primes: BTreeSet<BigUint> = BTreeSet::new();
+    for s in sexprs {
+        collect_ff_literal_primes(s, &mut lit_primes);
+    }
+    if lit_primes.len() > 1 {
+        return Err(ParseError::Malformed(format!(
+            "multiple FF primes in literals: {:?}",
+            lit_primes.iter().collect::<Vec<_>>()
+        )));
+    }
+    Ok(lit_primes.into_iter().next())
+}
+
 pub(in crate::smt2) fn has_ff_op(s: &Sexpr) -> bool {
     match s {
         Sexpr::Atom(a) => a.starts_with("ff."),
@@ -901,22 +925,10 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
     let prime = if let Some(p) = prime {
         p
     } else {
-        let mut lit_primes: BTreeSet<BigUint> = BTreeSet::new();
-        for s in &sexprs {
-            collect_ff_literal_primes(s, &mut lit_primes);
-        }
-        if lit_primes.len() > 1 {
-            return Err(ParseError::Malformed(format!(
-                "multiple FF primes in literals: {:?}",
-                lit_primes.iter().collect::<Vec<_>>()
-            )));
-        }
-        if let Some(p) = lit_primes.into_iter().next() {
-            p
-        } else if sexprs.iter().any(has_ff_op) {
-            return Err(ParseError::MissingPrime);
-        } else {
-            BigUint::from(2u32)
+        match infer_prime_from_ff_literals(&sexprs)? {
+            Some(p) => p,
+            None if sexprs.iter().any(has_ff_op) => return Err(ParseError::MissingPrime),
+            None => BigUint::from(2u32),
         }
     };
 
@@ -960,15 +972,7 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
         .collect();
     for name in &bool_names {
         let idx = ctx.builder.var(name);
-        let b_sq: Polynomial = vec![PolyTerm {
-            coeff: BigUint::from(1u32),
-            vars: vec![(idx, 2)],
-        }];
-        let b: Polynomial = vec![PolyTerm {
-            coeff: BigUint::from(1u32),
-            vars: vec![(idx, 1)],
-        }];
-        formulas.push(Formula::Lit(Literal::Eq(b_sq, b)));
+        formulas.push(crate::frontend::formula::bool_bit_constraint(idx));
     }
 
     let combined = if formulas.is_empty() {

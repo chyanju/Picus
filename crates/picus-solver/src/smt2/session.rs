@@ -9,17 +9,17 @@
 //! into the in-tree CDCL(T) entry point [`crate::cdclt::solve_formula`].
 //! Per-check timeouts honour `(set-option :tlimit-per <ms>)`.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use num_bigint::BigUint;
 
 use super::tokenizer::{parse_sexprs, tokenize, Sexpr};
 use super::{
-    assert_to_formula, classify_declare, collect_ff_literal_primes, finite_field_prime_str,
-    has_ff_op, parse_define_fun, MacroDef, ParseCtx, ParseError, Polynomial, VarSort,
+    assert_to_formula, classify_declare, finite_field_prime_str, infer_prime_from_ff_literals,
+    has_ff_op, parse_define_fun, MacroDef, ParseCtx, ParseError, VarSort,
 };
-use crate::frontend::formula::{Formula, Literal};
-use crate::frontend::encoder::{ConstraintSystemBuilder, PolyTerm};
+use crate::frontend::formula::Formula;
+use crate::frontend::encoder::ConstraintSystemBuilder;
 
 /// Verdict returned by `(check-sat)`.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -192,15 +192,7 @@ impl SmtSession {
                 // term is not silently encoded under the builder's prime-2
                 // default. Mirrors the one-shot parsers.
                 if self.prime.is_none() {
-                    let mut lit_primes: BTreeSet<BigUint> = BTreeSet::new();
-                    collect_ff_literal_primes(inner, &mut lit_primes);
-                    if lit_primes.len() > 1 {
-                        return Err(ParseError::Malformed(format!(
-                            "multiple FF primes in literals: {:?}",
-                            lit_primes.iter().collect::<Vec<_>>()
-                        )));
-                    }
-                    if let Some(p) = lit_primes.into_iter().next() {
+                    if let Some(p) = infer_prime_from_ff_literals(std::iter::once(inner))? {
                         self.builder.set_prime(p.clone());
                         self.prime = Some(p);
                     } else if has_ff_op(inner) {
@@ -358,19 +350,10 @@ impl SmtSession {
         // Auto bit constraint for every declared Bool var. Iterate
         // `var_order` (not `self.vars`) so the constraint sequence is
         // deterministic across runs — HashMap iteration order is not.
-        let one = BigUint::from(1u32);
         for name in &self.var_order {
             if matches!(self.vars.get(name), Some(VarSort::Bool)) {
                 let idx = self.builder.var(name);
-                let b_sq: Polynomial = vec![PolyTerm {
-                    coeff: one.clone(),
-                    vars: vec![(idx, 2)],
-                }];
-                let b: Polynomial = vec![PolyTerm {
-                    coeff: one.clone(),
-                    vars: vec![(idx, 1)],
-                }];
-                all.push(Formula::Lit(Literal::Eq(b_sq, b)));
+                all.push(crate::frontend::formula::bool_bit_constraint(idx));
             }
         }
         let combined = if all.is_empty() {
