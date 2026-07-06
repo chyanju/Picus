@@ -276,7 +276,8 @@ impl PolyIR {
         })
     }
 
-    /// Lower to a raw [`PolySystem`] — the bridge to the low-level machinery.
+    /// Lower to a raw [`PolySystem`](picus_smt::poly_system::PolySystem) —
+    /// the bridge to the low-level machinery.
     pub fn lower(&self) -> picus_smt::poly_system::PolySystem {
         lower::lower(self)
     }

@@ -844,11 +844,59 @@ fn hardprobe_phase1_boundary_primes_sound() {
     }
 }
 
+/// HARD-PROBE (always-run sibling of the ignored 16-bit probe below):
+/// BN254 bitsum at 8 bits — wide enough to exceed every small-prime
+/// cap, cheap enough for every `cargo test` run. Same assertions:
+/// every emitted equality is in the ideal, and the spec-derived bit
+/// pattern of `v` is pinned.
+#[test]
+fn hardprobe_phase1_bn254_8bit_bitsum() {
+    let prime = BigUint::parse_bytes(
+        b"21888242871839275222246405745257275088548364400416034343698204186575808495617",
+        10,
+    ).unwrap();
+    let pr_field = crate::engine::field::PrimeField::new(prime.clone());
+    let k = 8usize;
+    let names: Vec<String> = (0..k).map(|i| format!("b{}", i)).collect();
+    let pr = FfPolyRing::new(pr_field.clone(), names);
+    let two = pr.field().from_int(2);
+    // Adversarial v: alternating bit pattern, fits in 8 bits.
+    let v: u64 = 0xA5;
+    let mut bs_poly = pr.zero();
+    let mut coeff = pr.field().one();
+    for i in 0..k {
+        let term = pr.scale(pr.field().clone_el(&coeff), pr.var(i));
+        bs_poly = pr.add(bs_poly, term);
+        coeff = pr.field().mul_ref(&coeff, &two);
+    }
+    let neg_v = pr.field().from_int(-(v as i64));
+    let pin = pr.add(bs_poly, pr.constant(neg_v));
+    let ideal = build_bit_ideal(&pr, vec![pin]);
+    let mut bp = BitProp::new(&pr);
+    bp.add_bitsum((0..k).collect());
+    for i in 0..k { bp.add_bit(i); }
+    let eqs = bp.get_bit_equalities(std::slice::from_ref(&ideal));
+    for e in &eqs {
+        assert!(ideal.contains(e), "BN254/8: emitted eq not in ideal");
+    }
+    for i in 0..k {
+        let bi = (v >> i) & 1;
+        let bit_el = if bi == 0 { pr.field().zero() } else { pr.field().one() };
+        let expected = pr.sub(pr.var(i), pr.constant(bit_el));
+        assert!(
+            ideal.contains(&expected),
+            "BN254/8 bit{} of v=0x{:x}: spec value {} not pinned in ideal",
+            i, v, bi
+        );
+    }
+}
+
 /// HARD-PROBE: BN254 scalar field (~2^254) bitsum, deferred.
 /// Each per-bit `ideal.contains` runs a full GB membership check on a
 /// 16-variable BN254 ring; 16 such checks per test exceed practical
-/// unit-test budget. Other hardprobe_phase1_* tests already cover
-/// BN254/boundary-prime soundness at smaller widths.
+/// unit-test budget. The 8-bit sibling above runs in every `cargo
+/// test`; other hardprobe_phase1_* tests cover BN254/boundary-prime
+/// soundness at smaller widths.
 #[test]
 #[ignore]
 fn hardprobe_phase1_bn254_64bit_bitsum() {

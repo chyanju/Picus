@@ -3,7 +3,8 @@
 //! The driver runs in two interlocking layers:
 //!
 //! 1. **Propagation**: registered [`PropagationLemma`] plugins run to a
-//!    fixed point against a single [`PolySystem`], marking wires as known
+//!    fixed point against a single
+//!    [`PolySystem`](picus_smt::poly_system::PolySystem), marking wires as known
 //!    in [`PropagationCtx`]. Constraints learned by lemmas are folded
 //!    into the IR at the end of each outer iteration so the next
 //!    iteration sees them.
@@ -13,7 +14,7 @@
 //!    uniqueness (UNSAT ⇒ verified). A SAT result on a target signal
 //!    is reported back as a counter-example.
 //!
-//! Backends consume the same [`PolySystem`] the propagation layer builds;
+//! Backends consume the same `PolySystem` the propagation layer builds;
 //! before each solve the driver appends `x_w - y_w = 0` equalities for
 //! every newly-proved-unique wire and sets `target_wire` so the
 //! backend's closing `(not (= x_target y_target))` matches.

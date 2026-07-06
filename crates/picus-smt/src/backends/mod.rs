@@ -99,8 +99,8 @@ pub type BackendFactory = fn() -> Box<dyn SolverBackend>;
 ///
 /// Backends register themselves with `inventory::submit!` from their
 /// own module; [`create_backend_by_name`] walks the registry at
-/// *dispatch* time, and [`crate::SolverKind::from_str`] consults it to
-/// list the known backends in its error message. *Selection by name*,
+/// *dispatch* time, and [`crate::SolverKind`]'s `FromStr` impl consults
+/// it to list the known backends in its error message. *Selection by name*,
 /// however, goes through the built-in [`crate::SolverKind`] enum (used
 /// by `--solver` and config files), so a new backend that should be
 /// reachable via `--solver` also needs a matching `SolverKind` variant

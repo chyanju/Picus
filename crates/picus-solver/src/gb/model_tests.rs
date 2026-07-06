@@ -434,16 +434,8 @@ fn audit_branching_incremental_gb_parity() {
     use crate::engine::field::PrimeField;
     use num_bigint::BigUint;
     let f = || PrimeField::new(BigUint::from(7u32));
-    let cases: Vec<(&'static str, Vec<(usize, i64, Vec<(usize, u32)>)>)> = vec![
-        // x^2 - 4 = 0 ∧ y - x - 1 = 0 ⇒ {x=2, y=3} or {x=5, y=6}
-        ("x^2-4, y-x-1", vec![
-            (1, 0, vec![(0, 2)]),  // x^2
-            (1, -4, vec![]),
-            (1, 0, vec![(1, 1)]),  // y term spec uses a separate poly below
-        ]),
-    ];
-    let _ = cases;
-    // Hand-built ring + ideal so the test is self-contained.
+    // Hand-built ring + ideal so the test is self-contained:
+    // x^2 - 4 = 0 ∧ y - x - 1 = 0 ⇒ {x=2, y=3} or {x=5, y=6}.
     let pr = FfPolyRing::new(f(), vec!["x".into(), "y".into()]);
     let x = pr.var(0);
     let y = pr.var(1);
@@ -455,6 +447,7 @@ fn audit_branching_incremental_gb_parity() {
     let basis = vec![p1, p2];
 
     let outcome_default = {
+        let _g = picus_core::config::ConfigGuard::with_override(|c| c.branching_incremental_gb = false);
         find_zero(&pr, &basis)
     };
     let outcome_inc = {

@@ -954,6 +954,96 @@ fn f4_matrix_path_fires_on_cyclic_5() {
     );
 }
 
+/// Cyclic-5 LT-set parity across the F4 configurations that ship a
+/// knob: defaults, `f4_hilbert_select = false`, and
+/// `f4_sparse_reducer_cache = false`. Each leg must (a) actually fire
+/// the matrix path (cyclic-5 batches exceed `F4_MIN_BATCH`) and (b)
+/// produce the same reduced-GB leading-term set as the per-pair
+/// engine. This is the always-run scaled-down sibling of the ignored
+/// cyclic-6 test — the only other executions of the two `=false` legs.
+#[test]
+fn f4_lt_parity_cyclic_5_covers_sub_knob_off_legs() {
+    use crate::engine::buchberger::{BuchbergerConfig, IncrementalGB};
+    use std::collections::HashSet;
+    let n = 5usize;
+    let ring = ring_mod7(n);
+    let xs: Vec<DensePoly> = (0..n).map(|i| DensePoly::variable(i, &ring)).collect();
+    let one = ring.field.one();
+    let neg_one = ring.field.neg(&one);
+    let mut polys: Vec<DensePoly> = Vec::new();
+    for d in 1..n {
+        let mut acc = DensePoly::zero();
+        for r in 0..n {
+            let mut prod = xs[r % n].clone();
+            for k in 1..d {
+                prod = prod.mul(&xs[(r + k) % n], &ring);
+            }
+            acc = acc.add(&prod, &ring);
+        }
+        polys.push(acc);
+    }
+    let mut p = xs[0].clone();
+    for k in 1..n {
+        p = p.mul(&xs[k], &ring);
+    }
+    p = p.add(&DensePoly::constant(neg_one, &ring), &ring);
+    polys.push(p);
+
+    let lt_set = |igb: &IncrementalGB| -> HashSet<Vec<u16>> {
+        igb.basis()
+            .iter()
+            .map(|q| lt(q, &ring).exponents().to_vec())
+            .collect()
+    };
+
+    // Per-pair reference.
+    let cfg_pp = BuchbergerConfig {
+        cancel_token: None,
+        abort_on_trivial: false,
+        use_f4: false,
+        ..BuchbergerConfig::default()
+    };
+    let mut igb_pp = IncrementalGB::new(Arc::clone(&ring), cfg_pp);
+    igb_pp.add_generators(polys.clone()).expect("per-pair");
+    let reference = lt_set(&igb_pp);
+
+    for (label, hilbert_select, sparse_reducer_cache) in [
+        ("f4-defaults", true, true),
+        ("hilbert_select=off", false, true),
+        ("sparse_reducer_cache=off", true, false),
+    ] {
+        // BuchbergerConfig::default() snapshots the two sub-knobs from
+        // the live config, so the off-legs are installed via ConfigGuard
+        // before construction.
+        let _g = crate::config::ConfigGuard::with_override(|c| {
+            c.gb_stats_enabled = true; // engine_stats population
+            c.f4_hilbert_select = hilbert_select;
+            c.f4_sparse_reducer_cache = sparse_reducer_cache;
+        });
+        let cfg = BuchbergerConfig {
+            cancel_token: None,
+            abort_on_trivial: false,
+            use_f4: true,
+            ..BuchbergerConfig::default()
+        };
+        let mut igb = IncrementalGB::new(Arc::clone(&ring), cfg);
+        igb.add_generators(polys.clone()).expect(label);
+        let stats = igb.engine_stats().clone();
+        assert!(
+            stats.f4_batches > 0,
+            "{}: matrix path must fire on cyclic-5; stats={:?}",
+            label,
+            stats
+        );
+        assert_eq!(
+            lt_set(&igb),
+            reference,
+            "{}: F4 LT set differs from per-pair reference",
+            label
+        );
+    }
+}
+
 // ─── Large-batch F4 amortisation coverage ────────────────────
 
 /// Cyclic-6 in F_7. Same-sugar batches average ≈ 35 pairs, well

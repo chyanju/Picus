@@ -343,7 +343,10 @@ fn audit_frobenius_cache_preserves_root_set() {
     let expected: HashSet<BigUint> = [1u32, 2, 4].iter().map(|&v| BigUint::from(v)).collect();
     let set = |xs: Vec<FieldElem>| -> HashSet<BigUint> { xs.iter().map(|e| f.to_biguint(e)).collect() };
     clear_frobenius_cache_for_tests();
-    let cache_off = set(find_roots(&p, &f));
+    let cache_off = {
+        let _g = picus_core::config::ConfigGuard::with_override(|c| c.frobenius_cache = false);
+        set(find_roots(&p, &f))
+    };
     assert_eq!(cache_off, expected, "cache off");
     let _g = picus_core::config::ConfigGuard::with_override(|c| c.frobenius_cache = true);
     clear_frobenius_cache_for_tests();

@@ -151,7 +151,7 @@ pub fn validate_combination(solver: SolverKind, theory: Theory) -> Result<(), St
 /// [`backends::SolverBackendDescriptor`] entries, so this function needs
 /// no edits to support a new backend. Reaching it from `--solver`, though,
 /// requires a [`SolverKind`] variant whose `as_str` matches the
-/// descriptor's `name` (see [`SolverKind::from_str`]).
+/// descriptor's `name` (see `SolverKind`'s `FromStr` impl).
 pub fn create_backend(
     solver: SolverKind,
     theory: Theory,

@@ -10,8 +10,10 @@
 //! variants, are expressible here.
 //!
 //! Orders are heap-allocated (`rows: Vec<Vec<i64>>`), so they are not
-//! carried inline in the `Copy` [`MonomialOrder`] enum. Instead a
-//! [`MonomialOrder::Matrix`] variant holds a `u32` index into a
+//! carried inline in the `Copy` [`MonomialOrder`](super::monomial::MonomialOrder)
+//! enum. Instead a
+//! [`MonomialOrder::Matrix`](super::monomial::MonomialOrder::Matrix)
+//! variant holds a `u32` index into a
 //! thread-local registry ([`intern`] / [`resolve`]), mirroring the
 //! thread-local `RuntimeConfig` discipline. This keeps the enum one word
 //! wide and `Copy`, so the comparison kernels in `monomial` /

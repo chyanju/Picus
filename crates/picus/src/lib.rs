@@ -84,7 +84,7 @@ pub use picus_smt::backends::{SolverError, SolverResult, UnknownReason};
 use picus_smt::poly_system::PolySystem;
 
 /// Lower-level items for custom pipelines: decide a
-/// [`PolySystem`](advanced::PolySystem) directly, select or dump a backend, or
+/// [`PolySystem`] directly, select or dump a backend, or
 /// reach the R1CS var-index decoder. Weaker stability guarantees than the
 /// [`PolyIR`] builder — prefer `PolyIR` unless you need this.
 pub mod advanced {

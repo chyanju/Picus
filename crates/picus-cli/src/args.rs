@@ -76,7 +76,7 @@ pub(crate) enum Commands {
 
         /// GB strategy (native only), matching the `gb_strategy` config key:
         ///   direct   — DegRevLex Buchberger on P (default, baseline);
-        ///   by-homog — homogenize → GB on P[h] → dehom → interreduce;
+        ///   by-homog — homogenize → GB on Ph → dehom → interreduce;
         ///   auto     — pick by-homog iff some input is non-homogeneous.
         /// Targets the bit-decomp family where sugar mis-prediction swells
         /// intermediate expressions. [default: direct]

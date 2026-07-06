@@ -19,7 +19,7 @@
 //!
 //! Vocabulary: incr! / add! / max! (counters), timer! (RAII into a global
 //! counter) / timer_local! (RAII into a local u64 tally) / stopwatch! (gb-stats
-//! Option<Instant> read at several points), gate! (read the flag once into a
+//! `Option<Instant>` read at several points), gate! (read the flag once into a
 //! cached Gate for a hot loop/step, then pass it to a gated timer!/timer_local!),
 //! def! / bump! (local accumulators: declare / `+=`, drained once via a
 //! gb-stats-gated scope! + add!), next! (increment-and-return for a

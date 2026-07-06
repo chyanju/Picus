@@ -192,3 +192,81 @@ fn smoke_solve_forced_unsat_returns_unsat() {
         }
     }
 }
+
+// ─── knob coverage: the two backend-level gates ─────────────────────
+// `cache_enabled` and `linear_elim` are consulted here in `native_ff`
+// (not in `solve_encoded`), so their non-default legs are pinned here.
+
+/// The contradictory-pinning fixture from `smoke_solve_forced_unsat_returns_unsat`.
+fn forced_unsat_ir() -> PolySystem {
+    let c1 = Constraint {
+        a: blk(0, 1),
+        b: blk(1, 1),
+        c: blk(0, 2),
+    };
+    let c2 = Constraint {
+        a: blk(0, 1),
+        b: blk(1, 1),
+        c: blk(0, 3),
+    };
+    let file = r1cs(BigUint::from(7u32), 3, vec![0], vec![c1, c2]);
+    crate::test_lowering::lower_two_copy(&file, 1)
+}
+
+#[test]
+fn knob_cache_disabled_keeps_verdicts() {
+    // cache_enabled = false routes every solve through the stateless
+    // (traced dense) pipeline. Verdicts must match the cached path's:
+    // repeated solves of the UNSAT fixture stay UNSAT, and the
+    // free-target fixture never turns UNSAT.
+    let _g = picus_core::config::ConfigGuard::with_override(|c| c.cache_enabled = false);
+    let cancel = CancelToken::none();
+
+    let unsat_ir = forced_unsat_ir();
+    let mut backend = NativeFfBackend::new();
+    for round in 0..2 {
+        let r = backend.solve(&unsat_ir, 5_000, &cancel).expect("no backend error");
+        assert!(
+            matches!(r, SolverResult::Unsat),
+            "no-cache round {}: expected Unsat, got {:?}",
+            round,
+            r
+        );
+    }
+
+    let sat_ir = empty_ir(BigUint::from(7u32), 3, vec![0], 1);
+    let r = backend.solve(&sat_ir, 5_000, &cancel).expect("no backend error");
+    assert!(
+        !matches!(r, SolverResult::Unsat),
+        "free target must not be UNSAT under no-cache, got {:?}",
+        r
+    );
+}
+
+#[test]
+fn knob_linear_elim_keeps_verdicts() {
+    // linear_elim = true runs the Gaussian pre-elimination before the
+    // solve. The fixtures are linear-heavy (wire pins), so the phase
+    // genuinely executes; verdicts must be unchanged.
+    let _g = picus_core::config::ConfigGuard::with_override(|c| c.linear_elim = true);
+    let cancel = CancelToken::none();
+
+    let mut backend = NativeFfBackend::new();
+    let r = backend
+        .solve(&forced_unsat_ir(), 5_000, &cancel)
+        .expect("no backend error");
+    assert!(
+        matches!(r, SolverResult::Unsat),
+        "linear-elim: expected Unsat, got {:?}",
+        r
+    );
+
+    let r = backend
+        .solve(&empty_ir(BigUint::from(7u32), 3, vec![0], 1), 5_000, &cancel)
+        .expect("no backend error");
+    assert!(
+        !matches!(r, SolverResult::Unsat),
+        "linear-elim: free target must not be UNSAT, got {:?}",
+        r
+    );
+}

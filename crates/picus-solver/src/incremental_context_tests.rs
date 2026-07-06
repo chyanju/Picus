@@ -1246,6 +1246,7 @@ fn membership_fastpath_forced_diseq_unsat_matches_full_path() {
     let cancel = CancelToken::none();
 
     let off = {
+        let _g = crate::config::ConfigGuard::with_override(|c| c.membership_fastpath = false);
         let mut ctx = IncrementalSolverContext::new();
         ctx.solve(&sys, &cancel); // prime the digest (stateless)
         ctx.solve(&sys, &cancel) // cached path

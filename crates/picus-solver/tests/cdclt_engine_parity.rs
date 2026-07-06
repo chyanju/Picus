@@ -115,12 +115,24 @@ fn corpus() -> Vec<(String, String)> {
 }
 
 /// Strict parity for engines whose docs claim path-equivalence.
+///
+/// Anti-vacuity floor: Unknown-baseline cases are skipped, so a
+/// regression that degrades the default engine to Unknown across the
+/// corpus would otherwise turn the whole matrix into a no-op. The
+/// floor requires a minimum number of decided baselines with both
+/// verdicts represented.
 fn assert_strict(engine: &str, set: impl Fn(&mut RuntimeConfig) + Copy) {
+    let mut decided = 0usize;
+    let mut sat_seen = false;
+    let mut unsat_seen = false;
     for (name, src) in corpus() {
         let base = solve_default(&src);
-        if base == Verdict::Unknown {
-            continue;
+        match base {
+            Verdict::Unknown => continue,
+            Verdict::Sat => sat_seen = true,
+            Verdict::Unsat => unsat_seen = true,
         }
+        decided += 1;
         let got = solve_with(&src, set);
         assert_eq!(
             got, base,
@@ -128,6 +140,19 @@ fn assert_strict(engine: &str, set: impl Fn(&mut RuntimeConfig) + Copy) {
             name, engine, base, got
         );
     }
+    assert!(
+        decided >= 15,
+        "engine {}: only {} of 23 baselines decided — parity matrix lost its teeth",
+        engine,
+        decided
+    );
+    assert!(
+        sat_seen && unsat_seen,
+        "engine {}: corpus no longer exercises both verdicts (sat={}, unsat={})",
+        engine,
+        sat_seen,
+        unsat_seen
+    );
 }
 
 #[test]
@@ -147,11 +172,13 @@ fn f4_engine_matches_default() {
 
 #[test]
 fn incremental_engine_is_sound_modulo_unknown() {
+    let mut decided = 0usize;
     for (name, src) in corpus() {
         let base = solve_default(&src);
         if base == Verdict::Unknown {
             continue;
         }
+        decided += 1;
         let got = solve_with(&src, |c| c.cdclt_incremental_theory = true);
         assert!(
             got == base || got == Verdict::Unknown,
@@ -159,4 +186,9 @@ fn incremental_engine_is_sound_modulo_unknown() {
             name, base, got
         );
     }
+    assert!(
+        decided >= 15,
+        "only {} of 23 baselines decided — soundness matrix lost its teeth",
+        decided
+    );
 }

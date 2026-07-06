@@ -1,0 +1,5 @@
+# Pin the known-good compiler for local builds and CI. Bump
+# deliberately (build + full native test gate green on the new
+# version), not implicitly via whatever `stable` resolves to.
+[toolchain]
+channel = "1.96.1"

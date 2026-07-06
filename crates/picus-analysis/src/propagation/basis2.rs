@@ -27,7 +27,7 @@
 //! gadgets supply exactly this bound via `AliasCheck`, which is a
 //! 254-bit `CompConstant(ct)` whose output is constrained to `0`.
 //!
-//! [`companion_proves_below_prime`] recognises that comparator purely
+//! `companion_proves_below_prime` recognises that comparator purely
 //! from the PolySystem polynomial structure (no gadget names): it matches
 //! the 127 quadratic `parts`, the parts-sum, the inner bit
 //! decomposition of that sum, and the forced-zero output, decodes the

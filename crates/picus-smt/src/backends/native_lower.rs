@@ -64,7 +64,7 @@ impl PolySystem {
     /// `ConstraintSystemBuilder`. Variable names are interned in
     /// `ring.var_names()` order so builder indices match ring
     /// indices; each `Poly` in `self.equalities` yields a
-    /// `Vec<PolyTerm>` via [`Self::poly_terms_vec`];
+    /// `Vec<PolyTerm>` via `Self::poly_terms_vec`;
     /// `disequalities`, `assignments`, `bitsums`, and
     /// `add_field_polys` propagate as-is.
     pub fn to_constraint_system(&self) -> ConstraintSystem {
