@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
-## [Unreleased]
+## [1.8.28] - 2026-07-06
 
-picus-solver architecture pass. Verdict-preserving throughout; native + cvc5/z3 suites green.
+picus-solver architecture pass. Verdict-preserving; native + cvc5/z3 suites green.
 
 ### Fixed
 - F4 + `f4_hilbert_select`: batch generators were labelled `lowest_sugar` instead of the drained `chosen_sugar` (debug: assert → Unknown; release: corrupted S-pair queue order).

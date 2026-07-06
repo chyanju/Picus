@@ -226,9 +226,8 @@ fn bench_f4_non_cyclic_workloads() {
     ///   P_n = Σ_{j=-n..n} u_{|j|} - 1
     /// ```
     // Standard Faugère Katsura-n (n+1 variables, ±j convolution). A
-    // DIFFERENT ideal from `katsura_reduced_vars` below — the two used
-    // to share one name, silently making their printed timings
-    // incomparable.
+    // different ideal from `katsura_reduced_vars` below; timings under
+    // the two labels are not comparable.
     fn katsura_faugere(n: usize, ring: &Arc<PolyRing>) -> Vec<Polynomial> {
         let xs: Vec<Polynomial> = (0..=n).map(|i| Polynomial::variable(i, ring)).collect();
         let mut polys: Vec<Polynomial> = Vec::new();

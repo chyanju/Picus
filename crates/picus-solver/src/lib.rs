@@ -33,9 +33,8 @@ pub mod solve;
 pub mod testkit;
 pub(crate) mod split_gb;
 
-/// Renamed to [`solve`]: a top-of-stack driver named `core` inverted
-/// layering intuition next to the substrate crate `picus-core` and
-/// punned with "UNSAT core". Alias kept for external callers.
+/// Back-compat alias for [`solve`] (the top-level driver module;
+/// distinct from the substrate crate `picus-core` and from `UnsatCore`).
 pub use solve as core;
 
 // Curated facade: the items picus-smt's native backend actually

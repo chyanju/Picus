@@ -99,9 +99,8 @@ pub(crate) enum SplitFindZeroOutcome {
 /// Admission governs cross-partition SHARING during the propagation
 /// fixpoint, not generator seeding: partition 1 is seeded with every
 /// generator (including nonlinear ones) by [`build_partitions`], yet
-/// admits only near-linear shares. "Fixing" this predicate to accept
-/// nonlinear polys would change what may flow between partitions and
-/// is soundness-relevant.
+/// admits only near-linear shares. Widening this predicate changes what
+/// may flow between partitions and is soundness-relevant.
 pub(crate) fn admit(_pr: &FfPolyRing, idx: usize, p: &Poly) -> bool {
     if total_degree(p) > 1 { return false; }
     match idx {

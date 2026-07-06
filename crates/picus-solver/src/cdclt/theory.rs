@@ -20,9 +20,7 @@ use crate::sat::Var;
 pub(crate) enum CheckOutcome {
     /// All asserted facts are consistent. Carries the model that
     /// realizes them: pairing the witness with the verdict makes a
-    /// "Sat with no model" state unrepresentable (the old
-    /// `collect_model` channel could silently fabricate an all-zeros
-    /// witness if the pairing invariant ever broke).
+    /// "Sat with no model" state unrepresentable.
     Sat(HashMap<String, BigUint>),
     /// A subset of asserted-True atom vars is inconsistent. The
     /// orchestrator will learn `(¬v_1 ∨ … ∨ ¬v_k)` as a SAT clause.

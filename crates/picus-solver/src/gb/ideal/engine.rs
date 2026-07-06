@@ -25,7 +25,7 @@ use crate::EngineError;
 ///
 /// Scope: this trait dispatches the *algorithm strategy* — currently the
 /// homogenisation choice ([`BuchbergerDirect`] vs [`BuchbergerByHomog`]),
-/// and the extension point for a genuinely different algorithm such as a
+/// and the extension point for a different algorithm such as a
 /// signature-based F5. It does **not** select the polynomial
 /// representation (dense vs sparse — chosen inside `compute` from
 /// `config.poly_repr`) nor the F4 matrix batch path (chosen via
@@ -327,13 +327,10 @@ pub(crate) fn wrap_dense_vec(v: Vec<crate::engine::DensePoly>) -> Vec<Poly> {
 
 /// Outcome of a GB entry point.
 ///
-/// Replaces the former tri-state `Vec<Poly>` sentinel (trusted basis /
-/// cancelled backup / error empty) whose discrimination lived out of
-/// band in the `CancelToken` plus caller discipline. Mistaking a
-/// cancelled or failed result for a Gröbner basis would let
-/// `is_zero_dim`/`min_poly`/FGLM emit a false UNSAT; this enum makes the
-/// protocol compiler-enforced and removes the defensive backup clone of
-/// all generators every entry point used to pay.
+/// The three states must stay type-distinguished: treating a cancelled
+/// or failed result as a Gröbner basis would let
+/// `is_zero_dim`/`min_poly`/FGLM emit a false UNSAT. Exhaustive
+/// matching at every call site enforces the protocol.
 #[derive(Debug)]
 pub enum GbOutcome {
     /// A trusted Gröbner basis (the token did not fire during the run).

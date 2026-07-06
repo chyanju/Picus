@@ -1,7 +1,6 @@
 //! Gröbner-basis and root-finding engines over the GF(p) algebra defined
-//! in `picus_core::ff` (the algebra itself lives there; this module owns
-//! the algorithms that run on it — the old name `ff` promised the
-//! algebra and delivered the engine).
+//! in `picus_core::ff` (the algebra lives there; this module owns the
+//! algorithms that run on it).
 //!
 //! - Buchberger's algorithm with Gebauer-Möller / sugar pair management and
 //!   geobucket reduction, plus the F4-lite matrix path.

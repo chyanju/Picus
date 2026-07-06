@@ -112,7 +112,7 @@ impl<'a> Theory for FfTheoryRouter<'a> {
                 // Tseitin auxiliaries have no source prime and are not
                 // theory facts; drop them silently regardless of which
                 // slot's atom table they happen to fall under. Any
-                // genuinely unassigned non-aux atom trips the degraded
+                // unassigned non-aux atom trips the degraded
                 // flag — the per-slot trail no longer reflects the full
                 // asserted set so post_check returns Unknown.
                 for slot in &self.slots {

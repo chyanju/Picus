@@ -11,12 +11,11 @@
 //!   [`SplitGb`] before falling back to round-robin. Used by the
 //!   search-frame branching point in [`super::search`].
 //!
-//! Each tier lives in one helper shared by both entry points, so the
+//! Each tier lives in one helper shared by both entry points: the
 //! soundness rule around incomplete root extraction (a partial root set
 //! must never be treated as exhaustive — pruning a satisfying
 //! assignment would be an unsound UNSAT) has a single owner, and the
-//! multi-basis fallback no longer re-runs the per-basis tiers on
-//! `bases[0]`.
+//! multi-basis fallback runs the round-robin tier directly.
 
 use crate::gb::brancher::{univariate_coeffs, Brancher};
 use crate::gb::ideal::Ideal;

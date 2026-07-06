@@ -1046,8 +1046,8 @@ impl BuchbergerState {
         let s_poly = self.build_spoly(&pair);
         // Shared with `run()`: with `reducer_index_cache` on, this reuses
         // the cached divisor index across reductions whose active set is
-        // unchanged — the F4 small-batch fallback no longer silently
-        // bypasses the cache.
+        // unchanged, so the F4 small-batch fallback and the main loop
+        // consult the same cache.
         let (mut nf, active_idxs, use_counts) = self.reduce_spoly_against_active(&s_poly);
         self.bump_use_counts(&active_idxs, &use_counts);
         if let Some(c) = &self.cfg.cancel_token {
