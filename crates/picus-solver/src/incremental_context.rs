@@ -19,7 +19,7 @@ use crate::frontend::encoder::{
     encode, encode_constraint_side, ConstraintSystem,
 };
 use crate::gb::ideal::{incremental_engine, IncrementalGB};
-use crate::engine::monomial::MonomialOrder;
+use crate::ff::monomial::MonomialOrder;
 use crate::gb::ideal::{interreduce_basis, ring_for_order, unwrap_dense_vec, wrap_dense_vec, Ideal};
 use crate::gb::model;
 use crate::metric;

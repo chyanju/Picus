@@ -18,8 +18,8 @@ use std::collections::HashSet;
 use num_bigint::BigUint;
 use num_traits::Zero;
 
-use crate::engine::field::FieldElem;
-use crate::frontend::encoder::bitsum_fits;
+use crate::ff::field::FieldElem;
+use crate::bits::bitsum_fits;
 use crate::gb::ideal::Ideal;
 use crate::metric;
 use crate::poly::{FfPolyRing, Poly};
@@ -57,7 +57,7 @@ impl<'r> BitProp<'r> {
     pub(crate) fn scan_polys(&mut self, polys: &[Poly]) {
         // Phase 1: detect bit constraints (x^2 - x = 0) → add_bit
         for p in polys {
-            if let Some(bc) = crate::frontend::parse::bit_constraint(self.poly_ring, p) {
+            if let Some(bc) = crate::bits::bit_constraint(self.poly_ring, p) {
                 self.add_bit(bc.var);
             }
         }
@@ -66,7 +66,7 @@ impl<'r> BitProp<'r> {
         let bits_hint: std::collections::HashSet<usize> = self.bits.clone();
         for p in polys {
             if let Some((sums, _residual)) =
-                crate::frontend::parse::bit_sums(self.poly_ring, p, &bits_hint)
+                crate::bits::bit_sums(self.poly_ring, p, &bits_hint)
             {
                 for bs in &sums {
                     if bs.bits.len() >= 2 {

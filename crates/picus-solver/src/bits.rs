@@ -1,4 +1,7 @@
-//! Pattern detection on polynomials.
+//! Bit/linear structure detection on polynomials — the neutral
+//! vocabulary shared by the encoder side (bitsum extraction) and the
+//! split-GB side (bit propagation), so neither layer depends on the
+//! other for it.
 //!
 //! Mirrors cvc5's FF pattern detection, but operates on the **semantic**
 //! polynomial form (i.e. on a `Poly` already encoded in the `FfPolyRing`)
@@ -25,8 +28,20 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::engine::field::FieldElem;
+use crate::ff::field::FieldElem;
 use crate::poly::{FfPolyRing, Poly};
+
+use num_bigint::BigUint;
+
+/// Whether a `len`-bit unsigned bitsum embeds into GF(p) without mod-p
+/// aliasing: needs `2^len <= p`, so distinct bit patterns have distinct
+/// residues. When `2^len > p` (e.g. GF(7), len=3: 0 and 7 collide mod 7),
+/// two different patterns can be equal mod p — then neither a constant
+/// pin nor a bitwise-equality propagation is sound. Single source for the
+/// `find_bitsum_chain` length cap and the `bitprop` Phase 1/2 guards.
+pub(crate) fn bitsum_fits(len: usize, p: &BigUint) -> bool {
+    (BigUint::from(1u32) << len) <= *p
+}
 
 /// Information about a detected bit constraint:  `var * (var - 1) == 0`
 /// (i.e. `var` is constrained to {0,1}).
@@ -371,5 +386,5 @@ pub(crate) fn bit_sums(
 }
 
 #[cfg(test)]
-#[path = "parse_tests.rs"]
+#[path = "bits_tests.rs"]
 mod tests;

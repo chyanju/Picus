@@ -4,8 +4,8 @@
 
 use num_bigint::BigUint;
 
-use crate::engine::field::PrimeField;
-use crate::engine::monomial::MonomialOrder;
+use crate::ff::field::PrimeField;
+use crate::ff::monomial::MonomialOrder;
 use crate::gb::ideal::{compute_gb_with_order, compute_gb_with_order_traced, GbOutcome};
 use crate::gb::tracer::GbTracer;
 use crate::poly::FfPolyRing;

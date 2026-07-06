@@ -23,8 +23,8 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
-use crate::engine::field::FieldElem;
-use crate::engine::monomial::{Monomial, MonomialOrder};
+use crate::ff::field::FieldElem;
+use crate::ff::monomial::{Monomial, MonomialOrder};
 use crate::gb::ideal::Ideal;
 use crate::poly::Poly;
 use crate::timeout::CancelToken;

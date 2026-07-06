@@ -9,7 +9,7 @@
 //! Semantics match cvc5's univariate root finding.
 
 use crate::engine::univariate::{self, UnivariatePoly};
-use crate::engine::field::{FieldElem, PrimeField};
+use crate::ff::field::{FieldElem, PrimeField};
 use crate::metric;
 
 /// Find all roots of a univariate polynomial over GF(p).

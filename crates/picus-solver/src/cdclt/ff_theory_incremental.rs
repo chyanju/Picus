@@ -12,9 +12,9 @@ use std::sync::Arc;
 
 use num_bigint::BigUint;
 
-use crate::engine::field::PrimeField;
-use crate::engine::monomial::{Monomial, MonomialOrder};
-use crate::engine::polynomial::{DensePoly, PolyRing};
+use crate::ff::field::PrimeField;
+use crate::ff::monomial::{Monomial, MonomialOrder};
+use crate::ff::polynomial::{DensePoly, PolyRing};
 
 use crate::gb::ideal::{incremental_engine, IncrementalGB};
 use crate::gb::model::{find_zero_cancel, FindZeroOutcome};
@@ -207,7 +207,7 @@ impl<'a> IncrementalFfTheoryState<'a> {
         // re-wrap is structural and zero-copy at the storage layer.
         let basis_user: Vec<Poly> = basis_dense
             .into_iter()
-            .map(crate::engine::polynomial::Polynomial::Dense)
+            .map(crate::ff::polynomial::Polynomial::Dense)
             .collect();
 
         let outcome = find_zero_cancel(&user_ring, &basis_user, self.cancel);

@@ -1,5 +1,5 @@
 use super::*;
-use crate::engine::field::PrimeField;
+use crate::ff::field::PrimeField;
 use crate::split_gb::bitprop::BitProp;
 use crate::gb::ideal::Ideal;
 use crate::poly::FfPolyRing;

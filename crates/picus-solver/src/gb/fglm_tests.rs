@@ -1,5 +1,5 @@
 use super::*;
-use crate::engine::field::PrimeField;
+use crate::ff::field::PrimeField;
 use crate::gb::ideal::{Ideal, compute_gb_with_order};
 use crate::poly::FfPolyRing;
 use crate::timeout::CancelToken;
@@ -577,7 +577,7 @@ fn hilbert_dim_equals_summed_standard_monomials_for_small_grids() {
     // quotient_dimension. This is a pure-Hilbert probe; doesn't depend
     // on FGLM or any solver state.
     use crate::engine::hilbert::quotient_dimension;
-    use crate::engine::monomial::Monomial;
+    use crate::ff::monomial::Monomial;
     for a in 1u16..=4 {
         for b in 1u16..=4 {
             let gens = [
@@ -600,7 +600,7 @@ fn hilbert_dim_socle_ideal_three_vars() {
     // SPEC: m = (x, y, z) — the maximal ideal at origin. Std monomials = {1};
     // dim = 1.
     use crate::engine::hilbert::quotient_dimension;
-    use crate::engine::monomial::Monomial;
+    use crate::ff::monomial::Monomial;
     let gens = [
         Monomial::single_var(3, 0, 1),
         Monomial::single_var(3, 1, 1),
@@ -608,7 +608,7 @@ fn hilbert_dim_socle_ideal_three_vars() {
     ];
     assert_eq!(quotient_dimension(&gens, 3), Some(1));
     // m^2 — std monomials = {1, x, y, z}; dim = 4.
-    use crate::engine::monomial::Monomial as M;
+    use crate::ff::monomial::Monomial as M;
     let gens_m2: Vec<M> = vec![
         M::from_exponents(vec![2, 0, 0]),
         M::from_exponents(vec![1, 1, 0]),
@@ -631,7 +631,7 @@ fn hilbert_zero_ideal_zero_vars_is_dim_1() {
 #[test]
 fn hilbert_unit_ideal_zero_vars_is_dim_0() {
     use crate::engine::hilbert::quotient_dimension;
-    use crate::engine::monomial::Monomial;
+    use crate::ff::monomial::Monomial;
     // SPEC: S/<1> = 0, regardless of n_vars.
     assert_eq!(quotient_dimension(&[Monomial::one(0)], 0), Some(0));
     assert_eq!(quotient_dimension(&[Monomial::one(5)], 5), Some(0));
@@ -644,7 +644,7 @@ fn hilbert_numerator_vanishes_at_t1_for_many_artinian() {
     // SPEC: for Artinian I, (1-t)^n | HN(I)(t), so HN(I)(1) = 0.
     // Across multiple coprime / non-coprime ideal shapes.
     use crate::engine::hilbert::hilbert_numerator;
-    use crate::engine::monomial::Monomial;
+    use crate::ff::monomial::Monomial;
     let cases: Vec<Vec<Monomial>> = vec![
         // <x, y>
         vec![Monomial::from_exponents(vec![1, 0]), Monomial::from_exponents(vec![0, 1])],
@@ -677,7 +677,7 @@ fn hilbert_dim_robust_under_redundant_generators() {
     // SPEC: adding a redundant generator (a multiple of an existing one)
     // does not change the ideal, so dim_k(S/I) is unchanged.
     use crate::engine::hilbert::quotient_dimension;
-    use crate::engine::monomial::Monomial;
+    use crate::ff::monomial::Monomial;
     let minimal = [
         Monomial::from_exponents(vec![2, 0]),
         Monomial::from_exponents(vec![0, 2]),
@@ -705,7 +705,7 @@ fn hilbert_numerator_coprime_path_equals_explicit_product() {
     // exercises the early-return shortcut; we re-compute via the
     // independent `mul(one_minus_t_pow(.))` chain.
     use crate::engine::hilbert::{hilbert_numerator, HilbertNum};
-    use crate::engine::monomial::Monomial;
+    use crate::ff::monomial::Monomial;
     let gens = [
         Monomial::single_var(3, 0, 2),
         Monomial::single_var(3, 1, 3),

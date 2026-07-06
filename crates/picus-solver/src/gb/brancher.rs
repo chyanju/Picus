@@ -4,7 +4,7 @@
 //! Used by both `model.rs` (single-GB findZero) and `split_gb.rs`
 //! (split-GB splitZeroExtend).
 
-use crate::engine::field::{FieldElem, PrimeField};
+use crate::ff::field::{FieldElem, PrimeField};
 use crate::poly::{FfPolyRing, Poly};
 use num_bigint::BigUint;
 use std::collections::HashMap;

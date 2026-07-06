@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use crate::config::GbStrategy;
 use crate::engine::buchberger::{self, BuchbergerConfig, GBasis};
 pub(crate) use crate::engine::buchberger::IncrementalGB;
-use crate::engine::monomial::MonomialOrder as FfOrder;
+use crate::ff::monomial::MonomialOrder as FfOrder;
 use crate::gb::tracer::GbTracer;
 use crate::poly::{FfPolyRing, Poly};
 use crate::timeout::CancelToken;
@@ -252,7 +252,7 @@ fn compute_gb_dispatch(
 
 /// Build a per-call `PolyRing` whose monomial order matches `order`.
 /// Cheap (an `Arc<PolyRing>` with the same field/var-name data).
-pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::sync::Arc<crate::engine::polynomial::PolyRing> {
+pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::sync::Arc<crate::ff::polynomial::PolyRing> {
     let ctx = poly_ring.ctx();
     if ctx.order == order {
         // Dominant case (DegRevLex request on a DegRevLex ring): reuse
@@ -261,7 +261,7 @@ pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::syn
     }
     // Rebuild under the requested order, carrying the source ring's
     // representation (never the ambient config's).
-    crate::engine::polynomial::PolyRing::new_with_repr(
+    crate::ff::polynomial::PolyRing::new_with_repr(
         poly_ring.field().clone(),
         poly_ring.var_names().to_vec(),
         order,
@@ -300,7 +300,7 @@ fn sparse_gb_route(
 ) -> Result<Vec<Poly>, EngineError> {
     let ring = ring_for_order(poly_ring, order);
     catch_engine_panic("sparse Buchberger", || {
-        let sparse: Vec<crate::engine::sparse_polynomial::SparsePolynomial> =
+        let sparse: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
             generators.iter().map(|p| p.to_sparse(&ring)).collect();
         let gb = crate::engine::sparse_gb::groebner_basis(sparse, &ring, Some(cancel));
         let reduced = crate::engine::sparse_gb::interreduce(gb, &ring, Some(cancel));
@@ -311,7 +311,7 @@ fn sparse_gb_route(
 /// Unwrap a vector of solve-core `Poly` to the dense `DensePoly` the
 /// Gröbner engine consumes. On the dense path every element is already
 /// the `Dense` arm; a stray sparse element is materialised to dense.
-pub(crate) fn unwrap_dense_vec(v: Vec<Poly>, ring: &crate::engine::polynomial::PolyRing) -> Vec<crate::engine::DensePoly> {
+pub(crate) fn unwrap_dense_vec(v: Vec<Poly>, ring: &crate::ff::polynomial::PolyRing) -> Vec<crate::ff::polynomial::DensePoly> {
     v.into_iter()
         .map(|p| match p {
             Poly::Dense(d) => d,
@@ -321,7 +321,7 @@ pub(crate) fn unwrap_dense_vec(v: Vec<Poly>, ring: &crate::engine::polynomial::P
 }
 
 /// Wrap dense engine output back into solve-core `Poly`.
-pub(crate) fn wrap_dense_vec(v: Vec<crate::engine::DensePoly>) -> Vec<Poly> {
+pub(crate) fn wrap_dense_vec(v: Vec<crate::ff::polynomial::DensePoly>) -> Vec<Poly> {
     v.into_iter().map(Poly::Dense).collect()
 }
 
@@ -401,7 +401,7 @@ fn finish_gb(
 /// incremental consumer (the engine's own extend entries, the resumable
 /// cache, and the cdclt incremental theory).
 pub(crate) fn incremental_engine(
-    ring: std::sync::Arc<crate::engine::polynomial::PolyRing>,
+    ring: std::sync::Arc<crate::ff::polynomial::PolyRing>,
     cancel: Option<CancelToken>,
 ) -> IncrementalGB {
     IncrementalGB::new(
@@ -561,9 +561,9 @@ pub fn compute_gb_incremental_with_order(
         // `finish_gb`, mirroring the dense incremental path.
         let ring = ring_for_order(poly_ring, order);
         let result = catch_engine_panic("incremental sparse Buchberger", || {
-            let known: Vec<crate::engine::sparse_polynomial::SparsePolynomial> =
+            let known: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
                 known_gb.iter().map(|p| p.to_sparse(&ring)).collect();
-            let fresh: Vec<crate::engine::sparse_polynomial::SparsePolynomial> =
+            let fresh: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
                 new_polys.iter().map(|p| p.to_sparse(&ring)).collect();
             let gb = crate::engine::sparse_gb::groebner_basis_incremental(known, fresh, &ring, Some(cancel));
             let reduced = crate::engine::sparse_gb::interreduce(gb, &ring, Some(cancel));

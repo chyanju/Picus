@@ -1,6 +1,6 @@
 use super::*;
 use crate::config::{ConfigGuard, GbStrategy, RuntimeConfig};
-use crate::engine::field::PrimeField;
+use crate::ff::field::PrimeField;
 use crate::gb::tracer::GbTracer;
 use crate::poly::FfPolyRing;
 use num_bigint::BigUint;
@@ -452,7 +452,7 @@ fn compute_gb_with_order_dense_repr_records_dense_dispatch() {
 
 // ────────── matrix order ≡ enum order (end-to-end GB equivalence) ──────────
 
-use crate::engine::matrix_order::{intern, MatrixOrder};
+use crate::ff::matrix_order::{intern, MatrixOrder};
 
 /// A small nonlinear system over GF(7) whose Buchberger run does real
 /// work (S-pairs + reductions), built through the facade.

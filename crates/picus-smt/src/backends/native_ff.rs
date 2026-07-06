@@ -3,7 +3,7 @@
 //!
 //! Consumes a [`PolySystem`] snapshot directly: `PolySystem::to_constraint_system`
 //! lowers it to the canonical index-keyed
-//! `picus_solver::frontend::encoder::ConstraintSystem` (each equality a
+//! [`picus_solver::ConstraintSystem`] (each equality a
 //! `Vec<PolyTerm>` summed to zero), and the target disequality
 //! `x_target ≠ y_target` is handed to the GB solver via the
 //! Rabinowitsch trick wired into [`IncrementalSolverContext`].
@@ -15,9 +15,9 @@ use crate::Theory;
 use std::cell::Cell;
 use std::sync::Once;
 
-use picus_solver::solve::{solve_encoded_with_cancel, SolveOutcome};
-use picus_solver::frontend::encoder::ConstraintSystem;
-use picus_solver::incremental_context::IncrementalSolverContext;
+use picus_solver::{
+    solve_encoded_with_cancel, ConstraintSystem, IncrementalSolverContext, SolveOutcome,
+};
 use picus_core::timeout::CancelToken;
 use picus_core::metric;
 use picus_core::profile::NATIVE_FF;
@@ -97,7 +97,7 @@ impl NativeFfBackend {
 /// Thin wrapper around the cache module's `digest_constraint_side`.
 /// Used by the repeat-detection telemetry to update `last_cs_digest`.
 fn digest_native_constraint_side(ics: &ConstraintSystem) -> u128 {
-    picus_solver::incremental_context::digest_constraint_side(ics)
+    picus_solver::digest_constraint_side(ics)
 }
 
 impl SolverBackend for NativeFfBackend {
@@ -175,7 +175,7 @@ impl SolverBackend for NativeFfBackend {
                     ir.disjunctions.len()
                 );
                 let query = ir.to_boolean_query();
-                picus_solver::boolean::solve_boolean_query(&query, &cancel)
+                picus_solver::solve_boolean_query(&query, &cancel)
             } else if cache_enabled {
                 cache.solve(&indexed, &cancel)
             } else {
@@ -202,7 +202,7 @@ impl SolverBackend for NativeFfBackend {
                 // IncompleteTheory says retrying the same budget is
                 // pointless; BackendError flags an engine-side defect.
                 SolveOutcome::Unknown(cause) => {
-                    use picus_solver::solve::UnknownCause;
+                    use picus_solver::UnknownCause;
                     let reason = match cause {
                         UnknownCause::Cancelled => UnknownReason::Timeout,
                         UnknownCause::IterCap

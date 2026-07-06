@@ -11,7 +11,7 @@
 use std::collections::BTreeSet;
 
 use crate::engine::buchberger::BuchbergerObserver;
-use crate::engine::polynomial::DensePoly;
+use crate::ff::polynomial::DensePoly;
 
 /// DensePoly dependency tracker for a Buchberger computation.
 ///

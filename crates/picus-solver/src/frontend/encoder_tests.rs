@@ -675,13 +675,13 @@ fn order_selection_off_is_degrevlex() {
         .collect();
     assert!(matches!(
         choose_solve_order(&names),
-        crate::engine::monomial::MonomialOrder::DegRevLex
+        crate::ff::monomial::MonomialOrder::DegRevLex
     ));
 }
 
 #[test]
 fn dynamic_order_selects_elimination_only_on_large_rings() {
-    use crate::engine::monomial::MonomialOrder;
+    use crate::ff::monomial::MonomialOrder;
     let _g = crate::config::ConfigGuard::with_override(|c| c.dynamic_order = true);
     // Small ring (< DYNAMIC_ORDER_MIN_VARS): size guard ⇒ DegRevLex.
     let small: Vec<String> = (0..10)
@@ -699,7 +699,7 @@ fn dynamic_order_selects_elimination_only_on_large_rings() {
 
 #[test]
 fn matrix_elim_order_forces_elimination_regardless_of_size() {
-    use crate::engine::monomial::MonomialOrder;
+    use crate::ff::monomial::MonomialOrder;
     let _g = crate::config::ConfigGuard::with_override(|c| c.matrix_elim_order = true);
     // Even a tiny ring gets the elimination order when forced.
     let small: Vec<String> = vec!["x0".into(), "y0".into()];

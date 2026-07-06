@@ -15,7 +15,7 @@
 //! The `ext` ring is a regular [`FfPolyRing`] with `n + 1` variables;
 //! the extra variable `h` lives at index `n` (= `base.n_vars()`).
 
-use crate::engine::field::PrimeField;
+use crate::ff::field::PrimeField;
 use crate::poly::{FfPolyRing, Poly};
 
 /// Wraps a base polynomial ring `P` and exposes a fresh ring `Ph = P[h]`

@@ -9,10 +9,10 @@
 use std::collections::HashSet;
 
 use crate::engine::buchberger::{self, poly_coefficient_at};
-use crate::engine::polynomial::Polynomial;
-use crate::engine::monomial::Monomial;
-use crate::engine::monomial::MonomialOrder as FfOrder;
-use crate::engine::field::FieldElem;
+use crate::ff::polynomial::Polynomial;
+use crate::ff::monomial::Monomial;
+use crate::ff::monomial::MonomialOrder as FfOrder;
+use crate::ff::field::FieldElem;
 use crate::metric;
 use crate::poly::{FfPolyRing, Mono, Poly, PolyRingType};
 use crate::timeout::{CancelToken, Cancelled};
@@ -430,7 +430,7 @@ pub(crate) fn interreduce_basis(
     }
     if use_sparse_gb(poly_ring) {
         let ctx = poly_ring.ctx();
-        let sparse: Vec<crate::engine::sparse_polynomial::SparsePolynomial> =
+        let sparse: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
             basis.iter().map(|p| p.to_sparse(ctx)).collect();
         let reduced = crate::engine::sparse_gb::interreduce(sparse, ctx, Some(cancel));
         return reduced.into_iter().map(Poly::Sparse).collect();

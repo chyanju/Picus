@@ -17,15 +17,10 @@ use super::VarIdx;
 /// extract a detected bitsum.
 const MIN_AUTO_BITSUM_LEN: usize = 2;
 
-/// Whether a `len`-bit unsigned bitsum embeds into GF(p) without mod-p
-/// aliasing: needs `2^len <= p`, so distinct bit patterns have distinct
-/// residues. When `2^len > p` (e.g. GF(7), len=3: 0 and 7 collide mod 7),
-/// two different patterns can be equal mod p — then neither a constant
-/// pin nor a bitwise-equality propagation is sound. Single source for the
-/// `find_bitsum_chain` length cap and the `bitprop` Phase 1/2 guards.
-pub(crate) fn bitsum_fits(len: usize, p: &BigUint) -> bool {
-    (BigUint::from(1u32) << len) <= *p
-}
+// The mod-p aliasing predicate lives in the neutral `crate::bits`
+// vocabulary (shared with split-GB bit propagation); re-exported so
+// `frontend::encoder::bitsum_fits` stays a valid spelling.
+pub(crate) use crate::bits::bitsum_fits;
 
 /// Rewrite equalities to extract bitsum subpatterns into
 /// `ConstraintSystem::bitsums`. Operates on [`PolyTerm`] lists:

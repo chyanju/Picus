@@ -19,6 +19,7 @@
 // picus-smt's native backend; the remaining public surface serves the
 // crate's own bins (`run_smt2`, `cvc5_compare`), benches, and
 // integration tests. Everything else is pub(crate).
+pub(crate) mod bits;
 pub mod boolean;
 pub mod cdclt;
 pub(crate) mod dnf;
@@ -33,30 +34,30 @@ pub mod solve;
 pub mod testkit;
 pub(crate) mod split_gb;
 
-/// Back-compat alias for [`solve`] (the top-level driver module;
-/// distinct from the substrate crate `picus-core` and from `UnsatCore`).
-pub use solve as core;
-
 // Curated facade: the items picus-smt's native backend actually
 // consumes, re-exported at the root so the seam is one flat, greppable
-// list (the deep module paths remain valid).
+// list — and the spelling picus-smt imports through, so narrowing a
+// deep module breaks here first (the deep module paths remain valid).
 pub use boolean::{solve_boolean_query, BooleanQuery, Formula, Literal};
 pub use frontend::encoder::{
     encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm,
 };
 pub use gb::linsolve::eliminate_linear;
 pub use incremental_context::{digest_constraint_side, IncrementalSolverContext};
-pub use solve::{solve_encoded_with_cancel, SolveOutcome};
+pub use solve::{solve_encoded_with_cancel, SolveOutcome, UnknownCause};
 
 pub(crate) mod sat;
 
 #[cfg(test)]
 mod strategy_dispatch_tests;
 
-// Shared substrate (runtime config, polynomial ring, profiler, cancellation)
-// lives in picus-core; in-crate code refers to it as
-// `crate::{config, poly, profile, timeout}`.
-pub(crate) use picus_core::{config, poly, profile, timeout};
+// Shared substrate (runtime config, GF(p) algebra, polynomial ring,
+// profiler, cancellation) lives in picus-core; in-crate code refers to
+// it as `crate::{config, ff, poly, profile, timeout}`. In particular
+// the algebra spelling is `crate::ff::field` etc. — `use crate::engine`
+// is reserved for the GB/root-finding kernels, so a layering grep on it
+// shows exactly the engine's real consumers.
+pub(crate) use picus_core::{config, ff, poly, profile, timeout};
 // The `metric::` namespace (incr!/add!/max!/timer!): in-crate call sites
 // read `metric::incr!(..)` etc., syntactically distinct from logic.
 // `metric` (module, type namespace) and the `#[metric]` attribute (macro

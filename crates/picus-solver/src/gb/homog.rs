@@ -19,7 +19,7 @@
 //! strict ascending degree, avoiding the "intermediate expression
 //! swell" that stalls bit-decomposition ideals.
 
-use crate::engine::monomial::MonomialOrder;
+use crate::ff::monomial::MonomialOrder;
 use crate::gb::homog_ring::HomogRing;
 use crate::gb::ideal::{compute_gb_direct, interreduce_basis, GbOutcome};
 use crate::metric;

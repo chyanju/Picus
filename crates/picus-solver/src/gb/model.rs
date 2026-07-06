@@ -13,8 +13,8 @@ use std::collections::HashMap;
 use num_bigint::BigUint;
 
 use crate::gb::brancher::{univariate_coeffs, Brancher};
-use crate::engine::field::{PrimeField, FieldElem};
-use crate::engine::monomial::MonomialOrder as FfOrder;
+use crate::ff::field::{PrimeField, FieldElem};
+use crate::ff::monomial::MonomialOrder as FfOrder;
 use crate::gb::fglm::fglm_to_lex_cancel;
 use crate::gb::ideal::{compute_gb_incremental_with_order, GbOutcome, Ideal};
 use crate::poly::{FfPolyRing, Poly};

@@ -14,9 +14,9 @@ use num_traits::Zero;
 
 use picus_core::poly::Poly;
 use picus_core::timeout::CancelToken;
-use picus_solver::boolean::{BooleanQuery, Formula, Literal};
-use picus_solver::frontend::encoder::{
-    encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm,
+use picus_solver::{
+    encode, BooleanQuery, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, Formula,
+    Literal, PolyTerm,
 };
 
 use crate::poly_system::PolySystem;
@@ -39,7 +39,7 @@ impl PolySystem {
     /// a single `1 = 0`, which the solver rejects immediately.
     pub fn pre_eliminate_linear(&self, cancel: &CancelToken) -> Option<PolySystem> {
         let elim =
-            picus_solver::gb::linsolve::eliminate_linear(&self.ring, &self.equalities, cancel)
+            picus_solver::eliminate_linear(&self.ring, &self.equalities, cancel)
                 .ok()?;
         if !elim.applied {
             return None;
@@ -170,7 +170,7 @@ impl PolySystem {
     /// Encode this `PolySystem` into an [`EncodedSystem`] ready for the
     /// GB engine. Internally builds a `ConstraintSystem` via
     /// [`Self::to_constraint_system`] and routes through
-    /// [`picus_solver::frontend::encoder::encode`] (which runs
+    /// [`picus_solver::encode`] (which runs
     /// `rewriter::rewrite_system` and `auto_extract_bitsums`).
     pub fn encode(&self) -> Result<EncodedSystem, picus_solver::EngineError> {
         encode(&self.to_constraint_system())

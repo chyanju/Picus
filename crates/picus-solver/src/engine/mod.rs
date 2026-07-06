@@ -8,14 +8,16 @@
 //! - Hilbert numerator + quotient-dimension oracle over finished bases.
 //! - Univariate root finding via Cantor-Zassenhaus.
 
-// Algebra primitives re-bound from picus-core: one explicit list (not a
-// glob) so "what does the engine consume from the algebra crate" is
-// greppable here, and each type has one in-crate spelling.
+// Algebra primitives re-bound from picus-core for the engine's own
+// kernels: one explicit list (not a glob) so "what does the engine
+// consume from the algebra crate" is greppable here. Non-engine code
+// spells the algebra `crate::ff::…` (the lib.rs re-binding); only the
+// files inside `engine/` use these bindings, so `use crate::engine`
+// elsewhere marks a genuine engine-kernel dependency.
 pub(crate) use picus_core::ff::{
-    divmask, field, linalg, matrix_order, monomial, polynomial, repr,
+    divmask, field, linalg, monomial, polynomial, repr,
     sparse_monomial, sparse_polynomial,
 };
-pub(crate) use picus_core::ff::polynomial::DensePoly;
 
 pub(crate) mod buchberger;
 pub(crate) mod f4;
