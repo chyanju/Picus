@@ -7,7 +7,8 @@
 use std::cell::RefCell;
 
 use crate::config::GbStrategy;
-use crate::ff::buchberger::{self, BuchbergerConfig, GBasis, IncrementalGB};
+use crate::ff::buchberger::{self, BuchbergerConfig, GBasis};
+pub(crate) use crate::ff::buchberger::IncrementalGB;
 use crate::ff::monomial::MonomialOrder as FfOrder;
 use crate::gb::tracer::GbTracer;
 use crate::poly::{FfPolyRing, Poly};
@@ -394,6 +395,29 @@ fn finish_gb(
     }
 }
 
+/// Front-door constructor for a long-lived incremental engine. Owns the
+/// `BuchbergerConfig` policy for incremental use, so a future knob
+/// cannot silently skip the incremental paths by hand-assembling a
+/// config elsewhere. Incremental extends are tiny-batch (a few S-pairs
+/// per call), so F4 never amortizes: `use_f4` is pinned off —
+/// result-identical to per-pair by the engine's contract — for every
+/// incremental consumer (the engine's own extend entries, the resumable
+/// cache, and the cdclt incremental theory).
+pub(crate) fn incremental_engine(
+    ring: std::sync::Arc<crate::ff::polynomial::PolyRing>,
+    cancel: Option<CancelToken>,
+) -> IncrementalGB {
+    IncrementalGB::new(
+        ring,
+        BuchbergerConfig {
+            cancel_token: cancel,
+            abort_on_trivial: true,
+            use_f4: false,
+            ..BuchbergerConfig::default()
+        },
+    )
+}
+
 /// Run `f` under `catch_unwind`, converting a panic into
 /// [`EngineError::EnginePanic`] with the payload text and call site
 /// preserved. A caught panic means the engine has a bug: it is logged at
@@ -551,21 +575,11 @@ pub fn compute_gb_incremental_with_order(
         return finish_gb(result, cancel, "incremental sparse GB");
     }
     let ring = ring_for_order(poly_ring, order);
-    let cfg = BuchbergerConfig {
-        cancel_token: Some(cancel.clone()),
-        abort_on_trivial: true,
-        // Incremental extends are tiny-batch (a few new S-pairs per call), so
-        // F4's degree-batched matrix never amortizes; run the per-pair engine
-        // here. F4 (when enabled) is used only for from-scratch GB.
-        // Result-identical (F4 ≡ per-pair).
-        use_f4: false,
-        ..BuchbergerConfig::default()
-    };
 
     let dense_known = unwrap_dense_vec(known_gb, &ring);
     let dense_new = unwrap_dense_vec(new_polys, &ring);
     let result = catch_engine_panic("incremental Buchberger", || {
-        let mut igb = IncrementalGB::new(ring.clone(), cfg);
+        let mut igb = incremental_engine(ring.clone(), Some(cancel.clone()));
         // Seed with the trusted reduced GB via the pair-free fast path.
         // `add_generators` would have generated O(n²) S-pairs among the
         // seeded elements (each of which then walks the M-criterion list,
@@ -658,18 +672,10 @@ pub fn compute_gb_incremental_with_order_traced(
         return compute_gb_with_order_traced(poly_ring, new_polys, cancel, order, tracer);
     }
     let ring = ring_for_order(poly_ring, order);
-    let cfg = BuchbergerConfig {
-        cancel_token: Some(cancel.clone()),
-        abort_on_trivial: true,
-        // See `compute_gb_incremental_with_order`: incremental extends are
-        // tiny-batch, so F4 never amortizes — always per-pair here.
-        use_f4: false,
-        ..BuchbergerConfig::default()
-    };
     let dense_known = unwrap_dense_vec(known_gb, &ring);
     let dense_new = unwrap_dense_vec(new_polys, &ring);
     let result = catch_engine_panic("traced incremental Buchberger", || {
-        let mut igb = IncrementalGB::new(ring.clone(), cfg);
+        let mut igb = incremental_engine(ring.clone(), Some(cancel.clone()));
         igb.add_generators_observed(dense_known, tracer)?;
         igb.add_generators_observed(dense_new, tracer)?;
         Ok(wrap_dense_vec(igb.basis()))

@@ -69,13 +69,10 @@ fn prop_router_partitions_facts_and_unions_sat() {
     router.notify_fact(var_a, true); // a = 3 over GF(7)
     router.notify_fact(var_b, true); // b = 5 over GF(11)
 
-    let outcome = router.post_check();
-    match outcome {
-        CheckOutcome::Sat => {}
+    let model = match router.post_check() {
+        CheckOutcome::Sat(m) => m,
         other => panic!("expected SAT, got {:?}", other),
-    }
-
-    let model = router.collect_model().expect("model present");
+    };
     assert_eq!(model.get("a"), Some(&BigUint::from(3u32)));
     assert_eq!(model.get("b"), Some(&BigUint::from(5u32)));
 }
@@ -108,7 +105,6 @@ fn prop_router_unsat_in_one_slot_yields_unsat() {
         }
         other => panic!("expected UNSAT, got {:?}", other),
     }
-    assert!(router.collect_model().is_none(), "no model on UNSAT");
 }
 
 #[test]
@@ -128,13 +124,13 @@ fn prop_router_push_pop_restores_per_slot_trails() {
     router.notify_fact(var_a, true);
     // SAT before pop.
     match router.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("pre-pop should be SAT, got {:?}", other),
     }
     router.pop();
     // After pop, no facts; SAT (empty problem).
     match router.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("post-pop should be SAT, got {:?}", other),
     }
 }
@@ -176,7 +172,7 @@ fn bug_router_pop_restores_degraded_flag() {
     }
     router.pop();
     match router.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("post-pop should be Sat (degraded cleared), got {:?}", other),
     }
 }

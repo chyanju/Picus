@@ -32,8 +32,6 @@ pub(crate) struct FfTheory<'a> {
     facts: Vec<(Var, bool)>,
     levels: Vec<usize>,
     /// Most-recent SAT model from `post_check`.
-    last_model: Option<HashMap<String, BigUint>>,
-    has_model: bool,
     /// Reasons for the current `propagate()` round; cleared on
     /// `propagate()` entry and on `pop()`.
     pending_reasons: HashMap<Var, Vec<(Var, bool)>>,
@@ -46,8 +44,6 @@ impl<'a> FfTheory<'a> {
             cancel,
             facts: Vec::new(),
             levels: Vec::new(),
-            last_model: None,
-            has_model: false,
             pending_reasons: HashMap::new(),
         }
     }
@@ -61,17 +57,7 @@ impl<'a> FfTheory<'a> {
     /// Rabinowitsch / field polynomials and to dropped zero
     /// polynomials.
     fn check_full_with_mapping(&mut self) -> CheckOutcome {
-        let (out, model) = check_full_with_atoms(self.atoms, &self.facts, self.cancel);
-        match &out {
-            CheckOutcome::Sat => {
-                self.last_model = model;
-                self.has_model = true;
-            }
-            CheckOutcome::Unsat { .. } | CheckOutcome::Unknown => {
-                self.has_model = false;
-            }
-        }
-        out
+        check_full_with_atoms(self.atoms, &self.facts, self.cancel)
     }
 
     /// `var_name -> (value, source_atom)` from positive single-variable
@@ -374,8 +360,6 @@ impl<'a> Theory for FfTheory<'a> {
         if let Some(saved_len) = self.levels.pop() {
             self.facts.truncate(saved_len);
         }
-        self.has_model = false;
-        self.last_model = None;
         self.pending_reasons.clear();
     }
 
@@ -411,13 +395,6 @@ impl<'a> Theory for FfTheory<'a> {
             .unwrap_or_default()
     }
 
-    fn collect_model(&self) -> Option<HashMap<String, BigUint>> {
-        if self.has_model {
-            self.last_model.clone()
-        } else {
-            None
-        }
-    }
 }
 
 /// Build a ConstraintSystem from a `(atom, polarity)` fact trail against
@@ -429,7 +406,7 @@ pub(crate) fn check_full_with_atoms(
     atoms: &AtomTable,
     facts: &[(Var, bool)],
     cancel: &CancelToken,
-) -> (CheckOutcome, Option<HashMap<String, BigUint>>) {
+) -> CheckOutcome {
     let prime = atoms.prime().clone();
 
     let mut builder = ConstraintSystemBuilder::new(prime.clone());
@@ -470,28 +447,34 @@ pub(crate) fn check_full_with_atoms(
     }
 
     if !had_any {
-        return (CheckOutcome::Sat, Some(HashMap::new()));
+        return CheckOutcome::Sat(HashMap::new());
     }
 
     let indexed = builder.build();
     let encoded = match encode(&indexed) {
         Ok(e) => e,
-        Err(_) => return (CheckOutcome::Unknown, None),
+        Err(_) => return CheckOutcome::Unknown,
     };
 
     if cancel.is_cancelled() {
-        return (CheckOutcome::Unknown, None);
+        return CheckOutcome::Unknown;
     }
 
     match solve_encoded_with_cancel(&encoded, cancel) {
-        SolveOutcome::Sat(model) => (CheckOutcome::Sat, Some(model)),
+        SolveOutcome::Sat(model) => CheckOutcome::Sat(model),
         SolveOutcome::Unsat(core_indices) => {
+            // `None` (no attributable engine core) maps to the full input
+            // range: the engine proved exactly this conjunction UNSAT, so
+            // the full asserted-fact set is itself a sound core — never
+            // downgrade a proved Unsat to Unknown here.
+            let core_indices = core_indices
+                .unwrap_or_else(|| (0..encoded.polynomials.len()).collect());
             match map_core_to_atoms(&core_indices, &encoded, &equality_atoms, &disequality_atoms) {
-                Some(core) => (CheckOutcome::Unsat { core }, None),
-                None => (CheckOutcome::Unknown, None),
+                Some(core) => CheckOutcome::Unsat { core },
+                None => CheckOutcome::Unknown,
             }
         }
-        SolveOutcome::Unknown => (CheckOutcome::Unknown, None),
+        SolveOutcome::Unknown => CheckOutcome::Unknown,
     }
 }
 

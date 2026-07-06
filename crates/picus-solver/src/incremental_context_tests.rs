@@ -1,4 +1,5 @@
 use super::*;
+use crate::ff::buchberger::BuchbergerConfig;
 use crate::frontend::encoder::{ConstraintSystemBuilder, PolyTerm};
 use num_bigint::BigUint;
 

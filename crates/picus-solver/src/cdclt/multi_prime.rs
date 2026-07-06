@@ -25,8 +25,6 @@ pub(crate) struct PrimeSlot {
     pub atoms: AtomTable,
     facts: Vec<(Var, bool)>,
     levels: Vec<usize>,
-    last_model: Option<HashMap<String, BigUint>>,
-    has_model: bool,
 }
 
 /// Multi-prime FF theory router. One [`PrimeSlot`] per distinct GF(p).
@@ -64,8 +62,6 @@ impl<'a> FfTheoryRouter<'a> {
                 atoms: at,
                 facts: Vec::new(),
                 levels: Vec::new(),
-                last_model: None,
-                has_model: false,
             });
         }
         FfTheoryRouter {
@@ -135,26 +131,18 @@ impl<'a> Theory for FfTheoryRouter<'a> {
     /// concatenates per-prime cores so the orchestrator learns the union.
     fn post_check(&mut self) -> CheckOutcome {
         if self.degraded {
-            for slot in &mut self.slots {
-                slot.has_model = false;
-            }
             return CheckOutcome::Unknown;
         }
         let mut combined_core: Vec<Var> = Vec::new();
         let mut any_unknown = false;
+        let mut slot_models: Vec<HashMap<String, BigUint>> = Vec::new();
         for slot in &mut self.slots {
-            let (outcome, model) = check_full_with_atoms(&slot.atoms, &slot.facts, self.cancel);
-            match outcome {
-                CheckOutcome::Sat => {
-                    slot.last_model = model;
-                    slot.has_model = true;
-                }
+            match check_full_with_atoms(&slot.atoms, &slot.facts, self.cancel) {
+                CheckOutcome::Sat(model) => slot_models.push(model),
                 CheckOutcome::Unsat { core } => {
-                    slot.has_model = false;
                     combined_core.extend(core);
                 }
                 CheckOutcome::Unknown => {
-                    slot.has_model = false;
                     any_unknown = true;
                 }
             }
@@ -166,7 +154,13 @@ impl<'a> Theory for FfTheoryRouter<'a> {
         } else if any_unknown {
             CheckOutcome::Unknown
         } else {
-            CheckOutcome::Sat
+            // Every slot was Sat in this check: per-prime variable sets
+            // are disjoint, so the union is the combined model.
+            let mut combined: HashMap<String, BigUint> = HashMap::new();
+            for m in slot_models {
+                combined.extend(m);
+            }
+            CheckOutcome::Sat(combined)
         }
     }
 
@@ -189,7 +183,6 @@ impl<'a> Theory for FfTheoryRouter<'a> {
             if let Some(h) = slot.levels.pop() {
                 slot.facts.truncate(h);
             }
-            slot.has_model = false;
         }
         if let Some(prev) = self.degraded_levels.pop() {
             self.degraded = prev;
@@ -203,25 +196,6 @@ impl<'a> Theory for FfTheoryRouter<'a> {
         }
     }
 
-    /// Union the per-prime models. Returns `None` unless every slot has a
-    /// model; the orchestrator should only call this after a SAT outcome.
-    /// Variable names are assumed distinct across primes (the caller is
-    /// responsible for namespacing); equal-name collisions take the last
-    /// slot's value.
-    fn collect_model(&self) -> Option<HashMap<String, BigUint>> {
-        let mut merged: HashMap<String, BigUint> = HashMap::new();
-        for slot in &self.slots {
-            if !slot.has_model {
-                return None;
-            }
-            if let Some(m) = &slot.last_model {
-                for (k, v) in m {
-                    merged.insert(k.clone(), v.clone());
-                }
-            }
-        }
-        Some(merged)
-    }
 }
 
 #[cfg(test)]

@@ -18,8 +18,12 @@ use crate::sat::Var;
 /// Outcome of a theory check.
 #[derive(Debug)]
 pub(crate) enum CheckOutcome {
-    /// All asserted facts are consistent.
-    Sat,
+    /// All asserted facts are consistent. Carries the model that
+    /// realizes them: pairing the witness with the verdict makes a
+    /// "Sat with no model" state unrepresentable (the old
+    /// `collect_model` channel could silently fabricate an all-zeros
+    /// witness if the pairing invariant ever broke).
+    Sat(HashMap<String, BigUint>),
     /// A subset of asserted-True atom vars is inconsistent. The
     /// orchestrator will learn `(¬v_1 ∨ … ∨ ¬v_k)` as a SAT clause.
     /// For atom vars that were asserted False at the time of the
@@ -67,18 +71,4 @@ pub(crate) trait Theory {
     /// roll its state back symmetrically. Default: noop.
     fn pop(&mut self) {}
 
-    /// On a `Sat` outcome, return the variable assignments that realize
-    /// the model. Used by the orchestrator to compose the final SMT model.
-    /// Default: empty.
-    ///
-    /// The return type (`String` → field element) is FF-shaped, so this
-    /// trait is effectively single-theory today (the only impl is
-    /// `FfTheory`). A second theory with a different model domain (UF,
-    /// bitvector) would need this widened to an opaque per-theory fragment
-    /// the orchestrator composes; the rest of the trait (`notify_fact`,
-    /// `post_check`, the `Vec<Var>` conflict core) is already
-    /// theory-agnostic.
-    fn collect_model(&self) -> Option<HashMap<String, BigUint>> {
-        None
-    }
 }

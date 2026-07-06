@@ -41,7 +41,7 @@ fn audit_p5_redundant_fact_skipped_before_inner_theory() {
     filtered.notify_fact(v1, true); // redundant — must not double-push
 
     match filtered.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("expected Sat after redundant filter, got {:?}", other),
     }
     let _ = v2;
@@ -140,12 +140,12 @@ fn audit_p5_push_pop_lockstep_restores_freshness() {
     // indirectly: the inner theory's post_check on an empty trail is
     // Sat (no facts), and re-notifying then post_check is still Sat.
     match filtered.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("post-pop empty trail must be Sat, got {:?}", other),
     }
     filtered.notify_fact(v, true);
     match filtered.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("re-asserted x=3 must be Sat, got {:?}", other),
     }
 }

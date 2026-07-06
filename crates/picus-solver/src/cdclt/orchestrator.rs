@@ -39,19 +39,18 @@ pub fn solve_formula(
     let mut atoms = AtomTable::new(prime);
     let top = match tseitin(formula, var_names, &mut atoms, &mut sat) {
         TseitinResult::Constant(true) => return SolveOutcome::Sat(HashMap::new()),
-        TseitinResult::Constant(false) => return SolveOutcome::Unsat(Vec::new()),
+        TseitinResult::Constant(false) => return SolveOutcome::Unsat(None),
         TseitinResult::Lit(l) => l,
     };
     if !sat.add_clause(vec![top]) {
-        return SolveOutcome::Unsat(Vec::new());
+        return SolveOutcome::Unsat(None);
     }
     if sat.is_unsat() {
-        return SolveOutcome::Unsat(Vec::new());
+        return SolveOutcome::Unsat(None);
     }
 
-    let use_router = picus_core::config::with(|c| c.cdclt_multi_prime_router);
+    let choice = resolve_theory_choice();
     let use_ee = picus_core::config::with(|c| c.cdclt_equality_engine);
-    let use_incremental = picus_core::config::with(|c| c.cdclt_incremental_theory);
 
     // Build the EE once if requested; it is generic over the inner
     // theory choice (FfTheory or FfTheoryRouter).
@@ -68,7 +67,7 @@ pub fn solve_formula(
                     // whose polarities already disagree at registration
                     // — impossible today (no notifies have fired yet),
                     // but the path is sound: return root-level UNSAT.
-                    return SolveOutcome::Unsat(Vec::new());
+                    return SolveOutcome::Unsat(None);
                 }
             }
         }
@@ -77,50 +76,82 @@ pub fn solve_formula(
         None
     };
 
-    if use_router {
-        let mut router = FfTheoryRouter::new(vec![atoms], cancel);
-        let n_slots = router.slot_atoms_mut(0).n_atom_slots();
-        for i in 0..n_slots {
-            let v = Var(i as u32);
-            if router.slot_atoms_mut(0).atom(v).is_some() {
-                router.assign_var(v, 0);
+    match choice {
+        TheoryChoice::Router => {
+            let mut router = FfTheoryRouter::new(vec![atoms], cancel);
+            let n_slots = router.slot_atoms_mut(0).n_atom_slots();
+            for i in 0..n_slots {
+                let v = Var(i as u32);
+                if router.slot_atoms_mut(0).atom(v).is_some() {
+                    router.assign_var(v, 0);
+                }
             }
+            run_with_optional_ee(&mut sat, router, ee, cancel)
         }
-        return match ee {
-            Some(e) => {
-                let mut wrapped = EeFilteredTheory::new(e, router);
-                cdclt_loop(&mut sat, &mut wrapped, cancel)
-            }
-            None => cdclt_loop(&mut sat, &mut router, cancel),
-        };
+        TheoryChoice::Incremental => {
+            // Conservative max-vars budget: every named variable plus every
+            // atom slot can claim a ring slot (atoms are interned eagerly via
+            // user names; aux-only slots never reach `build_atom_polys`).
+            // Disequality witnesses claim additional slots; bound them by
+            // the same conservative cap so a `degraded` flip from
+            // slot-budget exhaustion is reachable only on pathological
+            // inputs.
+            let max_vars = var_names.len() + atoms.n_atom_slots() + 64;
+            let theory = IncrementalFfTheoryState::new(&atoms, cancel, max_vars);
+            run_with_optional_ee(&mut sat, theory, ee, cancel)
+        }
+        TheoryChoice::Plain => {
+            let theory = FfTheory::new(&atoms, cancel);
+            run_with_optional_ee(&mut sat, theory, ee, cancel)
+        }
     }
-    if use_incremental {
-        // Conservative max-vars budget: every named variable plus every
-        // atom slot can claim a ring slot (atoms are interned eagerly via
-        // user names; aux-only slots never reach `build_atom_polys`).
-        // Disequality witnesses claim additional slots; bound them by
-        // the same conservative cap so a `degraded` flip from
-        // slot-budget exhaustion is reachable only on pathological
-        // inputs.
-        let max_vars = var_names.len() + atoms.n_atom_slots() + 64;
-        let mut theory = IncrementalFfTheoryState::new(&atoms, cancel, max_vars);
-        return match ee {
-            Some(e) => {
-                let mut wrapped = EeFilteredTheory::new(e, theory);
-                cdclt_loop(&mut sat, &mut wrapped, cancel)
-            }
-            None => cdclt_loop(&mut sat, &mut theory, cancel),
-        };
+}
+
+/// Resolved theory pipeline for one solve.
+enum TheoryChoice {
+    Router,
+    Incremental,
+    Plain,
+}
+
+/// Compute the theory choice once from the knob pair, with explicit
+/// precedence (Router > Incremental > Plain). A knob shadowed by a
+/// higher-precedence knob is warned about: a benchmark run that flips
+/// the shadowed knob would otherwise silently measure nothing.
+fn resolve_theory_choice() -> TheoryChoice {
+    let use_router = picus_core::config::with(|c| c.cdclt_multi_prime_router);
+    let use_incremental = picus_core::config::with(|c| c.cdclt_incremental_theory);
+    if use_router {
+        if use_incremental {
+            log::warn!(
+                "cdclt_incremental_theory is shadowed by cdclt_multi_prime_router; \
+                 the incremental theory will not run"
+            );
+        }
+        TheoryChoice::Router
+    } else if use_incremental {
+        TheoryChoice::Incremental
+    } else {
+        TheoryChoice::Plain
     }
-    let theory = FfTheory::new(&atoms, cancel);
+}
+
+/// Drive the CDCL(T) loop over `theory`, wrapped in the equality engine
+/// when one was built — the single owner of the EE-wrap-or-not branch.
+fn run_with_optional_ee<T: Theory>(
+    sat: &mut Solver,
+    theory: T,
+    ee: Option<EqualityEngine>,
+    cancel: &CancelToken,
+) -> SolveOutcome {
     match ee {
         Some(e) => {
             let mut wrapped = EeFilteredTheory::new(e, theory);
-            cdclt_loop(&mut sat, &mut wrapped, cancel)
+            cdclt_loop(sat, &mut wrapped, cancel)
         }
         None => {
             let mut theory = theory;
-            cdclt_loop(&mut sat, &mut theory, cancel)
+            cdclt_loop(sat, &mut theory, cancel)
         }
     }
 }
@@ -147,6 +178,14 @@ pub(crate) fn solve_formula_multi(
         return solve_formula(prime, &var_names, &formula, cancel);
     }
 
+    // This entry always routes through FfTheoryRouter; the incremental
+    // and equality-engine knobs do not apply here.
+    if picus_core::config::with(|c| c.cdclt_incremental_theory || c.cdclt_equality_engine) {
+        log::warn!(
+            "cdclt_incremental_theory / cdclt_equality_engine are ignored \
+             on the multi-prime path"
+        );
+    }
     let mut sat = Solver::new();
     let mut atoms_by_prime: Vec<AtomTable> = Vec::with_capacity(primes_subs.len());
     // Slot index in the router matches the order of `primes_subs`.
@@ -162,16 +201,16 @@ pub(crate) fn solve_formula_multi(
                 atoms_by_prime.push(atoms);
                 continue;
             }
-            TseitinResult::Constant(false) => return SolveOutcome::Unsat(Vec::new()),
+            TseitinResult::Constant(false) => return SolveOutcome::Unsat(None),
             TseitinResult::Lit(l) => l,
         };
         if !sat.add_clause(vec![top]) {
             atoms_by_prime.push(atoms);
-            return SolveOutcome::Unsat(Vec::new());
+            return SolveOutcome::Unsat(None);
         }
         if sat.is_unsat() {
             atoms_by_prime.push(atoms);
-            return SolveOutcome::Unsat(Vec::new());
+            return SolveOutcome::Unsat(None);
         }
         // Snapshot every non-aux Var atoms touched into the slot map.
         for i in 0..atoms.n_atom_slots() {
@@ -217,7 +256,7 @@ fn cdclt_loop<T: Theory>(
 
         if let Some(conflict) = sat.propagate() {
             if sat.decision_level() == 0 {
-                return SolveOutcome::Unsat(Vec::new());
+                return SolveOutcome::Unsat(None);
             }
             let (learnt, bt) = match sat.analyze(conflict) {
                 Some(lb) => lb,
@@ -250,22 +289,21 @@ fn cdclt_loop<T: Theory>(
                 resync_after_lemma(sat, theory, &mut theory_levels, &mut notified, trail_pre_lemma);
                 continue;
             }
-            TheoryStep::RootUnsat => return SolveOutcome::Unsat(Vec::new()),
+            TheoryStep::RootUnsat => return SolveOutcome::Unsat(None),
             TheoryStep::GiveUp => return SolveOutcome::Unknown,
             TheoryStep::Idle => {}
         }
 
         if sat.all_assigned() {
             match theory.post_check() {
-                CheckOutcome::Sat => {
-                    // The model returned by the theory's final
+                CheckOutcome::Sat(model) => {
+                    // The model carried by the theory's final
                     // `post_check` already covers every named
                     // variable: Bool vars are encoded as FF elements
                     // in {0, 1} in the polynomial namespace, so they
                     // come through the GB SAT point alongside the FF
                     // vars. SAT-only aux vars (Tseitin literals) are
                     // intentionally not surfaced.
-                    let model = theory.collect_model().unwrap_or_default();
                     return SolveOutcome::Sat(model);
                 }
                 CheckOutcome::Unsat { core } => {
@@ -273,7 +311,7 @@ fn cdclt_loop<T: Theory>(
                     let trail_pre_lemma = match trail_pre_lemma {
                         Some(n) => n,
                         None if sat.gave_up() => return SolveOutcome::Unknown,
-                        None => return SolveOutcome::Unsat(Vec::new()),
+                        None => return SolveOutcome::Unsat(None),
                     };
                     resync_after_lemma(sat, theory, &mut theory_levels, &mut notified, trail_pre_lemma);
                     continue;

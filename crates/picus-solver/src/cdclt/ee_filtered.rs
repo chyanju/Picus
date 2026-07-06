@@ -13,9 +13,7 @@
 //! mirroring the SAT-trail invariant — a polarity asserted at level k
 //! must be visible to both engines through all of k..=current_dl.
 
-use std::collections::HashMap;
 
-use num_bigint::BigUint;
 
 use crate::sat::Var;
 
@@ -114,9 +112,6 @@ impl<T: Theory> Theory for EeFilteredTheory<T> {
         }
     }
 
-    fn collect_model(&self) -> Option<HashMap<String, BigUint>> {
-        self.inner.collect_model()
-    }
 }
 
 #[cfg(test)]

@@ -408,7 +408,7 @@ fn solve_boolean_query_dnf_empty_formula_is_unsat() {
 #[test]
 fn solve_boolean_query_dnf_all_disjuncts_unsat() {
     // (x = 1) ∧ (or (= x 0) (= x 2)): both DNF disjuncts contradict
-    // x = 1 ⇒ every disjunct UNSAT ⇒ overall UNSAT with an empty core.
+    // x = 1 ⇒ every disjunct UNSAT ⇒ overall UNSAT, no attributable core.
     let src = "\
 (define-sort F () (_ FiniteField 101))
 (declare-fun x () F)
@@ -418,7 +418,7 @@ fn solve_boolean_query_dnf_all_disjuncts_unsat() {
     let q = crate::smt2::parse_boolean(src).expect("parse");
     let outcome = solve_boolean_query_dnf(&q, &CancelToken::none());
     match outcome {
-        SolveOutcome::Unsat(core) => assert!(core.is_empty()),
+        SolveOutcome::Unsat(None) => {}
         other => panic!("expected Unsat, got {:?}", outcome_kind(&other)),
     }
 }

@@ -16,7 +16,7 @@ use picus_core::ff::field::PrimeField;
 use picus_core::ff::monomial::{Monomial, MonomialOrder};
 use picus_core::ff::polynomial::{DensePoly, PolyRing};
 
-use crate::ff::buchberger::{BuchbergerConfig, IncrementalGB};
+use crate::gb::ideal::{incremental_engine, IncrementalGB};
 use crate::gb::model::{find_zero_cancel, FindZeroOutcome};
 use crate::poly::{FfPolyRing, Poly};
 use crate::sat::Var;
@@ -59,9 +59,6 @@ pub(crate) struct IncrementalFfTheoryState<'a> {
     levels: Vec<LevelCheckpoint>,
     /// Per-disequality counter for witness slot naming.
     diseq_counter: usize,
-    /// Cached last SAT model.
-    last_model: Option<HashMap<String, BigUint>>,
-    has_model: bool,
     /// Reason cache populated by [`Theory::propagate`] so [`explain`]
     /// can recover the per-atom reason set later (mirrors
     /// `FfTheory::pending_reasons`).
@@ -99,14 +96,10 @@ impl<'a> IncrementalFfTheoryState<'a> {
         let ring = PolyRing::new(field.clone(), names, MonomialOrder::DegRevLex);
         // The engine must share the solve deadline: without the token a
         // single `notify_fact` can run a full Buchberger completion past
-        // the wall-clock budget the rest of the crate polls against.
-        let igb = IncrementalGB::new(
-            ring.clone(),
-            BuchbergerConfig {
-                cancel_token: Some(cancel.clone()),
-                ..BuchbergerConfig::default()
-            },
-        );
+        // the wall-clock budget the rest of the crate polls against. The
+        // front-door constructor also pins use_f4 off: per-notify_fact
+        // extends are exactly the tiny batches the policy is about.
+        let igb = incremental_engine(ring.clone(), Some(cancel.clone()));
         let add_field_polys = prime <= BigUint::from(1000u32);
         Self {
             atoms,
@@ -121,8 +114,6 @@ impl<'a> IncrementalFfTheoryState<'a> {
             facts: Vec::new(),
             levels: Vec::new(),
             diseq_counter: 0,
-            last_model: None,
-            has_model: false,
             degraded: false,
             pending_reasons: HashMap::new(),
         }
@@ -336,13 +327,10 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
             return CheckOutcome::Unknown;
         }
         if self.degraded {
-            self.has_model = false;
             return CheckOutcome::Unknown;
         }
         if self.facts.is_empty() {
-            self.has_model = true;
-            self.last_model = Some(HashMap::new());
-            return CheckOutcome::Sat;
+            return CheckOutcome::Sat(HashMap::new());
         }
         // Invariant lock: every claimed slot's field polynomial
         // `x_slot^p − x_slot` must be live in the basis when
@@ -355,7 +343,6 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
             "field-poly invariant broken: claimed slot lacks live x^p − x in basis"
         );
         if self.igb.is_trivial() {
-            self.has_model = false;
             return CheckOutcome::Unsat {
                 core: self.facts.iter().map(|(v, _)| *v).collect(),
             };
@@ -383,13 +370,8 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
         // `__w_*` names for Rabinowitsch witnesses are dropped from
         // the returned model).
         match self.extract_model_via_user_ring() {
-            ModelExtraction::Sat(model) => {
-                self.last_model = Some(model);
-                self.has_model = true;
-                CheckOutcome::Sat
-            }
+            ModelExtraction::Sat(model) => CheckOutcome::Sat(model),
             ModelExtraction::Unsat => {
-                self.has_model = false;
                 CheckOutcome::Unsat {
                     core: self.facts.iter().map(|(v, _)| *v).collect(),
                 }
@@ -398,7 +380,6 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
                 // Round-robin search exhausted its bounded cap; the
                 // formula could still have a model outside the searched
                 // range. Sound to report Unknown.
-                self.has_model = false;
                 CheckOutcome::Unknown
             }
         }
@@ -424,7 +405,6 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
             self.degraded = cp.degraded;
         }
         self.igb.pop();
-        self.has_model = false;
     }
 
     fn propagate(&mut self) -> Vec<(Var, bool)> {
@@ -447,13 +427,6 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
         self.pending_reasons.get(&atom).cloned().unwrap_or_default()
     }
 
-    fn collect_model(&self) -> Option<HashMap<String, BigUint>> {
-        if self.has_model {
-            self.last_model.clone()
-        } else {
-            None
-        }
-    }
 }
 
 #[cfg(test)]

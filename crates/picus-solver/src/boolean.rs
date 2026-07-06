@@ -429,7 +429,7 @@ pub fn solve_boolean_query_dnf(query: &BooleanQuery, cancel: &CancelToken) -> So
     }
     let systems = query.to_disjunct_systems();
     if systems.is_empty() {
-        return SolveOutcome::Unsat(Vec::new());
+        return SolveOutcome::Unsat(None);
     }
     let mut saw_unknown = false;
     for sys in &systems {
@@ -452,7 +452,7 @@ pub fn solve_boolean_query_dnf(query: &BooleanQuery, cancel: &CancelToken) -> So
     if saw_unknown {
         SolveOutcome::Unknown
     } else {
-        SolveOutcome::Unsat(Vec::new())
+        SolveOutcome::Unsat(None)
     }
 }
 

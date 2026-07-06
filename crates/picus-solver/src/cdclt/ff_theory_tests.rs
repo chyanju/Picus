@@ -75,11 +75,10 @@ fn single_eq_sat() {
     let cancel = CancelToken::none();
     let mut th = FfTheory::new(&atoms, &cancel);
     th.notify_fact(av, true);
-    match th.post_check() {
-        CheckOutcome::Sat => {}
+    let m = match th.post_check() {
+        CheckOutcome::Sat(m) => m,
         other => panic!("expected Sat, got {:?}", other),
-    }
-    let m = th.collect_model().expect("model present");
+    };
     assert_eq!(m.get("x"), Some(&BigUint::from(5u32)));
 }
 
@@ -527,11 +526,10 @@ fn post_check_skips_fact_for_var_not_in_table() {
     let cancel = CancelToken::none();
     let mut th = FfTheory::new(&atoms, &cancel);
     th.notify_fact(Var(999), true);
-    match th.post_check() {
-        CheckOutcome::Sat => {}
+    let m = match th.post_check() {
+        CheckOutcome::Sat(m) => m,
         other => panic!("expected Sat, got {:?}", other),
-    }
-    let m = th.collect_model().expect("empty model present");
+    };
     assert!(m.is_empty());
 }
 
@@ -551,10 +549,6 @@ fn post_check_unknown_when_cancelled_before_solve() {
         CheckOutcome::Unknown => {}
         other => panic!("expected Unknown on cancellation, got {:?}", other),
     }
-    assert!(
-        th.collect_model().is_none(),
-        "no model after a cancelled check"
-    );
 }
 
 #[test]
@@ -571,7 +565,6 @@ fn collect_model_is_none_after_unsat() {
     th.notify_fact(a1, true);
     th.notify_fact(a2, true);
     assert!(matches!(th.post_check(), CheckOutcome::Unsat { .. }));
-    assert!(th.collect_model().is_none());
 }
 
 #[test]
@@ -844,10 +837,6 @@ fn post_check_unknown_when_encode_rejects_oversized_system() {
         CheckOutcome::Unknown => {}
         other => panic!("expected Unknown on encode rejection, got {:?}", other),
     }
-    assert!(
-        th.collect_model().is_none(),
-        "no model when the encode step rejects the system"
-    );
 }
 
 /// Build a real `EncodedSystem` with one equality (`x - 5 = 0`) and one

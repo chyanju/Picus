@@ -200,7 +200,7 @@ impl Theory for ScriptedTheory {
         self.notified.push((atom, polarity));
     }
     fn post_check(&mut self) -> CheckOutcome {
-        self.checks.pop_front().unwrap_or(CheckOutcome::Sat)
+        self.checks.pop_front().unwrap_or(CheckOutcome::Sat(HashMap::new()))
     }
     fn propagate(&mut self) -> Vec<(Var, bool)> {
         self.props.pop_front().unwrap_or_default()
@@ -213,9 +213,6 @@ impl Theory for ScriptedTheory {
     }
     fn pop(&mut self) {
         self.pops += 1;
-    }
-    fn collect_model(&self) -> Option<HashMap<String, BigUint>> {
-        Some(HashMap::new())
     }
 }
 
@@ -418,7 +415,7 @@ fn loop_post_check_sat_collects_model() {
     let mut sat = Solver::new();
     let v0 = sat.new_var();
     let mut th = ScriptedTheory::new();
-    th.checks.push_back(CheckOutcome::Sat);
+    th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
     let r = drive_loop(&mut sat, &mut th, &CancelToken::none());
     assert!(matches!(r, SolveOutcome::Sat(_)), "got {:?}", r);
     assert_eq!(th.pushes, 1, "one decision ⇒ one theory push");
@@ -450,7 +447,7 @@ fn loop_post_check_unsat_core_learns_then_resolves() {
     th.checks.push_back(CheckOutcome::Unsat {
         core: vec![v[0], v[1]],
     });
-    th.checks.push_back(CheckOutcome::Sat);
+    th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
     let r = drive_loop(&mut sat, &mut th, &CancelToken::none());
     assert!(matches!(r, SolveOutcome::Sat(_)), "got {:?}", r);
     // The learnt clause `(¬v0 ∨ ¬v1)` must hold in the final model.
@@ -491,7 +488,7 @@ fn loop_theory_propagation_progressed_then_sat() {
     let mut th = ScriptedTheory::new();
     th.props.push_back(vec![(b, true)]);
     th.reasons.insert(b, vec![(a, true)]);
-    th.checks.push_back(CheckOutcome::Sat);
+    th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
     let r = drive_loop(&mut sat, &mut th, &CancelToken::none());
     assert!(matches!(r, SolveOutcome::Sat(_)), "got {:?}", r);
     assert!(matches!(sat.value(b), LBool::True));
@@ -516,7 +513,7 @@ fn loop_theory_propagation_conflict_then_resolves() {
     let mut th = ScriptedTheory::new();
     th.props.push_back(vec![(a, false)]);
     th.reasons.insert(a, vec![(b, true)]);
-    th.checks.push_back(CheckOutcome::Sat);
+    th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
     let r = drive_loop(&mut sat, &mut th, &CancelToken::none());
     assert!(matches!(r, SolveOutcome::Sat(_)), "got {:?}", r);
     // The lemma flips `a` to False.
@@ -812,7 +809,7 @@ fn hardprobe_cancel_short_circuits_loop_across_theory_scripts() {
     {
         let mut sat = Solver::new();
         let mut th = ScriptedTheory::new();
-        th.checks.push_back(CheckOutcome::Sat);
+        th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
         let r = cdclt_loop(&mut sat, &mut th, &CancelToken::cancelled());
         assert!(matches!(r, SolveOutcome::Unknown), "PostSat: got {r:?}");
     }
@@ -850,7 +847,7 @@ fn hardprobe_cancel_set_before_loop_invariant_outcome_is_unknown() {
     assert!(sat.add_clause(vec![Lit::neg(v[1]), Lit::pos(v[2])]));
     assert!(sat.add_clause(vec![Lit::neg(v[2]), Lit::pos(v[3])]));
     let mut th = ScriptedTheory::new();
-    th.checks.push_back(CheckOutcome::Sat);
+    th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
     let cancel = CancelToken::cancelled();
     let r = cdclt_loop(&mut sat, &mut th, &cancel);
     assert!(
@@ -880,7 +877,7 @@ fn hardprobe_repeated_idle_theory_propagation_terminates_sat() {
     for _ in 0..3 {
         th.props.push_back(vec![(a, true)]);
     }
-    th.checks.push_back(CheckOutcome::Sat);
+    th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
     let r = cdclt_loop(&mut sat, &mut th, &CancelToken::none());
     assert!(matches!(r, SolveOutcome::Sat(_)), "SPEC: repeated Idle must reach Sat, got {r:?}");
     assert_eq!(sat.value(a), LBool::True);
@@ -1051,7 +1048,7 @@ fn hardprobe_theory_propagation_then_postcheck_push_pop_ledger_balanced() {
     let mut th = ScriptedTheory::new();
     th.props.push_back(vec![(b, true)]);
     th.reasons.insert(b, vec![(a, true)]);
-    th.checks.push_back(CheckOutcome::Sat);
+    th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
     let r = cdclt_loop(&mut sat, &mut th, &CancelToken::none());
     assert!(matches!(r, SolveOutcome::Sat(_)), "SPEC: loop must reach Sat, got {r:?}");
     // After loop end, sat.decision_level() == th.pushes - th.pops.

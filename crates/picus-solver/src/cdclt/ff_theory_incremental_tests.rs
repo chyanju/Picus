@@ -65,7 +65,6 @@ fn audit_inc_root_conflict_unsat_via_trivial_basis() {
         }
         other => panic!("expected UNSAT, got {:?}", other),
     }
-    assert!(th.collect_model().is_none(), "no model on UNSAT");
 }
 
 #[test]
@@ -81,7 +80,7 @@ fn audit_inc_single_eq_is_sat_small_prime() {
     let mut th = IncrementalFfTheoryState::new(&atoms, &cancel, 64);
     th.notify_fact(v, true);
     match th.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("expected SAT, got {:?}", other),
     }
 }
@@ -100,7 +99,7 @@ fn audit_inc_push_pop_restores_basis() {
     let mut th = IncrementalFfTheoryState::new(&atoms, &cancel, 64);
     th.notify_fact(v3, true);
     match th.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("pre-push SAT expected, got {:?}", other),
     }
     th.push();
@@ -111,7 +110,7 @@ fn audit_inc_push_pop_restores_basis() {
     }
     th.pop();
     match th.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("post-pop SAT expected, got {:?}", other),
     }
 }
@@ -143,7 +142,7 @@ fn bug_inc_pop_restores_slot_claims_gf5() {
     th.push();
     th.notify_fact(v_x2_eq_2, true);
     match th.post_check() {
-        CheckOutcome::Sat => panic!(
+        CheckOutcome::Sat(_) => panic!(
             "x^2 = 2 over GF(5) is UNSAT; post_check returned Sat — slot claim leaked past pop"
         ),
         CheckOutcome::Unsat { .. } | CheckOutcome::Unknown => {}
@@ -230,7 +229,7 @@ fn audit_inc_deep_dfs_amortizes_gb() {
         th.pop();
     }
     match th.post_check() {
-        CheckOutcome::Sat => {}
+        CheckOutcome::Sat(_) => {}
         other => panic!("post-all-pop empty trail must be Sat, got {:?}", other),
     }
 
@@ -261,11 +260,10 @@ fn audit_inc_small_prime_sat_returns_nonempty_model() {
     th.notify_fact(v_x, true);
     th.notify_fact(v_y, true);
 
-    match th.post_check() {
-        CheckOutcome::Sat => {}
+    let m = match th.post_check() {
+        CheckOutcome::Sat(m) => m,
         other => panic!("expected Sat, got {:?}", other),
-    }
-    let m = th.collect_model().expect("Sat must produce a model");
+    };
     assert_eq!(m.get("x"), Some(&BigUint::from(3u32)));
     assert_eq!(m.get("y"), Some(&BigUint::from(5u32)));
     assert!(
@@ -295,11 +293,10 @@ fn audit_inc_large_prime_pinned_eq_extracts_model_via_bridge() {
 
     let mut th = IncrementalFfTheoryState::new(&atoms, &cancel, 16);
     th.notify_fact(v_x, true);
-    match th.post_check() {
-        CheckOutcome::Sat => {}
+    let m = match th.post_check() {
+        CheckOutcome::Sat(m) => m,
         other => panic!("large-prime pinned-eq: expected Sat after bridge, got {:?}", other),
-    }
-    let m = th.collect_model().expect("Sat must produce a model");
+    };
     assert_eq!(m.get("x"), Some(&BigUint::from(12345u32)));
 }
 
@@ -358,10 +355,9 @@ fn audit_inc_empty_trail_is_sat() {
     let cancel = CancelToken::none();
     let atoms = AtomTable::new(BigUint::from(7u32));
     let mut th = IncrementalFfTheoryState::new(&atoms, &cancel, 16);
-    match th.post_check() {
-        CheckOutcome::Sat => {}
+    let m = match th.post_check() {
+        CheckOutcome::Sat(m) => m,
         other => panic!("empty trail SAT expected, got {:?}", other),
-    }
-    let m = th.collect_model().expect("empty model present");
+    };
     assert!(m.is_empty());
 }

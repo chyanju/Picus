@@ -33,7 +33,7 @@ fn test_solve_unsat_returns_core() {
     let p1 = pr.sub(pr.var(0), pr.constant(two));
     let p2 = pr.sub(pr.var(0), pr.constant(three));
     match solve_split_gb(&pr, &[p1, p2], &[]) {
-        SolveOutcome::Unsat(core) => {
+        SolveOutcome::Unsat(Some(core)) => {
             assert_eq!(core.len(), 2);
             assert!(core.contains(&0) && core.contains(&1));
         }
@@ -50,7 +50,7 @@ fn nonzero_constant_generator_is_unsat_with_singleton_core() {
     let three = pr.field().from_int(3); // nonzero constant over GF(7)
     let c = pr.constant(three);
     match solve_split_gb(&pr, &[c], &[]) {
-        SolveOutcome::Unsat(core) => assert_eq!(core, vec![0]),
+        SolveOutcome::Unsat(Some(core)) => assert_eq!(core, vec![0]),
         other => panic!("expected UNSAT, got {:?}", other),
     }
 }
@@ -65,7 +65,7 @@ fn nonzero_constant_among_constraints_yields_precise_singleton_core() {
     let p0 = pr.sub(pr.var(0), pr.constant(two));
     let p1 = pr.constant(three);
     match solve_split_gb(&pr, &[p0, p1], &[]) {
-        SolveOutcome::Unsat(core) => assert_eq!(core, vec![1]),
+        SolveOutcome::Unsat(Some(core)) => assert_eq!(core, vec![1]),
         other => panic!("expected UNSAT, got {:?}", other),
     }
 }
@@ -80,7 +80,7 @@ fn radical_membership_whole_ring_yields_unsat() {
     let constraint = pr.sub(pr.var(0), pr.var(1)); // a - b
     let amb = pr.sub(pr.var(0), pr.var(1)); // a - b (re-built; mul/sub consume)
     let witness = pr.sub(pr.mul(amb, pr.var(2)), pr.one()); // (a - b)*w - 1
-    match radical_membership_unsat(&pr, vec![constraint, witness], 1, &CancelToken::none()) {
+    match radical_membership_unsat(&pr, vec![constraint, witness], &CancelToken::none()) {
         Some(SolveOutcome::Unsat(_)) => {}
         other => panic!("expected Unsat from a whole-ring system, got {:?}", other),
     }
@@ -94,7 +94,7 @@ fn radical_membership_satisfiable_yields_none_no_false_safe() {
     let pr = FfPolyRing::new(ff(7), vec!["a".into(), "b".into(), "w".into()]);
     let amb = pr.sub(pr.var(0), pr.var(1));
     let witness = pr.sub(pr.mul(amb, pr.var(2)), pr.one());
-    assert!(radical_membership_unsat(&pr, vec![witness], 1, &CancelToken::none()).is_none());
+    assert!(radical_membership_unsat(&pr, vec![witness], &CancelToken::none()).is_none());
 }
 
 #[test]
@@ -168,7 +168,7 @@ fn test_split_gb_traced_unsat_core_is_sound_superset() {
     let p1 = pr.sub(pr.var(0), pr.constant(three));
     let p2 = pr.sub(pr.var(1), pr.constant(one));
     match solve_split_gb(&pr, &[p0, p1, p2], &[]) {
-        SolveOutcome::Unsat(core) => {
+        SolveOutcome::Unsat(Some(core)) => {
             assert!(core.contains(&0), "core must contain input 0 (x=2)");
             assert!(core.contains(&1), "core must contain input 1 (x=3)");
             assert!(
@@ -243,7 +243,7 @@ fn bit_prop_derived_unsat_core_includes_bit_constraints() {
     let sum = pr.add(pr.clone_poly(&x), two_y);
     let p2 = pr.sub(sum, pr.constant(five));
     match solve_split_gb(&pr, &[p0, p1, p2], &[]) {
-        SolveOutcome::Unsat(core) => {
+        SolveOutcome::Unsat(Some(core)) => {
             assert!(
                 core.contains(&0) && core.contains(&1),
                 "core must include both bit constraints (p0, p1); got {:?}",
@@ -279,7 +279,7 @@ fn bit_prop_derived_eq_unsat_core_is_sound() {
     let p2 = pr.sub(sum, pr.constant(one.clone()));
     let p3 = pr.sub(pr.clone_poly(&y), pr.constant(one));
     match solve_split_gb(&pr, &[p0, p1, p2, p3], &[]) {
-        SolveOutcome::Unsat(core) => {
+        SolveOutcome::Unsat(Some(core)) => {
             assert!(
                 core.contains(&0) && core.contains(&1),
                 "core must include both bit constraints (p0, p1); got {:?}",
@@ -387,10 +387,9 @@ fn solve_split_gb_nontrivial_unsat_returns_full_core() {
     let x2 = pr.mul(pr.var(0), pr.var(0));
     let p = pr.sub(x2, pr.constant(f.from_int(3))); // x^2 - 3
     match solve_split_gb(&pr, &[p], &[]) {
-        SolveOutcome::Unsat(core) => {
-            assert_eq!(core, vec![0usize], "non-trivial UNSAT names all inputs");
-        }
-        other => panic!("expected UNSAT, got {:?}", other),
+        // Exhaustive model-search UNSAT computes no attributable core.
+        SolveOutcome::Unsat(None) => {}
+        other => panic!("expected UNSAT without a core, got {:?}", other),
     }
 }
 
@@ -411,7 +410,7 @@ fn ff_is_zero_unsound_full_unsat_core_is_sound() {
     let p2 = pr.clone_poly(&pr.var(2));
     let p3 = pr.clone_poly(&pr.var(0));
     match solve_split_gb(&pr, &[p0, p1, p2, p3], &[]) {
-        SolveOutcome::Unsat(core) => {
+        SolveOutcome::Unsat(Some(core)) => {
             assert!(
                 core.contains(&3),
                 "core must include is_zero=0 (index 3); got {:?}",
@@ -438,12 +437,10 @@ fn solve_split_gb_unsat_via_dfs_returns_full_input_core() {
     let x_plus_y = pr.add(pr.var(0), pr.var(1));
     let xy_minus_1 = pr.sub(pr.mul(pr.var(0), pr.var(1)), pr.constant(f.one()));
     match solve_split_gb(&pr, &[x_plus_y, xy_minus_1], &[]) {
-        SolveOutcome::Unsat(core) => {
-            assert_eq!(
-                core,
-                vec![0usize, 1usize],
-                "DFS-derived UNSAT names every original input"
-            );
+        // DFS-derived UNSAT computes no attributable core.
+        SolveOutcome::Unsat(None) => {
+            let core: Vec<usize> = Vec::new();
+            assert!(core.is_empty());
         }
         other => panic!("expected UNSAT, got {:?}", other),
     }
@@ -648,7 +645,7 @@ fn prop_unsat_core_indices_in_range() {
     let p2 = pr.sub(pr.var(0), pr.constant(f.from_int(2)));
     let inputs = [pr.clone_poly(&p1), pr.clone_poly(&p2)];
     match solve_split_gb(&pr, &inputs, &[]) {
-        SolveOutcome::Unsat(core) => {
+        SolveOutcome::Unsat(Some(core)) => {
             for &i in &core {
                 assert!(
                     i < inputs.len(),

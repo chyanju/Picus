@@ -137,6 +137,15 @@ runtime_config! {
     /// GB algorithm strategy.
     gb_strategy: GbStrategy = GbStrategy::Direct,
     /// Use F4 matrix reduction for batched same-sugar S-pairs.
+    ///
+    /// Dense-engine only (as are `f4_hilbert_select`,
+    /// `f4_sparse_reducer_cache`, and `reducer_index_cache`): under the
+    /// default `poly_repr = sparse`, from-scratch conjunctive solves
+    /// route through the sparse engine and never consult these knobs;
+    /// the always-dense paths (the traced/UNSAT-core pipeline that
+    /// CDCL(T) disjunction checks run, and the cdclt incremental
+    /// theory) do. Incremental extends pin `use_f4 = false` regardless
+    /// (tiny batches never amortize the matrix; result-identical).
     use_f4: bool = false,
     /// DNF expansion cap (max disjunct count) before
     /// `solve_boolean_query_dnf` (in picus-solver) returns `Unknown`.

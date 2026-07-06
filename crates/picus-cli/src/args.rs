@@ -216,13 +216,13 @@ pub(crate) enum Commands {
         #[arg(long, value_parser = ["on", "off"])]
         cdclt_equality_engine: Option<String>,
 
-        /// F4 Hilbert-driven S-pair batch selection (stub; flag plumbs
-        /// through but no F4 dispatch path consumes it yet): on | off.
+        /// F4 Hilbert-driven S-pair batch selection (dense engine only;
+        /// inert unless --use-f4 reaches a dense-routed solve): on | off.
         #[arg(long, value_parser = ["on", "off"])]
         f4_hilbert_select: Option<String>,
 
-        /// F4 cross-batch sparse reducer-row cache (stub; flag plumbs
-        /// through but the upgrade is deferred): on | off.
+        /// F4 cross-batch reducer-row cache (dense engine only; inert
+        /// unless --use-f4 reaches a dense-routed solve): on | off.
         #[arg(long, value_parser = ["on", "off"])]
         f4_sparse_reducer_cache: Option<String>,
 

@@ -18,7 +18,11 @@ use crate::split_gb::split_find_zero_cancel;
 use crate::timeout::CancelToken;
 use std::time::Duration;
 
-/// An UNSAT core: indices into the input fact list that suffice for UNSAT.
+/// An UNSAT core: indices into the `original_polys` slice passed to the
+/// solve entry point (`bitsum_polys` and Rabinowitsch witnesses never
+/// appear in a core). Carried as `Option` on [`SolveOutcome::Unsat`]:
+/// `None` means UNSAT was proved without computing an attributable core
+/// — consumers must not substitute a fabricated one.
 pub type UnsatCore = Vec<usize>;
 
 /// Outcome of the core solver.
@@ -30,8 +34,10 @@ pub type UnsatCore = Vec<usize>;
 pub enum SolveOutcome {
     /// SAT — a model assigning every variable a field element (as BigUint).
     Sat(HashMap<String, BigUint>),
-    /// UNSAT, with an UNSAT core: indices of input facts.
-    Unsat(UnsatCore),
+    /// UNSAT. `Some(core)` names input facts that suffice for the
+    /// contradiction; `None` means no attributable core was computed
+    /// (the verdict is still a proof).
+    Unsat(Option<UnsatCore>),
     /// Unknown — the solver was cancelled, or bounded search exhausted
     /// without proving a definite verdict. Distinct from `Unsat`.
     Unknown,
@@ -64,7 +70,7 @@ const RADICAL_MEMBERSHIP_BUDGET: Duration = Duration::from_millis(3000);
 /// is the whole ring — i.e. `1 ∈ ⟨I, (x_a−x_b)·w − 1⟩`, so `x_a−x_b ∈ √I`, so
 /// the system has no solution over the algebraic closure (hence none over
 /// GF(p)) and the disequality query is UNSAT (the output is forced unique =
-/// Safe). `n_core` sizes the conservative UNSAT core.
+/// Safe). No attributable core is computed on this path.
 ///
 /// Bounded by `cancel ⊕ budget`: a GB-bound query exhausts the sub-budget and
 /// returns `None`, falling through to the split path. Sound one-directional —
@@ -73,13 +79,12 @@ const RADICAL_MEMBERSHIP_BUDGET: Duration = Duration::from_millis(3000);
 pub(crate) fn radical_membership_unsat(
     poly_ring: &FfPolyRing,
     gens: Vec<Poly>,
-    n_core: usize,
     cancel: &CancelToken,
 ) -> Option<SolveOutcome> {
     let budget = CancelToken::with_timeout(RADICAL_MEMBERSHIP_BUDGET);
     let tok = CancelToken::either(cancel, &budget);
     match Ideal::new_with_cancel(poly_ring, gens, &tok) {
-        Ok(ideal) if ideal.is_whole_ring() => Some(SolveOutcome::Unsat((0..n_core).collect())),
+        Ok(ideal) if ideal.is_whole_ring() => Some(SolveOutcome::Unsat(None)),
         _ => None,
     }
 }
@@ -126,7 +131,7 @@ pub fn solve_split_gb_cancel<'r>(
         .iter()
         .position(|p| !p.is_zero() && p.is_constant())
     {
-        return SolveOutcome::Unsat(vec![i]);
+        return SolveOutcome::Unsat(Some(vec![i]));
     }
 
     // Opt-in monolithic radical-membership Safe fast-path: decide the query
@@ -141,7 +146,7 @@ pub fn solve_split_gb_cancel<'r>(
             .map(|p| poly_ring.ring.clone_el(p))
             .collect();
         if let Some(outcome) =
-            radical_membership_unsat(poly_ring, combined, original_polys.len(), cancel)
+            radical_membership_unsat(poly_ring, combined, cancel)
         {
             return outcome;
         }
@@ -182,10 +187,7 @@ pub fn solve_split_gb_cancel<'r>(
     let split_basis = traced.split_basis;
 
     if split_basis.iter().any(|b| b.is_whole_ring()) {
-        let core = traced
-            .unsat_core
-            .unwrap_or_else(|| (0..original_polys.len()).collect());
-        return SolveOutcome::Unsat(core);
+        return SolveOutcome::Unsat(traced.unsat_core);
     }
 
     match split_find_zero_cancel(poly_ring, split_basis, &mut bit_prop, cancel) {
@@ -207,7 +209,7 @@ pub fn solve_split_gb_cancel<'r>(
             }
         }
         Ok(crate::split_gb::SplitFindZeroOutcome::Unsat) => {
-            SolveOutcome::Unsat((0..original_polys.len()).collect())
+            SolveOutcome::Unsat(None)
         }
         Ok(crate::split_gb::SplitFindZeroOutcome::Unknown) => SolveOutcome::Unknown,
         Err(_) => SolveOutcome::Unknown,

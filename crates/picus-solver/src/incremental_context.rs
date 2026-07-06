@@ -18,7 +18,7 @@ use crate::solve::SolveOutcome;
 use crate::frontend::encoder::{
     encode, encode_constraint_side, ConstraintSystem,
 };
-use crate::ff::buchberger::{BuchbergerConfig, IncrementalGB};
+use crate::gb::ideal::{incremental_engine, IncrementalGB};
 use crate::ff::monomial::MonomialOrder;
 use crate::gb::ideal::{interreduce_basis, ring_for_order, unwrap_dense_vec, wrap_dense_vec, Ideal};
 use crate::gb::model;
@@ -235,15 +235,13 @@ impl IncrementalSolverContext {
                 // `split_gb_cancel` are dropped); subsequent resume
                 // calls accumulate progress.
                 let ring = ring_for_order(&encoded.poly_ring, MonomialOrder::DegRevLex);
-                let cfg = BuchbergerConfig {
-                    cancel_token: None,
-                    abort_on_trivial: true,
-                    use_f4: crate::ff::buchberger::use_f4_default(),
-                    ..BuchbergerConfig::default()
-                };
+                // The front-door constructor pins the incremental policy
+                // (use_f4 off): a resumed build must not run a different
+                // inner engine than the same build uncancelled. The token
+                // is re-attached per resume by `continue_partial`.
                 let inflight = vec![
-                    IncrementalGB::new(ring.clone(), cfg.clone()),
-                    IncrementalGB::new(ring, cfg),
+                    incremental_engine(ring.clone(), None),
+                    incremental_engine(ring, None),
                 ];
                 let pending = gens;
                 let bit_prop_state = bit_prop.to_state();
@@ -584,7 +582,7 @@ fn membership_fastpath_unsat(
             return None;
         }
         if rem.is_zero() {
-            return Some(SolveOutcome::Unsat((0..cached.constraint_polys.len()).collect()));
+            return Some(SolveOutcome::Unsat(None));
         }
     }
     None
@@ -631,7 +629,6 @@ fn solve_with_cached(
         if let Some(outcome) = crate::solve::radical_membership_unsat(
             poly_ring,
             combined,
-            cached.constraint_polys.len() + query_polys.len(),
             cancel,
         ) {
             return outcome;
@@ -681,9 +678,7 @@ fn solve_with_cached(
     };
 
     if new_basis.iter().any(|b| b.is_whole_ring()) {
-        return SolveOutcome::Unsat(
-            (0..cached.constraint_polys.len() + query_polys.len()).collect(),
-        );
+        return SolveOutcome::Unsat(None);
     }
 
     let outcome = match split_find_zero_cancel(poly_ring, new_basis, &mut bit_prop, cancel) {
@@ -717,7 +712,7 @@ fn solve_with_cached(
             }
         }
         Ok(SplitFindZeroOutcome::Unsat) => {
-            SolveOutcome::Unsat((0..cached.constraint_polys.len() + query_polys.len()).collect())
+            SolveOutcome::Unsat(None)
         }
         Ok(SplitFindZeroOutcome::Unknown) => SolveOutcome::Unknown,
         Err(_) => SolveOutcome::Unknown,
