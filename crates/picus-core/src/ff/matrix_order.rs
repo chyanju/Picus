@@ -33,7 +33,7 @@ use std::sync::Arc;
 /// a comparison is `O(n_vars)` — the same asymptotics as the classical
 /// enum orders, which matters because matrix rings reach `2·n_wires`
 /// indeterminates.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MatrixOrder {
     /// Weight rows as sparse `(column, value)` pairs (zeros omitted).
     /// Comparison reads them top to bottom and stops at the first row
@@ -136,27 +136,49 @@ thread_local! {
     /// it for as long as the registry lives.
     static MATRIX_REGISTRY: RefCell<Vec<Arc<MatrixOrder>>> =
         const { RefCell::new(Vec::new()) };
+    /// Dedup index over the registry: structurally equal orders share
+    /// one slot, so `MonomialOrder::Matrix(u32)` equality (and the ring
+    /// reuse check built on it) means structural order equality, and a
+    /// long-lived session re-encoding many systems does not grow the
+    /// registry per encode.
+    static MATRIX_DEDUP: RefCell<std::collections::HashMap<MatrixOrder, u32>> =
+        RefCell::new(std::collections::HashMap::new());
 }
 
 /// Intern a matrix order, returning its registry index for use as
-/// `MonomialOrder::Matrix(idx)`.
+/// `MonomialOrder::Matrix(idx)`. Structurally equal orders return the
+/// same index.
 pub fn intern(order: MatrixOrder) -> u32 {
-    MATRIX_REGISTRY.with(|r| {
-        let mut v = r.borrow_mut();
-        let idx = v.len() as u32;
-        v.push(Arc::new(order));
+    MATRIX_DEDUP.with(|d| {
+        if let Some(&idx) = d.borrow().get(&order) {
+            return idx;
+        }
+        let idx = MATRIX_REGISTRY.with(|r| {
+            let mut v = r.borrow_mut();
+            let idx = v.len() as u32;
+            v.push(Arc::new(order.clone()));
+            idx
+        });
+        d.borrow_mut().insert(order, idx);
         idx
     })
 }
 
-/// Resolve a registry index back to its matrix order. Panics in debug if
-/// the index was never interned on this thread.
+/// Resolve a registry index back to its matrix order.
+///
+/// Panics when the index was never interned on this thread — a
+/// `MonomialOrder::Matrix` value crossed a thread boundary (the indices
+/// are thread-local, like the runtime config). Release builds panic too:
+/// silently comparing under a wrong order on another thread would be
+/// far harder to diagnose than a loud error at the crossing point.
 pub fn resolve(idx: u32) -> Arc<MatrixOrder> {
     MATRIX_REGISTRY.with(|r| {
         let v = r.borrow();
-        debug_assert!(
+        assert!(
             (idx as usize) < v.len(),
-            "matrix-order index {} not interned on this thread (len {})",
+            "matrix-order index {} not interned on this thread (len {}); \
+             MonomialOrder::Matrix indices are thread-local and must not \
+             cross threads",
             idx,
             v.len()
         );

@@ -48,6 +48,19 @@ pub(crate) trait Theory {
     /// theory's GB invocation lives here.
     fn post_check(&mut self) -> CheckOutcome;
 
+    /// Optional early check on a *partial* assignment, consulted each
+    /// main-loop round after fact notification. `Some(Unsat { core })`
+    /// feeds the ordinary theory-conflict path without waiting for a
+    /// full assignment — the seam for theories that detect
+    /// inconsistency cheaply mid-trail (e.g. an incremental basis that
+    /// just collapsed to the whole ring). `None` (the default) means
+    /// "nothing to report"; a theory must NOT return `Sat` from here
+    /// unless it can already justify it for every extension of the
+    /// partial assignment.
+    fn early_check(&mut self) -> Option<CheckOutcome> {
+        None
+    }
+
     /// Theory propagation: atoms the theory derives must be True or
     /// False given the current facts. Each entry is `(atom_var,
     /// polarity)`. Default: no propagation.

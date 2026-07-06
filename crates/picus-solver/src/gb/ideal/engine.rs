@@ -269,15 +269,21 @@ pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::syn
     )
 }
 
-/// True when the configured IR representation is sparse, so native GB
+/// True when the ring's representation is sparse, so native GB
 /// computation should be routed through the sparse engine.
-#[inline]
-/// Route GB work by the representation recorded on the ring at its
+///
+/// Routes by the representation recorded on the ring at its
 /// construction — the single source of truth after construction — so a
 /// ring pinned via `new_with_repr` is honoured and routing cannot drift
-/// with ambient config changes between calls.
+/// with ambient config changes between calls. The match is exhaustive
+/// on purpose: a future `ReprKind` variant must fail to compile at
+/// every GB routing site rather than silently taking the dense engine.
+#[inline]
 pub(crate) fn use_sparse_gb(poly_ring: &FfPolyRing) -> bool {
-    poly_ring.ctx().repr == crate::config::ReprKind::Sparse
+    match poly_ring.ctx().repr {
+        crate::config::ReprKind::Sparse => true,
+        crate::config::ReprKind::Dense => false,
+    }
 }
 
 /// Compute a Gröbner basis through the sparse engine (`engine::sparse_gb`)

@@ -837,7 +837,7 @@ pub(in crate::smt2) fn parse_define_fun(list: &[Sexpr]) -> Result<(String, Macro
 
 /// Parse an SMT-LIB v2 QF_FF source with full Boolean structure.
 pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
-    let toks = tokenize(src);
+    let toks = tokenize(src)?;
     let sexprs = parse_sexprs(&toks)?;
 
     let mut prime: Option<BigUint> = None;
@@ -1003,7 +1003,7 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
 /// pair stays hidden until multi-prime support is a product decision.
 #[allow(dead_code)] // parked: no production caller yet
 pub(crate) fn parse_boolean_multi(src: &str) -> Result<Vec<BooleanQuery>, ParseError> {
-    let toks = tokenize(src);
+    let toks = tokenize(src)?;
     let sexprs = parse_sexprs(&toks)?;
 
     // First pass: collect declared variable primes and the set of all

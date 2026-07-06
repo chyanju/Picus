@@ -288,6 +288,31 @@ fn cdclt_loop<T: Theory>(
             notified += 1;
         }
 
+        // Early partial-assignment check (defaults to None on every
+        // shipped theory). An early Unsat feeds the same conflict path
+        // as a post_check Unsat instead of deciding out the remaining
+        // variables of a proven-inconsistent subtree; per the trait
+        // contract an early Sat must already hold for every extension.
+        if let Some(outcome) = theory.early_check() {
+            match outcome {
+                CheckOutcome::Unsat { core } => {
+                    let trail_pre_lemma = apply_theory_conflict(sat, &core);
+                    let trail_pre_lemma = match trail_pre_lemma {
+                        Some(n) => n,
+                        None if sat.gave_up() => {
+                            return SolveOutcome::Unknown(UnknownCause::DegradedTheory)
+                        }
+                        None => return SolveOutcome::Unsat(None),
+                    };
+                    resync_after_lemma(sat, theory, &mut theory_levels, &mut notified, trail_pre_lemma);
+                    continue;
+                }
+                CheckOutcome::Sat(model) => return SolveOutcome::Sat(model),
+                // A partial-trail Unknown carries no information.
+                CheckOutcome::Unknown => {}
+            }
+        }
+
         match run_theory_propagation(sat, theory) {
             TheoryStep::Progressed => continue,
             TheoryStep::Conflict(trail_pre_lemma) => {

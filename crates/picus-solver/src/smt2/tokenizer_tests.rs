@@ -13,20 +13,20 @@ fn syms(toks: &[Tok]) -> Vec<&str> {
 
 #[test]
 fn tokenize_paren_breaks_atom() {
-    let t = tokenize("foo(bar)baz");
+    let t = tokenize("foo(bar)baz").expect("tokenize");
     assert_eq!(t.len(), 5);
     assert_eq!(syms(&t), vec!["foo", "bar", "baz"]);
 }
 
 #[test]
 fn tokenize_comment_at_eof_is_dropped() {
-    let t = tokenize("foo ; trailing comment no newline");
+    let t = tokenize("foo ; trailing comment no newline").expect("tokenize");
     assert_eq!(syms(&t), vec!["foo"]);
 }
 
 #[test]
 fn tokenize_quoted_symbol_with_parens_inside_is_one_atom() {
-    let t = tokenize("|f(x)|");
+    let t = tokenize("|f(x)|").expect("tokenize");
     assert_eq!(syms(&t), vec!["f(x)"]);
 }
 
@@ -34,7 +34,7 @@ fn tokenize_quoted_symbol_with_parens_inside_is_one_atom() {
 fn tokenize_keeps_strings_as_atoms() {
     // SMT-LIB strings come through as bracketed atoms (the lexer
     // doesn't treat `"` specially — `parse_ff_const` and friends do).
-    let t = tokenize(r#"(echo "hi")"#);
+    let t = tokenize(r#"(echo "hi")"#).expect("tokenize");
     assert_eq!(syms(&t), vec!["echo", "\"hi\""]);
 }
 
@@ -42,14 +42,14 @@ fn tokenize_keeps_strings_as_atoms() {
 
 #[test]
 fn parse_unclosed_list_errors() {
-    let toks = tokenize("(a (b c)");
+    let toks = tokenize("(a (b c)").expect("tokenize");
     let err = parse_sexprs(&toks).unwrap_err();
     assert!(matches!(err, ParseError::Malformed(_)));
 }
 
 #[test]
 fn parse_unexpected_close_paren_errors() {
-    let toks = tokenize(")");
+    let toks = tokenize(")").expect("tokenize");
     let err = parse_sexprs(&toks).unwrap_err();
     assert!(matches!(err, ParseError::UnexpectedToken(_)));
 }
@@ -65,7 +65,7 @@ fn parse_depth_cap_rejects_deep_nesting() {
     for _ in 0..n {
         src.push(')');
     }
-    let toks = tokenize(&src);
+    let toks = tokenize(&src).expect("tokenize");
     let err = parse_sexprs(&toks).unwrap_err();
     match err {
         ParseError::Malformed(msg) => assert!(msg.contains("depth")),
@@ -90,11 +90,11 @@ fn prop_tokenize_is_whitespace_invariant() {
         "(declare-fun x () F) (assert (= x ff0))",
     ];
     for raw in cases {
-        let base = tokenize(raw);
+        let base = tokenize(raw).expect("tokenize");
         // Add a leading newline, a trailing tab, and double every ASCII
         // space — purely cosmetic. Tokens must be identical.
         let padded = format!("\n\t   {}   \n", raw.replace(' ', "  "));
-        let pad_toks = tokenize(&padded);
+        let pad_toks = tokenize(&padded).expect("tokenize");
         assert_eq!(base, pad_toks, "ws padding changed tokens for {:?}", raw);
     }
 }
@@ -107,7 +107,7 @@ fn prop_tokenize_is_whitespace_invariant() {
 fn prop_tokenize_comments_are_equivalent_to_empty() {
     let with_comments = "a ; the quick brown fox\nb ; another one\nc";
     let without = "a \nb \nc";
-    assert_eq!(tokenize(with_comments), tokenize(without));
+    assert_eq!(tokenize(with_comments).expect("tokenize"), tokenize(without).expect("tokenize"));
 }
 
 /// PROPERTY: Two comments on the SAME line collapse to one. The first
@@ -117,7 +117,7 @@ fn prop_tokenize_comments_are_equivalent_to_empty() {
 fn prop_tokenize_comment_swallows_to_eol() {
     // `;` covers `;`s within the same physical line.
     let src = "a ; outer ; still in same comment\nb";
-    let toks = tokenize(src);
+    let toks = tokenize(src).expect("tokenize");
     assert_eq!(syms(&toks), vec!["a", "b"]);
 }
 
@@ -130,7 +130,7 @@ fn prop_tokenize_comment_swallows_to_eol() {
 fn prop_tokenize_count_matches_simple_atom_input() {
     // 3 atoms, 2 parens, 8 whitespace bytes.
     let src = "(  foo  bar  baz  )";
-    let toks = tokenize(src);
+    let toks = tokenize(src).expect("tokenize");
     // SMT-LIB syntax: parens are single bytes, atoms are contiguous
     // non-whitespace non-paren runs. So the token count must be 5.
     assert_eq!(toks.len(), 5);
@@ -152,7 +152,7 @@ fn prop_tokenize_paren_count_balanced_for_balanced_input() {
         "(define-sort F () (_ FiniteField 7))",
     ];
     for s in cases {
-        let toks = tokenize(s);
+        let toks = tokenize(s).expect("tokenize");
         let lp = toks.iter().filter(|t| matches!(t, Tok::LParen)).count();
         let rp = toks.iter().filter(|t| matches!(t, Tok::RParen)).count();
         assert_eq!(lp, rp, "paren imbalance in {:?}", s);
@@ -160,7 +160,7 @@ fn prop_tokenize_paren_count_balanced_for_balanced_input() {
 }
 
 /// PROPERTY: For any non-empty atom `a` containing no whitespace, no
-/// `(`, `)`, `;`, or `|`, `tokenize(a)` is a single `Tok::Sym(a)` and
+/// `(`, `)`, `;`, or `|`, `tokenize(a).expect("tokenize")` is a single `Tok::Sym(a)` and
 /// `parse_sexprs` recovers `Sexpr::Atom(a)`. (Round-trip identity for
 /// the atom subset.)
 #[test]
@@ -170,7 +170,7 @@ fn prop_atom_round_trip_under_tokenize_then_parse() {
         "FiniteField", "_", "declare-fun", "=>", "<=",
     ];
     for a in atoms {
-        let toks = tokenize(a);
+        let toks = tokenize(a).expect("tokenize");
         assert_eq!(toks.len(), 1, "atom {:?} produced != 1 token", a);
         match &toks[0] {
             Tok::Sym(s) => assert_eq!(s, a),
@@ -229,7 +229,7 @@ fn prop_sexpr_render_then_reparse_recovers_shape() {
     ];
     for t in trees {
         let rendered = render(&t);
-        let toks = tokenize(&rendered);
+        let toks = tokenize(&rendered).expect("tokenize");
         let parsed = parse_sexprs(&toks).expect("parse");
         assert_eq!(parsed.len(), 1, "render {:?} parsed wrong arity", rendered);
         assert!(
@@ -248,10 +248,10 @@ fn prop_sexpr_render_then_reparse_recovers_shape() {
 fn prop_parse_sexprs_distributes_over_concat() {
     let parts = ["(a b c)", "x", "(define-sort F () (_ FiniteField 7))"];
     let combined = parts.join(" ");
-    let combined_parsed = parse_sexprs(&tokenize(&combined)).expect("parse");
+    let combined_parsed = parse_sexprs(&tokenize(&combined).expect("tokenize")).expect("parse");
     let mut concat: Vec<Sexpr> = Vec::new();
     for p in parts {
-        let mut piece = parse_sexprs(&tokenize(p)).expect("parse");
+        let mut piece = parse_sexprs(&tokenize(p).expect("tokenize")).expect("parse");
         concat.append(&mut piece);
     }
     assert_eq!(concat.len(), combined_parsed.len());
@@ -266,8 +266,39 @@ fn prop_parse_sexprs_distributes_over_concat() {
 #[test]
 fn prop_empty_or_whitespace_only_input_parses_to_empty_vec() {
     for src in ["", "   ", "\n\n\n", ";just a comment\n", "  ;c1\n;c2\n  "] {
-        let parsed = parse_sexprs(&tokenize(src)).expect("parse");
+        let parsed = parse_sexprs(&tokenize(src).expect("tokenize")).expect("parse");
         assert!(parsed.is_empty(), "expected empty parse for {:?}", src);
     }
 }
 
+
+#[test]
+fn string_literal_swallows_comment_and_parens() {
+    // A `;`, `(`, `)` or space inside a string literal must not derail
+    // the token stream (legal in set-info headers of real corpora).
+    let t = tokenize(r#"(set-info :source "generated; by (X) tool") (check-sat)"#)
+        .expect("tokenize");
+    let closing: usize = t.iter().filter(|k| **k == Tok::RParen).count();
+    assert_eq!(closing, 2, "both lists close: {:?}", t);
+    assert!(
+        t.iter().any(|k| matches!(k, Tok::Sym(s) if s == r#""generated; by (X) tool""#)),
+        "string kept as one atom: {:?}",
+        t
+    );
+}
+
+#[test]
+fn string_literal_double_quote_escape() {
+    let t = tokenize(r#""he said ""hi""""#).expect("tokenize");
+    assert_eq!(t.len(), 1, "escaped quotes stay inside one atom: {:?}", t);
+}
+
+#[test]
+fn unterminated_string_is_an_error() {
+    assert!(tokenize(r#"(echo "oops)"#).is_err());
+}
+
+#[test]
+fn unterminated_quoted_symbol_is_an_error() {
+    assert!(tokenize("|never closed").is_err());
+}

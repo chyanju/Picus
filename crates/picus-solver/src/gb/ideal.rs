@@ -443,6 +443,69 @@ pub(crate) fn interreduce_basis(
 }
 
 
+// ──────────────────────── IncrementalIdeal ────────────────────────────────
+
+/// `Poly`-speaking wrapper around the engine's incremental Buchberger
+/// driver — the incremental counterpart of [`Ideal`]. Upper layers add
+/// generators and read the basis as `Poly`; the dense materialisation
+/// the engine consumes stays a `gb::ideal` detail. Construction goes
+/// through [`incremental_engine`], so the incremental policy pinning
+/// (`use_f4` off — tiny per-call batches never amortise the matrix)
+/// cannot be bypassed by hand-assembling a config.
+pub(crate) struct IncrementalIdeal {
+    igb: IncrementalGB,
+    ring: std::sync::Arc<crate::ff::polynomial::PolyRing>,
+}
+
+impl IncrementalIdeal {
+    /// Wrap a fresh incremental engine over `ring` (the engine ring the
+    /// generators' exponent frames index into).
+    pub(crate) fn new(
+        ring: std::sync::Arc<crate::ff::polynomial::PolyRing>,
+        cancel: Option<CancelToken>,
+    ) -> Self {
+        let igb = incremental_engine(ring.clone(), cancel);
+        IncrementalIdeal { igb, ring }
+    }
+
+    /// Extend the basis with `polys`. `Err` means timeout or engine
+    /// failure; the engine may be partially extended (callers degrade).
+    pub(crate) fn add_generators(&mut self, polys: Vec<Poly>) -> Result<bool, crate::EngineError> {
+        self.igb.add_generators(unwrap_dense_vec(polys, &self.ring))
+    }
+
+    /// Current basis, as `Poly`.
+    pub(crate) fn basis(&self) -> Vec<Poly> {
+        wrap_dense_vec(self.igb.basis())
+    }
+
+    /// True when the basis is empty (cheaper than `basis().is_empty()`).
+    pub(crate) fn basis_is_empty(&self) -> bool {
+        self.igb.basis().is_empty()
+    }
+
+    /// True when the ideal is the whole ring (`1 ∈ I`).
+    pub(crate) fn is_trivial(&self) -> bool {
+        self.igb.is_trivial()
+    }
+
+    /// Snapshot for a SAT push.
+    pub(crate) fn push(&mut self) {
+        self.igb.push();
+    }
+
+    /// Roll back to the matching push.
+    pub(crate) fn pop(&mut self) {
+        self.igb.pop();
+    }
+
+    /// Engine telemetry passthrough (test assertions only).
+    #[cfg(test)]
+    pub(crate) fn engine_stats(&self) -> &crate::engine::buchberger::GbProfileCounters {
+        self.igb.engine_stats()
+    }
+}
+
 #[cfg(test)]
 #[path = "ideal_tests.rs"]
 mod tests;

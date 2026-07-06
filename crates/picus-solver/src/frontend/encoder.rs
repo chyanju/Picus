@@ -437,12 +437,12 @@ fn encode_impl(
     }
 
     // Field polynomials: x^p - x = 0 for every ring variable, emitted
-    // only when `add_field_polys` is set and the prime is a single
-    // u64 digit `<= 1000` (small enough for the dense `x^p` expansion).
+    // only when `add_field_polys` is set and the prime clears the
+    // shared small-prime policy (`ff::field::small_prime_field_polys`,
+    // the one owner of the threshold).
     if system.add_field_polys {
-        let p_usize = system.prime.to_u64_digits();
-        if p_usize.len() == 1 && p_usize[0] <= 1000 {
-            let p_val = p_usize[0] as usize;
+        if crate::ff::field::small_prime_field_polys(&system.prime) {
+            let p_val = system.prime.to_u64_digits()[0] as usize;
             for i in 0..poly_ring.n_vars() {
                 let x = poly_ring.var(i);
                 let mut x_p = poly_ring.one();

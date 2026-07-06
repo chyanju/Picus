@@ -115,12 +115,16 @@ impl Polynomial {
     /// Used to reconcile a representation-neutral `zero()` with operands
     /// built over the ring.
     fn into_arm(self, ring: &PolyRing) -> Polynomial {
+        // Exhaustive on purpose (no `(p, _)` catch-all): a future
+        // `ReprKind` variant must fail to compile here rather than pass
+        // an arbitrary arm through as "already correct".
         match (self, ring.repr) {
             (Polynomial::Dense(d), ReprKind::Sparse) => {
                 Polynomial::Sparse(SparsePolynomial::from_dense(&d, ring))
             }
             (Polynomial::Sparse(s), ReprKind::Dense) => Polynomial::Dense(s.to_dense(ring)),
-            (p, _) => p,
+            (p @ Polynomial::Dense(_), ReprKind::Dense) => p,
+            (p @ Polynomial::Sparse(_), ReprKind::Sparse) => p,
         }
     }
 

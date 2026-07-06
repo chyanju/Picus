@@ -84,6 +84,10 @@ impl<T: Theory> Theory for EeFilteredTheory<T> {
         self.inner.post_check()
     }
 
+    fn early_check(&mut self) -> Option<CheckOutcome> {
+        self.inner.early_check()
+    }
+
     fn propagate(&mut self) -> Vec<(Var, bool)> {
         self.inner.propagate()
     }

@@ -97,7 +97,7 @@ fn build_poly_from_src(
         let i = ctx.builder.var(n);
         name_to_idx.insert((*n).into(), i);
     }
-    let toks = tokenize(src);
+    let toks = tokenize(src).expect("tokenize");
     let sexprs = parse_sexprs(&toks).expect("parse");
     assert_eq!(sexprs.len(), 1, "expected single sexpr in src");
     let p = build_poly_with_ctx(&sexprs[0], &mut ctx).expect("build_poly_with_ctx ok");
@@ -599,7 +599,7 @@ fn prop_big_prime_negation_identity() {
         expansion_depth: 0,
     };
     let x_idx = ctx.builder.var("x");
-    let toks = tokenize("(ff.add x (ff.neg x))");
+    let toks = tokenize("(ff.add x (ff.neg x))").expect("tokenize");
     let sxs = parse_sexprs(&toks).unwrap();
     let poly = build_poly_with_ctx(&sxs[0], &mut ctx).expect("build");
     // Try several large values.

@@ -125,7 +125,7 @@ impl SmtSession {
     /// Processing stops as soon as `(exit)` is encountered; commands
     /// after `(exit)` are not evaluated.
     pub fn eval_script(&mut self, src: &str) -> Result<Vec<SessionOutput>, ParseError> {
-        let toks = tokenize(src);
+        let toks = tokenize(src)?;
         let sexprs = parse_sexprs(&toks)?;
         let mut out = Vec::new();
         for s in &sexprs {

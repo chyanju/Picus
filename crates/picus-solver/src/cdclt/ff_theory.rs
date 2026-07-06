@@ -410,10 +410,11 @@ pub(crate) fn check_full_with_atoms(
     let prime = atoms.prime().clone();
 
     let mut builder = ConstraintSystemBuilder::new(prime.clone());
-    // Match the GB-direct path (`PolySystem::to_constraint_system`): request
-    // field polynomials `x^p - x = 0` for small primes (encoder only
-    // materialises them when `prime <= 1000`).
-    builder.set_add_field_polys(prime <= BigUint::from(1000u32));
+    // Match the GB-direct path (`PolySystem::to_constraint_system`):
+    // request field polynomials `x^p - x = 0` per the shared small-prime
+    // policy (`ff::field::small_prime_field_polys`, same owner the
+    // encoder gates emission on).
+    builder.set_add_field_polys(crate::ff::field::small_prime_field_polys(&prime));
     let mut equality_atoms: Vec<Var> = Vec::new();
     let mut disequality_atoms: Vec<Var> = Vec::new();
     let mut diseq_counter: usize = 0;

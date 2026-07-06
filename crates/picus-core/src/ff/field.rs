@@ -255,6 +255,16 @@ enum FieldKind {
 /// fits in a u128.
 const SMALL_PRIME_BITS: u64 = 64;
 
+/// Whether field polynomials `x^p − x = 0` are materialised for GF(p):
+/// only for `p <= 1000`, where the dense `x^p` expansion stays cheap.
+/// Single owner of the threshold — the encoder (which emits them), both
+/// CDCL(T) FF theories, and the R1CS lowering must agree on this
+/// decision, or a theory's UNSAT-core mapping would reason about a
+/// different polynomial set than the encoder emits.
+pub fn small_prime_field_polys(prime: &BigUint) -> bool {
+    *prime <= BigUint::from(1000u32)
+}
+
 impl PrimeField {
     /// Construct a new prime field. Auto-selects the u64 backend
     /// when `prime` fits in a u64; falls back to GMP otherwise.

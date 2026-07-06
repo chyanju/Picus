@@ -118,3 +118,15 @@ fn registry_intern_resolve_roundtrip() {
     assert_ne!(idx, idx2);
     assert_eq!(*resolve(idx2), MatrixOrder::lex(N_VARS));
 }
+
+#[test]
+fn intern_dedups_structurally_equal_orders() {
+    // Structurally equal orders share one registry slot, so
+    // `MonomialOrder::Matrix(idx)` equality means order equality and a
+    // long-lived session cannot grow the registry per encode.
+    let a = intern(MatrixOrder::elim(&[0, 1], 5));
+    let b = intern(MatrixOrder::elim(&[0, 1], 5));
+    assert_eq!(a, b);
+    let c = intern(MatrixOrder::elim(&[0, 1, 2], 5));
+    assert_ne!(a, c);
+}

@@ -16,7 +16,7 @@ use crate::ff::field::PrimeField;
 use crate::ff::monomial::{Monomial, MonomialOrder};
 use crate::ff::polynomial::{DensePoly, PolyRing};
 
-use crate::gb::ideal::{incremental_engine, IncrementalGB};
+use crate::gb::ideal::IncrementalIdeal;
 use crate::gb::model::{find_zero_cancel, FindZeroOutcome};
 use crate::poly::{FfPolyRing, Poly};
 use crate::sat::Var;
@@ -37,7 +37,7 @@ pub(crate) struct IncrementalFfTheoryState<'a> {
     cancel: &'a CancelToken,
     field: PrimeField,
     ring: Arc<PolyRing>,
-    igb: IncrementalGB,
+    igb: IncrementalIdeal,
     /// Whether to inject the field polynomial `x^p − x = 0` for each
     /// claimed slot (true iff prime ≤ 1000).
     add_field_polys: bool,
@@ -112,10 +112,10 @@ impl<'a> IncrementalFfTheoryState<'a> {
         // The engine must share the solve deadline: without the token a
         // single `notify_fact` can run a full Buchberger completion past
         // the wall-clock budget the rest of the crate polls against. The
-        // front-door constructor also pins use_f4 off: per-notify_fact
+        // wrapper's constructor also pins use_f4 off: per-notify_fact
         // extends are exactly the tiny batches the policy is about.
-        let igb = incremental_engine(ring.clone(), Some(cancel.clone()));
-        let add_field_polys = prime <= BigUint::from(1000u32);
+        let igb = IncrementalIdeal::new(ring.clone(), Some(cancel.clone()));
+        let add_field_polys = crate::ff::field::small_prime_field_polys(&prime);
         Self {
             atoms,
             cancel,
@@ -147,7 +147,7 @@ impl<'a> IncrementalFfTheoryState<'a> {
         if !self.add_field_polys || self.name_to_slot.is_empty() {
             return true;
         }
-        !self.igb.basis().is_empty()
+        !self.igb.basis_is_empty()
     }
 
     /// Engine telemetry from the wrapped [`IncrementalGB`]. Surfaces
@@ -172,8 +172,8 @@ impl<'a> IncrementalFfTheoryState<'a> {
     /// `find_zero_cancel` call. Witness slots and synthetic placeholder
     /// names are filtered out of the returned model.
     fn extract_model_via_user_ring(&mut self) -> ModelExtraction {
-        let basis_dense = self.igb.basis();
-        if basis_dense.is_empty() {
+        let basis_user = self.igb.basis();
+        if basis_user.is_empty() {
             return ModelExtraction::Sat(HashMap::new());
         }
 
@@ -202,14 +202,9 @@ impl<'a> IncrementalFfTheoryState<'a> {
             picus_core::config::ReprKind::Dense,
         );
 
-        // Re-wrap each DensePoly into `Polynomial::Dense`. Exponent
-        // vectors are positional and the slot count matches, so the
-        // re-wrap is structural and zero-copy at the storage layer.
-        let basis_user: Vec<Poly> = basis_dense
-            .into_iter()
-            .map(crate::ff::polynomial::Polynomial::Dense)
-            .collect();
-
+        // Exponent vectors are positional and the slot count matches
+        // the user ring, so the wrapper's `Poly` basis is consumed
+        // as-is.
         let outcome = find_zero_cancel(&user_ring, &basis_user, self.cancel);
         match outcome {
             FindZeroOutcome::Sat(raw_model) => {
@@ -259,7 +254,7 @@ impl<'a> IncrementalFfTheoryState<'a> {
                 // Err (timeout/engine failure) ⇒ the basis may lack this
                 // slot's field polynomial; only Unknown is safe until a
                 // `pop` past this level restores basis and flag together.
-                if let Err(e) = self.igb.add_generators(vec![fp]) {
+                if let Err(e) = self.igb.add_generators(vec![Poly::Dense(fp)]) {
                     degrade("field-poly extend", &e);
                     self.degraded = true;
                 }
@@ -350,7 +345,7 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
         // Err (timeout/engine failure) may leave `igb` partially extended;
         // roll the trail back and degrade so `post_check` answers Unknown
         // until a `pop` restores basis and flag together.
-        if let Err(e) = self.igb.add_generators(polys) {
+        if let Err(e) = self.igb.add_generators(polys.into_iter().map(Poly::Dense).collect()) {
             degrade("fact extend", &e);
             self.facts.pop();
             self.degraded = true;

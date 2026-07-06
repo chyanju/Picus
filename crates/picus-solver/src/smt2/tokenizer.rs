@@ -4,7 +4,11 @@
 //! - [`parse_sexprs`] turns a token stream into a vector of [`Sexpr`] trees.
 //!
 //! Comments (`; ...`) are dropped during tokenization; quoted symbols
-//! (`|sym|`) are unquoted.
+//! (`|sym|`) are unquoted; string literals (`"..."`, with the SMT-LIB
+//! `""` escape) are kept as single atoms so a `;`, paren, or space
+//! inside a string (legal in `set-info` headers of real corpora) cannot
+//! derail the token stream. An unterminated `"` or `|` is a
+//! [`ParseError`], not silent absorption to end of input.
 
 use super::ParseError;
 
@@ -25,7 +29,7 @@ pub(super) enum Tok {
     Sym(String),
 }
 
-pub(super) fn tokenize(src: &str) -> Vec<Tok> {
+pub(super) fn tokenize(src: &str) -> Result<Vec<Tok>, ParseError> {
     let mut out = Vec::new();
     let bytes = src.as_bytes();
     let mut i = 0;
@@ -43,10 +47,38 @@ pub(super) fn tokenize(src: &str) -> Vec<Tok> {
         } else if b == b')' {
             out.push(Tok::RParen);
             i += 1;
+        } else if b == b'"' {
+            // String literal: scan to the closing quote, honouring the
+            // SMT-LIB `""` escape. Emitted verbatim as one atom.
+            let start = i;
+            let mut j = i + 1;
+            loop {
+                if j >= bytes.len() {
+                    return Err(ParseError::Malformed(
+                        "unterminated string literal".into(),
+                    ));
+                }
+                if bytes[j] == b'"' {
+                    if j + 1 < bytes.len() && bytes[j + 1] == b'"' {
+                        j += 2; // escaped quote, keep scanning
+                        continue;
+                    }
+                    break;
+                }
+                j += 1;
+            }
+            let s = std::str::from_utf8(&bytes[start..=j]).unwrap_or("").to_string();
+            out.push(Tok::Sym(s));
+            i = j + 1;
         } else if b == b'|' {
             let mut j = i + 1;
             while j < bytes.len() && bytes[j] != b'|' {
                 j += 1;
+            }
+            if j >= bytes.len() {
+                return Err(ParseError::Malformed(
+                    "unterminated quoted symbol".into(),
+                ));
             }
             let s = std::str::from_utf8(&bytes[i + 1..j]).unwrap_or("").to_string();
             out.push(Tok::Sym(s));
@@ -65,7 +97,7 @@ pub(super) fn tokenize(src: &str) -> Vec<Tok> {
             i = j;
         }
     }
-    out
+    Ok(out)
 }
 
 #[derive(Debug, Clone)]
