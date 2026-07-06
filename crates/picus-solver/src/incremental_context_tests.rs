@@ -478,6 +478,7 @@ fn make_partial_build(cs: &ConstraintSystem) -> PartialBuild {
     };
     PartialBuild {
         digest: digest_constraint_side(cs),
+        knobs: BasisKnobs::current(),
         poly_ring: Arc::new(encoded.poly_ring),
         var_map: encoded.var_map,
         constraint_polys: encoded.polynomials,
@@ -658,6 +659,7 @@ fn hand_partial(
     let bit_prop_state = BitProp::new(&poly_ring).to_state();
     PartialBuild {
         digest: 0,
+        knobs: BasisKnobs::current(),
         poly_ring,
         var_map,
         constraint_polys: Vec::new(),
@@ -816,6 +818,7 @@ fn solve_with_cached_sat_verifies_bitsum_polys() {
         split_gb_owned: vec![vec![x_basis], vec![]],
         bit_prop_state: BitProp::new(&pr).to_state(),
         digest: 0,
+        knobs: BasisKnobs::current(),
     };
     let cs = ConstraintSystemBuilder::new(BigUint::from(7u32)).build();
     let out = solve_with_cached(&cached, &cs, &CancelToken::none());
@@ -904,6 +907,7 @@ fn solve_with_cached_sat_rejected_by_bitsum_returns_unknown() {
         split_gb_owned: vec![vec![x_basis], vec![]],
         bit_prop_state: BitProp::new(&pr).to_state(),
         digest: 0,
+        knobs: BasisKnobs::current(),
     };
     let cs = ConstraintSystemBuilder::new(BigUint::from(7u32)).build();
     let out = solve_with_cached(&cached, &cs, &CancelToken::none());
@@ -1204,6 +1208,7 @@ fn solve_with_cached_k1_fallback_places_query_in_partition_zero() {
         split_gb_owned: vec![vec![]],
         bit_prop_state: BitProp::new(&pr).to_state(),
         digest: 0,
+        knobs: BasisKnobs::current(),
     };
     // Query: vars x, y; disequality (x, y); no equalities.
     let mut qb = ConstraintSystemBuilder::new(BigUint::from(7u32));
@@ -1300,4 +1305,75 @@ fn membership_fastpath_does_not_falsely_unsat_satisfiable_diseq() {
     ctx.solve(&sys, &cancel);
     let r = ctx.solve(&sys, &cancel);
     assert!(matches!(r, SolveOutcome::Sat(_)), "{:?}", r);
+}
+
+#[test]
+fn cache_invalidates_on_basis_shaping_knob_flip() {
+    // A digest hit after a basis-shaping config flip must rebuild the
+    // artifact under the new snapshot instead of serving the old one
+    // (query-time knobs would read the new config while the basis
+    // reflects the old — a torn config).
+    let sys = lin_eq_sys();
+    let cancel = CancelToken::none();
+    let mut ctx = IncrementalSolverContext::new();
+    ctx.solve(&sys, &cancel);
+    let r1 = ctx.solve(&sys, &cancel); // builds the cache
+    assert!(matches!(r1, SolveOutcome::Sat(_)), "{:?}", r1);
+    let knobs_before = ctx.cached_base.as_ref().expect("cache built").knobs;
+
+    {
+        let _g = crate::config::ConfigGuard::with_override(|c| {
+            c.poly_repr = crate::config::ReprKind::Dense;
+        });
+        let r2 = ctx.solve(&sys, &cancel);
+        assert!(matches!(r2, SolveOutcome::Sat(_)), "{:?}", r2);
+        let knobs_dense = ctx.cached_base.as_ref().expect("rebuilt").knobs;
+        assert_ne!(
+            knobs_before, knobs_dense,
+            "flip must rebuild the artifact under the new snapshot"
+        );
+    }
+
+    // Back at the default config: the dense-built artifact no longer
+    // matches, so the next solve rebuilds again.
+    let r3 = ctx.solve(&sys, &cancel);
+    assert!(matches!(r3, SolveOutcome::Sat(_)), "{:?}", r3);
+    assert_eq!(
+        ctx.cached_base.as_ref().expect("rebuilt back").knobs,
+        knobs_before
+    );
+}
+
+#[test]
+fn cached_path_bitprop_sees_bitsum_polys() {
+    // The cached-base build must scan `bitsum_polys` into BitProp like
+    // the stateless path does: the frozen state carries the bitsum
+    // registration, and the cache-hit solve reaches the same outcome
+    // class as the stateless solve.
+    let sys = bitsum_sat_sys();
+    let cancel = CancelToken::none();
+
+    let stateless = stateless_solve(&sys, &cancel);
+
+    let mut ctx = IncrementalSolverContext::new();
+    ctx.solve(&sys, &cancel);
+    let cached = ctx.solve(&sys, &cancel);
+
+    let state = &ctx.cached_base.as_ref().expect("cache built").bit_prop_state;
+    assert!(
+        !state.bitsums.is_empty(),
+        "cached BitProp state lost the extracted bitsum registration"
+    );
+    let class = |o: &SolveOutcome| match o {
+        SolveOutcome::Sat(_) => "sat",
+        SolveOutcome::Unsat(_) => "unsat",
+        SolveOutcome::Unknown => "unknown",
+    };
+    assert_eq!(
+        class(&stateless),
+        class(&cached),
+        "stateless={:?} cached={:?}",
+        stateless,
+        cached
+    );
 }

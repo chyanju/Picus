@@ -42,7 +42,9 @@ fn main() {
             cdclt_iter_cap,
             gb_stats,
             gb_trace,
+            cache,
             no_cache,
+            aboz_disj,
             no_aboz_disj,
             linear_elim,
             split_triangular,
@@ -61,11 +63,12 @@ fn main() {
             cdclt_incremental_theory,
         } => {
             // CLI overlay — the highest-precedence config layer. Only the
-            // flags actually passed on the command line become `Some`; everything
-            // else stays `None` and falls through to the config file,
-            // then built-in defaults (see `resolve_config`). On/off bool
-            // flags can only turn a knob *on* (or, for the `no_*` flags,
-            // off).
+            // flags actually passed on the command line become `Some`;
+            // everything else stays `None` and falls through to the
+            // config file, then built-in defaults (see `resolve_config`).
+            // Every boolean knob flag overrides in both directions (bare
+            // flag = on, explicit `off` value = off; `--no-cache` /
+            // `--no-aboz-disj` remain as off shorthands).
             let overlay = PicusConfigOverlay {
                 analysis: AnalysisOverlay {
                     solver,
@@ -74,7 +77,8 @@ fn main() {
                     timeout_ms: timeout,
                     lemmas,
                     dump_smt,
-                    aboz_emit_disjunctions: no_aboz_disj.then_some(false),
+                    aboz_emit_disjunctions: on_off(&aboz_disj)
+                        .or(no_aboz_disj.then_some(false)),
                 },
                 engine: EngineOverlay {
                     // Prefer the canonical --gb-strategy (parsed by the enum's
@@ -93,15 +97,15 @@ fn main() {
                     poly_repr: poly_repr
                         .as_deref()
                         .map(|s| s.parse::<ReprKind>().unwrap_or_else(|e| exit_error(&e))),
-                    use_f4: use_f4.then_some(true),
-                    dnf_enabled: dnf.then_some(true),
+                    use_f4: on_off(&use_f4),
+                    dnf_enabled: on_off(&dnf),
                     dnf_cap,
                     cdclt_iter_cap,
-                    gb_stats_enabled: gb_stats.then_some(true),
-                    gb_trace_enabled: gb_trace.then_some(true),
-                    cache_enabled: no_cache.then_some(false),
+                    gb_stats_enabled: on_off(&gb_stats),
+                    gb_trace_enabled: on_off(&gb_trace),
+                    cache_enabled: on_off(&cache).or(no_cache.then_some(false)),
                     profile_enabled: profile.as_deref().map(|s| s == "wall"),
-                    linear_elim: linear_elim.then_some(true),
+                    linear_elim: on_off(&linear_elim),
                     split_triangular: on_off(&split_triangular),
                     membership_fastpath: on_off(&membership_fastpath),
                     radical_membership: on_off(&radical_membership),

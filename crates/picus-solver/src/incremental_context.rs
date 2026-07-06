@@ -31,6 +31,39 @@ use crate::split_gb::{
 };
 use crate::timeout::CancelToken;
 
+/// Snapshot of the knobs baked into a cached artifact: the ring's
+/// representation and order (`poly_repr`, `dynamic_order`,
+/// `matrix_elim_order` shape the encoded ring) and the build-shaping
+/// engine selection (`gb_strategy`, `use_f4`). A cache entry built
+/// under one snapshot must not serve a solve running under another —
+/// query-time knobs would read the new config while the basis
+/// reflects the old one (a torn config, invalidating in-process A/B
+/// flips). Knobs whose effect is re-read fresh on every query-time
+/// extend (`reducer_index_cache`, the F4 sub-knobs, `frobenius_cache`,
+/// …) are deliberately NOT fingerprinted: flipping them already takes
+/// effect on the next call, and fingerprinting them would only force
+/// spurious rebuilds.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct BasisKnobs {
+    poly_repr: crate::config::ReprKind,
+    gb_strategy: crate::config::GbStrategy,
+    use_f4: bool,
+    dynamic_order: bool,
+    matrix_elim_order: bool,
+}
+
+impl BasisKnobs {
+    fn current() -> Self {
+        crate::config::with(|c| BasisKnobs {
+            poly_repr: c.poly_repr,
+            gb_strategy: c.gb_strategy,
+            use_f4: c.use_f4,
+            dynamic_order: c.dynamic_order,
+            matrix_elim_order: c.matrix_elim_order,
+        })
+    }
+}
+
 /// Cached state computed from the constraint side of one
 /// [`ConstraintSystem`] (everything except `disequalities`).
 pub(crate) struct CachedBase {
@@ -45,6 +78,7 @@ pub(crate) struct CachedBase {
     pub split_gb_owned: Vec<Vec<Poly>>,
     pub bit_prop_state: BitPropState,
     pub digest: u128,
+    knobs: BasisKnobs,
 }
 
 /// Partial GB build state preserved across solve calls. Used when the
@@ -54,6 +88,7 @@ pub(crate) struct CachedBase {
 /// is not lost.
 struct PartialBuild {
     digest: u128,
+    knobs: BasisKnobs,
     poly_ring: Arc<FfPolyRing>,
     var_map: HashMap<String, usize>,
     constraint_polys: Vec<Poly>,
@@ -102,8 +137,15 @@ impl IncrementalSolverContext {
     pub fn solve(&mut self, cs: &ConstraintSystem, cancel: &CancelToken) -> SolveOutcome {
         let digest = digest_constraint_side(cs);
 
-        let cache_matches = matches!(&self.cached_base, Some(c) if c.digest == digest);
-        let partial_matches = matches!(&self.partial_build, Some(p) if p.digest == digest);
+        // A digest hit only counts when the basis-shaping knobs still
+        // match the snapshot the artifact was built under; a config
+        // flip between solves forces a rebuild instead of running the
+        // query on a stale-config basis.
+        let knobs = BasisKnobs::current();
+        let cache_matches =
+            matches!(&self.cached_base, Some(c) if c.digest == digest && c.knobs == knobs);
+        let partial_matches =
+            matches!(&self.partial_build, Some(p) if p.digest == digest && p.knobs == knobs);
         let prev_digest_matches = self.last_digest == Some(digest);
         let should_build = !cache_matches && !partial_matches && prev_digest_matches;
         self.last_digest = Some(digest);
@@ -199,7 +241,13 @@ impl IncrementalSolverContext {
             build_partitions(&encoded.poly_ring, &encoded.polynomials, &encoded.bitsum_polys);
 
         let mut bit_prop = BitProp::new(&encoded.poly_ring);
+        // Order matters: phase 1 of the scan populates the bit-hint set
+        // that phase 2 chain parsing depends on, so originals go first —
+        // matching the stateless path, which scans both sets. Omitting
+        // the bitsum scan here silently disabled bitsum-derived
+        // propagation on every cache-backed solve.
         bit_prop.scan_polys(&encoded.polynomials);
+        bit_prop.scan_polys(&encoded.bitsum_polys);
 
         // Fast-path build. On cancel, `split_gb_cancel` returns
         // `Cancelled` and we transition to the resumable path.
@@ -224,6 +272,7 @@ impl IncrementalSolverContext {
                     split_gb_owned,
                     bit_prop_state,
                     digest,
+                    knobs: BasisKnobs::current(),
                 });
                 Ok(())
             }
@@ -247,6 +296,7 @@ impl IncrementalSolverContext {
                 let bit_prop_state = bit_prop.to_state();
                 self.partial_build = Some(PartialBuild {
                     digest,
+                    knobs: BasisKnobs::current(),
                     poly_ring: Arc::new(encoded.poly_ring),
                     var_map: encoded.var_map,
                     constraint_polys: encoded.polynomials,
@@ -445,6 +495,7 @@ fn continue_partial_inner(
         // fields via std::mem::replace.
         let dummy_partial = PartialBuild {
             digest: 0,
+            knobs: partial.knobs,
             poly_ring: partial.poly_ring.clone(),
             var_map: HashMap::new(),
             constraint_polys: Vec::new(),
@@ -492,6 +543,10 @@ fn finalize_partial(partial: PartialBuild) -> Option<CachedBase> {
         split_gb_owned,
         bit_prop_state: partial.bit_prop_state,
         digest: partial.digest,
+        // The artifact keeps the snapshot it was BUILT under, not the
+        // config at finalization time — a flip mid-resume must
+        // invalidate on the next digest check.
+        knobs: partial.knobs,
     })
 }
 

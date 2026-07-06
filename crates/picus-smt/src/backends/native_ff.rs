@@ -110,46 +110,55 @@ impl SolverBackend for NativeFfBackend {
         if cancel.is_cancelled() {
             return Ok(SolverResult::Unknown(UnknownReason::Timeout));
         }
-        // Opt-in linear (Gaussian) pre-elimination (off by default; see
-        // `RuntimeConfig::linear_elim`). When enabled, reduce the equality
-        // system once here so both the conjunctive and CDCL(T) per-check
-        // paths see the eliminated generators.
-        let reduced_ir = if picus_core::config::with(|c| c.linear_elim) {
-            ir.pre_eliminate_linear(cancel)
-        } else {
-            None
-        };
-        let ir: &PolySystem = reduced_ir.as_ref().unwrap_or(ir);
-        let indexed = ir.to_constraint_system();
-        metric::incr!(NATIVE_FF.solve_calls);
-        metric::scope! {
-            // Repeat-detection over consecutive constraint sides. The digest
-            // is expensive and the streak counter needs persisted
-            // last-digest state, both of which belong inside the gated
-            // `metric::scope!` so neither runs when profiling is off.
-            let d = digest_native_constraint_side(&indexed);
-            if self.last_cs_digest == Some(d) {
-                metric::incr!(NATIVE_FF.repeated_cs_digest_streak);
-            }
-            // `distinct_cs_digests` is incremented inside
-            // `IncrementalSolverContext::solve` on rebuild — single source of truth.
-            self.last_cs_digest = Some(d);
-        }
 
-        // Wrap encode + solve in catch_unwind as a safety net for any
-        // unexpected panics inside the solver (e.g., degree overflow).
-        // The guard silences the (expected) panic message on this thread
-        // for the duration; the process-global hook is installed once.
+        // Wrap pre-elimination + encode + solve in catch_unwind as a
+        // safety net for any unexpected panics inside the solver (e.g.,
+        // degree overflow). The guard silences the (expected) panic
+        // message on this thread for the duration; the process-global
+        // hook is installed once.
         let silence_guard = PanicSilenceGuard::new();
         let cache_enabled = picus_core::config::with(|c| c.cache_enabled);
         let cache = &mut self.cache;
+        let last_cs_digest = &mut self.last_cs_digest;
         // Combine the external cancel (Ctrl-C / parent-process abort)
         // with the per-call timeout into a single token the GB engine
-        // polls. Either source fires → GB exits cooperatively.
-        let external = cancel.clone();
+        // polls. Either source fires → GB exits cooperatively. Built
+        // ONCE, before the pre-elimination phase, so `timeout_ms` bounds
+        // the whole solve as documented — and reused inside the closure
+        // (a second token there would grant the solve a fresh budget on
+        // top of whatever elimination consumed).
+        let timeout_tok =
+            CancelToken::with_timeout(std::time::Duration::from_millis(timeout_ms));
+        let solve_cancel = CancelToken::either(cancel, &timeout_tok);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let timeout_tok = CancelToken::with_timeout(std::time::Duration::from_millis(timeout_ms));
-            let cancel = CancelToken::either(&external, &timeout_tok);
+            let cancel = solve_cancel.clone();
+            // Opt-in linear (Gaussian) pre-elimination (off by default;
+            // see `RuntimeConfig::linear_elim`). When enabled, reduce the
+            // equality system once here so both the conjunctive and
+            // CDCL(T) per-check paths see the eliminated generators. A
+            // cancelled elimination returns `None` and the solve
+            // proceeds on the original system.
+            let reduced_ir = if picus_core::config::with(|c| c.linear_elim) {
+                ir.pre_eliminate_linear(&cancel)
+            } else {
+                None
+            };
+            let ir: &PolySystem = reduced_ir.as_ref().unwrap_or(ir);
+            let indexed = ir.to_constraint_system();
+            metric::incr!(NATIVE_FF.solve_calls);
+            metric::scope! {
+                // Repeat-detection over consecutive constraint sides. The digest
+                // is expensive and the streak counter needs persisted
+                // last-digest state, both of which belong inside the gated
+                // `metric::scope!` so neither runs when profiling is off.
+                let d = digest_native_constraint_side(&indexed);
+                if *last_cs_digest == Some(d) {
+                    metric::incr!(NATIVE_FF.repeated_cs_digest_streak);
+                }
+                // `distinct_cs_digests` is incremented inside
+                // `IncrementalSolverContext::solve` on rebuild — single source of truth.
+                *last_cs_digest = Some(d);
+            }
             metric::timer!(NATIVE_FF.solve_inner_time_ns);
             let outcome = if !ir.disjunctions.is_empty() {
                 // Disjunction-aware path: route the whole query

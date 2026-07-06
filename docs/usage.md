@@ -35,15 +35,15 @@ picus check --r1cs circuit.r1cs --dump-smt /tmp/smt/         # dump SMT queries
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--poly-repr <sparse\|dense>` | `sparse` | Polynomial representation (`native`): `sparse` scales on wide rings, `dense` is faster on narrow rings |
-| `--use-f4` | off | F4 matrix reduction for batched same-sugar S-pairs (`native`) |
-| `--dnf` | off | Pick DNF instead of CNF for the boolean layer (`native`) |
+| `--use-f4 [on\|off]` | off | F4 matrix reduction for batched same-sugar S-pairs (`native`, dense engine only). Bare flag = on; `off` overrides a config file |
+| `--dnf [on\|off]` | off | Pick DNF instead of CNF for the boolean layer (`native`). Bare flag = on |
 | `--dnf-cap <N>` | `100000` | DNF expansion cap; returns `unknown` beyond this disjunct count |
 | `--cdclt-iter-cap <N>` | `1000000` | CDCL(T) outer-iteration cap |
-| `--gb-stats` | off | Emit per-run GB statistics to stderr (`native`) |
-| `--gb-trace` | off | Emit GB trace events to stderr (`native`) |
-| `--no-cache` | off | Disable the native FF backend's incremental Buchberger cache between successive `solve()` calls. Cache-off solves run the dense-only traced pipeline, so this also changes engine routing, not just cache reuse |
-| `--no-aboz-disj` | off | Disable the `aboz` lemma's entailed zero-product disjunctions (`native`) |
-| `--linear-elim` | off | Linear (Gaussian) pre-elimination before solving (`native`); may help linear-heavy circuits |
+| `--gb-stats [on\|off]` | off | Emit per-run GB statistics to stderr (`native`). Bare flag = on |
+| `--gb-trace [on\|off]` | off | Emit GB trace events to stderr (`native`). Bare flag = on |
+| `--cache <on\|off>` | on | The native FF backend's incremental Buchberger cache between successive `solve()` calls (`--no-cache` = shorthand for `off`). Cache-off solves run the dense-only traced pipeline, so this also changes engine routing, not just cache reuse |
+| `--aboz-disj <on\|off>` | on | The `aboz` lemma's entailed zero-product disjunctions (`--no-aboz-disj` = shorthand for `off`) |
+| `--linear-elim [on\|off]` | off | Linear (Gaussian) pre-elimination before solving (`native`); may help linear-heavy circuits. Bare flag = on. Runs inside the `--timeout` budget |
 | `--split-triangular <on\|off>` | off | Triangular model construction for a zero-dimensional combined system on the split-GB path, in place of the brancher DFS (`native`) |
 | `--membership-fastpath <on\|off>` | on | Ideal-membership Safe fast-path for uniqueness queries on the cached split-GB path: reduce `x_a − x_b` against the constraint-side basis and return UNSAT directly on a zero remainder (`native`) |
 | `--radical-membership <on\|off>` | off | Monolithic-GB radical Safe fast-path: whole-ring test on the GB of `I ∪ {(x_a−x_b)·w − 1}`, catching forced-equal outputs the partition reduction misses; bounded by a sub-budget (`native`) |

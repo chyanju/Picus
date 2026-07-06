@@ -99,14 +99,16 @@ pub(crate) enum Commands {
         /// under the default sparse representation it engages on the
         /// dense-routed legs (stateless/traced solves, DNF disjuncts,
         /// CDCL(T) checks); pair with --poly-repr dense to exercise it
-        /// on every solve.
-        #[arg(long)]
-        use_f4: bool,
+        /// on every solve. Bare flag means on; `--use-f4 off` overrides
+        /// a config file that enables it.
+        #[arg(long, value_parser = ["on", "off"], num_args = 0..=1, default_missing_value = "on")]
+        use_f4: Option<String>,
 
         /// Pick DNF instead of CNF for the boolean layer (native FF
-        /// backend only). Research flag.
-        #[arg(long)]
-        dnf: bool,
+        /// backend only). Research flag. Bare flag means on; `--dnf off`
+        /// overrides a config file that enables it.
+        #[arg(long, value_parser = ["on", "off"], num_args = 0..=1, default_missing_value = "on")]
+        dnf: Option<String>,
 
         /// DNF expansion cap; native FF returns Unknown beyond this
         /// disjunct count. [default: 100000]
@@ -120,34 +122,46 @@ pub(crate) enum Commands {
         cdclt_iter_cap: Option<u64>,
 
         /// Emit per-run GB statistics (basis size, S-pair counts) to
-        /// stderr (native FF backend only).
-        #[arg(long)]
-        gb_stats: bool,
+        /// stderr (native FF backend only). Bare flag means on;
+        /// `--gb-stats off` overrides a config file that enables it.
+        #[arg(long, value_parser = ["on", "off"], num_args = 0..=1, default_missing_value = "on")]
+        gb_stats: Option<String>,
 
         /// Emit GB trace events for the in-flight basis to stderr
-        /// (native FF backend only).
-        #[arg(long)]
-        gb_trace: bool,
+        /// (native FF backend only). Bare flag means on;
+        /// `--gb-trace off` overrides a config file that enables it.
+        #[arg(long, value_parser = ["on", "off"], num_args = 0..=1, default_missing_value = "on")]
+        gb_trace: Option<String>,
 
-        /// Disable the native FF backend's incremental Buchberger
-        /// cache between successive solve() calls. Useful for
-        /// benchmarking or for diagnosing cache bugs. Note: cache-off
-        /// solves run the dense-only traced pipeline, so this also
-        /// changes engine routing, not just cache reuse.
+        /// The native FF backend's incremental Buchberger cache between
+        /// successive solve() calls: on | off. Overrides a config file in
+        /// both directions. Note: cache-off solves run the dense-only
+        /// traced pipeline, so this also changes engine routing, not
+        /// just cache reuse.
+        #[arg(long, value_parser = ["on", "off"], conflicts_with = "no_cache")]
+        cache: Option<String>,
+
+        /// Shorthand for `--cache off`.
         #[arg(long)]
         no_cache: bool,
 
-        /// Disable the aboz lemma's entailed zero-product disjunctions
-        /// (native FF backend only). Default: enabled.
+        /// The aboz lemma's entailed zero-product disjunctions (native
+        /// FF backend only): on | off. Overrides a config file in both
+        /// directions. Default: enabled.
+        #[arg(long, value_parser = ["on", "off"], conflicts_with = "no_aboz_disj")]
+        aboz_disj: Option<String>,
+
+        /// Shorthand for `--aboz-disj off`.
         #[arg(long)]
         no_aboz_disj: bool,
 
         /// Enable linear (Gaussian) pre-elimination before solving (native
         /// FF backend only). Off by default; may help linear-heavy
         /// conjunctive circuits, but densifies the nonlinear part on the
-        /// general workload.
-        #[arg(long)]
-        linear_elim: bool,
+        /// general workload. Bare flag means on; `--linear-elim off`
+        /// overrides a config file that enables it.
+        #[arg(long, value_parser = ["on", "off"], num_args = 0..=1, default_missing_value = "on")]
+        linear_elim: Option<String>,
 
         /// Triangular model construction (cvc5 multi_roots analogue) on the
         /// default split-GB path: on | off. Decides a zero-dimensional
