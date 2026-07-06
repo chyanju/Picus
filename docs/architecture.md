@@ -96,12 +96,19 @@ dependencies.
 ### `picus-solver`
 
 The QF_FF solving engine built on `picus-core`. Modules are grouped into
-`gb/` (Gröbner-basis computation, ideals, models, root finding,
-homogenisation, tracing), `frontend/` (encoding and IO: `encoder`, `parse`,
-`rewriter`, `bitprop`, `bench_fixtures`), `sat/` + `cdclt/` (the SAT and
-CDCL(T) layers), `ff/` (the GB / root-finding engine over the `picus-core`
-algebra), `smt2/`, and `split_gb/`, with `core.rs`, `boolean.rs`, and
-`incremental_context.rs` at the root.
+`engine/` (the Buchberger / F4 / sparse-GB / root-finding algorithms over
+the `picus-core` algebra), `gb/` (the drivers that run them: ideals,
+models, root extraction, FGLM, homogenisation, UNSAT-core tracing),
+`split_gb/` (the conjunctive split-GB strategy, including `bitprop`),
+`frontend/` (`encoder`, `formula` — the Boolean IR — `parse`, `rewriter`,
+`bench_fixtures`), `sat/` + `cdclt/` (the SAT and CDCL(T) layers),
+`smt2/`, and at the root: `solve.rs` (the apex driver; `core` is a
+back-compat alias), `boolean.rs` (the DNF-vs-CDCL(T) router plus
+re-export shims), `dnf.rs` (the DNF strategy), `incremental_context.rs`
+(the backend-facing cache), `push_pop.rs` (a test/bench harness), and
+the feature-gated `testkit`. The public surface is the curated facade in
+`lib.rs` (enforced by `unreachable_pub`); everything else is
+`pub(crate)`.
 - **`ideal.rs`** — the `Ideal` type + `interreduce_basis`. Its
   `engine` submodule (`ideal/engine.rs`, re-exported so
   `gb::ideal::*` paths are unchanged) holds the `compute_gb_*` family
@@ -133,15 +140,16 @@ algebra), `smt2/`, and `split_gb/`, with `core.rs`, `boolean.rs`, and
   bypasses dispatch; algorithm implementations call it directly to
   avoid recursive dispatch (e.g. `BuchbergerByHomog` lowers its
   inner DegRevLex computation through this entry).
-- **`core.rs`** — `solve_split_gb`, `solve_single_gb`, `SolveOutcome`.
-  The top-level QF_FF solving entry point used by the `native_ff` backend.
+- **`solve.rs`** — `solve_encoded_with_cancel` / `solve_split_gb_cancel`
+  and `SolveOutcome` (`Unsat` carries `Option<UnsatCore>`: `None` means
+  UNSAT was proved without an attributable core — consumers never see a
+  fabricated one). The top-level QF_FF solving entry point used by the
+  `native_ff` backend.
 - **`split_gb/`** — Split GB algorithm with inter-basis propagation
   (OKTB23). `split_gb_cancel_traced` carries per-polynomial
   dependency sets through the fixpoint so whole-ring detection
   reports a sound (conservative over-approximation) UNSAT core.
-- **`gb.rs`** — Single GB solver (DegRevLex → Lex) with cooperative
-  timeout.
-- **`gb_homog.rs`** + **`homog_ring.rs`** — Homogenisation extension
+- **`homog.rs`** + **`homog_ring.rs`** — Homogenisation extension
   ring + GB-by-homogenisation driver. Used by
   `BuchbergerByHomog::compute`.
 - **`tracer.rs`** — UNSAT core tracing via `BuchbergerObserver`
@@ -158,15 +166,16 @@ algebra), `smt2/`, and `split_gb/`, with `core.rs`, `boolean.rs`, and
   within each term, sort terms by vars, merge like terms mod prime,
   drop zero-coefficient terms, drop `0 = 0` equalities. Mirrors
   cvc5's `theory_ff_rewriter`.
-- **`boolean.rs`** — `Formula` AST over `Eq` / `Neq` literals plus
-  `And` / `Or` / `Not` / `True` / `False`. `nnf` + `to_dnf` produce a
-  DNF; `BooleanQuery::from_formula` runs `rewrite_disjunctive_bit`
-  then NNF/DNF. `solve_boolean_query` dispatches to
-  `cdclt::solve_formula`; `RuntimeConfig::dnf_enabled` selects
-  `solve_boolean_query_dnf`, which routes each DNF disjunct through
-  `solve_encoded_with_cancel`. `rewrite_disjunctive_bit` matches
-  cvc5's `preprocessing/passes/ff_disjunctive_bit.cpp`
-  (`(or (= x 0) (= x 1))` → `x*x = x`).
+- **`frontend/formula.rs`** — the Boolean IR: `Formula` AST over
+  `Eq` / `Neq` literals plus `And` / `Or` / `Not` / `True` / `False`,
+  the `BooleanQuery` wrapper, `nnf` / `to_dnf`, and the
+  strategy-neutral `rewrite_disjunctive_bit` (cvc5's
+  `ff_disjunctive_bit.cpp`: `(or (= x 0) (= x 1))` → `x*x = x`).
+  Consumed by both strategies, the parser, and the picus-smt seam.
+- **`boolean.rs`** — the strategy router only: `solve_boolean_query`
+  dispatches to `cdclt::solve_formula`, or to `dnf::solve_boolean_query_dnf`
+  when `RuntimeConfig::dnf_enabled` — so neither strategy depends on
+  the other. Re-exports keep the historical `boolean::` paths valid.
 - **`sat/`** — In-tree CDCL Boolean SAT solver. `lit` (Var / Lit /
   LBool), `clause` (Clause / ClauseArena), `solver` (Solver).
   Watched-literal unit propagation, 1-UIP conflict analysis with

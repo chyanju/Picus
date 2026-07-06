@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
+## [Unreleased]
+
+picus-solver architecture pass. Verdict-preserving throughout; native + cvc5/z3 suites green.
+
+### Fixed
+- F4 + `f4_hilbert_select`: batch generators were labelled `lowest_sugar` instead of the drained `chosen_sugar` (debug: assert → Unknown; release: corrupted S-pair queue order).
+- The cdclt incremental theory runs its inner GB engine under the solve deadline's cancel token; an extend error degrades to Unknown instead of being swallowed with a desynced trail.
+- `sat::add_theory_lemma_with_trail` enforces its all-literals-False precondition (fail closed to `give_up`, never wrong root UNSAT / corrupted 1-UIP).
+- Resumable partial builds: non-timeout engine errors, fixpoint-cap exhaustion, and repeated stalled resumes drop the partial (stateless fallback) instead of pinning the digest to permanent Unknown.
+
+### API (picus-solver internal seam)
+- `SolveOutcome::Unsat(Option<UnsatCore>)`: fabricated index-frame cores are gone (`None` = proved without an attributable core); the index frame is documented on the type. CDCL(T) maps `None` to the full asserted-fact set, never Unknown.
+- `CheckOutcome::Sat(model)`: the theory hands its model with the verdict; `collect_model` and the per-impl `has_model`/`last_model` bookkeeping removed.
+- GB entry points return `GbOutcome { Basis | Cancelled | Failed }` instead of a tri-state `Vec<Poly>` sentinel; the defensive generator backup-clone per GB call is deleted.
+- Encoding errors are typed (`EngineError::Encoding`) end to end; caught engine panics keep site + payload (`EngineError::EnginePanic`); `EngineError` documents the `panic = "unwind"` assumption.
+
+### Structure
+- Public surface shrunk to the measured seam: `engine` (ex-`ff`) and `split_gb` are `pub(crate)`; cdclt exposes only `solve_formula`; a curated `lib.rs` facade re-exports what picus-smt consumes; `#![warn(unreachable_pub)]` enforces the boundary (~320 items downgraded).
+- `core` → `solve` (alias kept); `ff` → `engine`; `gb_homog` → `homog`; the Boolean layer splits into `frontend::formula` (IR) / `dnf` (strategy) / `boolean` (router + shims), removing the `boolean ↔ cdclt` cycle; `bitprop` moves into `split_gb`; the push/pop rebuild harness moves to `push_pop` as `RebuildOnCheckSolver`.
+- One fixpoint body (`run_fixpoint_impl`) drives the traced and untraced split-GB drivers; candidates scanned by reference in all three drivers (no per-iteration basis deep-clone); `route_query_polys` gives the partition layout a single owner.
+- One `integrate_new_element` for the dense engine's four integration sites; the F4 fallback honours `reducer_index_cache`; one `Solver::handle_conflict` step drives both CDCL loops.
+
+### Removed
+- The production-unreachable single-GB solver mode (`solve_single_gb`, the `gb` root API, `track_inter_reduce_deps` knob + tracer inter-reduce hooks).
+- The GVW signature path (`signature_criterion` knob, `gvw.rs`, `signature.rs`; its activating dispatch had zero test coverage).
+- The legacy SMT2 conjunctive pipeline (`parse`/`handle_assert`/`build_poly`) — one operator table (`parse_boolean`) remains; multi-prime (`parse_boolean_multi`/`solve_formula_multi`) is explicitly parked (`#[doc(hidden)]`).
+- Never-read `BuchbergerConfig.order`/`GBasis.order`; phantom `rug`/`num-integer`/`env_logger` manifest deps.
+
+### Config
+- `BuchbergerConfig` snapshots all engine knobs at construction (no mid-run thread-local reads); GB dispatch routes by the repr recorded on the ring (`new_with_repr` honoured); `incremental_engine()` owns the incremental policy (`use_f4` off) for all consumers; one `TheoryChoice` resolution warns on shadowed cdclt knobs; the four dense-engine-only knobs are documented as such (CLI stub labels fixed).
+
+### Tests
+- New oracles: engine-matrix parity (router/EE/F4 strict; incremental soundness-modulo-Unknown), 250-case brute-force SAT differential, UNSAT-core re-solve battery + S-pair-derived traced core.
+- One fixture DSL (`testkit` feature, `picus_r1cs::testkit` pattern); the two different ideals both named `katsura_n` are now `katsura_faugere` / `katsura_reduced_vars`; test files converge on `x_tests` / `x_tests_<topic>`.
+
+### Diagnostics
+- `[picus-gb-stats]` / fixpoint-trace dumps emit via `log` targets `picus::gb_stats` / `picus::gb_trace` (CLI defaults them on; embedders can redirect); split_gb speaks one "partition" vocabulary and the split-GB citation is corrected to CAV 2024; rustdoc intra-doc links at zero warnings; `run_smt2`/`cvc5_compare` accept `--config <knobs.toml>`.
+
 ## [1.8.27] - 2026-07-05
 
 ### API
