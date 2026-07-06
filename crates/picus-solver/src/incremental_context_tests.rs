@@ -271,7 +271,7 @@ fn pre_cancelled_solve_returns_unknown_or_stateless() {
     // finished before the cancel check fired) — both sound.
     assert!(matches!(
         out,
-        SolveOutcome::Unknown | SolveOutcome::Sat(_) | SolveOutcome::Unsat(_)
+        SolveOutcome::Unknown(_) | SolveOutcome::Sat(_) | SolveOutcome::Unsat(_)
     ));
 }
 
@@ -558,7 +558,7 @@ fn solve_resume_still_partial_keeps_partial_and_returns_unknown() {
     ctx.partial_build = Some(make_partial_build(&cs));
     let out = ctx.solve(&cs, &CancelToken::cancelled());
     assert!(
-        matches!(out, SolveOutcome::Unknown),
+        matches!(out, SolveOutcome::Unknown(_)),
         "StillPartial resume must return Unknown, got {:?}",
         out
     );
@@ -790,7 +790,7 @@ fn solve_with_cached_extend_cancel_returns_unknown() {
     let cached = ctx.cached_base.as_ref().expect("cache");
     let out = solve_with_cached(cached, &cs, &CancelToken::cancelled());
     assert!(
-        matches!(out, SolveOutcome::Unknown),
+        matches!(out, SolveOutcome::Unknown(_)),
         "cancelled extend must yield Unknown, got {:?}",
         out
     );
@@ -912,7 +912,7 @@ fn solve_with_cached_sat_rejected_by_bitsum_returns_unknown() {
     let cs = ConstraintSystemBuilder::new(BigUint::from(7u32)).build();
     let out = solve_with_cached(&cached, &cs, &CancelToken::none());
     assert!(
-        matches!(out, SolveOutcome::Unknown),
+        matches!(out, SolveOutcome::Unknown(_)),
         "model fails bitsum verification → Unknown, got {:?}",
         out
     );
@@ -975,10 +975,10 @@ fn solve_falls_back_to_stateless_when_rebuild_encode_fails() {
     let mut ctx = IncrementalSolverContext::new();
     let cs = out_of_range_eq_sys();
     let first = ctx.solve(&cs, &CancelToken::none()); // stateless, sets last_digest
-    assert!(matches!(first, SolveOutcome::Unknown));
+    assert!(matches!(first, SolveOutcome::Unknown(_)));
     let out = ctx.solve(&cs, &CancelToken::none()); // should_build → rebuild Err → stateless
     assert!(
-        matches!(out, SolveOutcome::Unknown),
+        matches!(out, SolveOutcome::Unknown(_)),
         "encode failure must surface Unknown via stateless fallback, got {:?}",
         out
     );
@@ -989,11 +989,11 @@ fn solve_falls_back_to_stateless_when_rebuild_encode_fails() {
 #[test]
 fn stateless_solve_encode_failure_returns_unknown() {
     // stateless_solve's `encode` returns Err on the out-of-range system, so
-    // the `Err(_) => SolveOutcome::Unknown` arm fires directly.
+    // the `Err(_) => SolveOutcome::Unknown(_)` arm fires directly.
     let cs = out_of_range_eq_sys();
     let out = stateless_solve(&cs, &CancelToken::none());
     assert!(
-        matches!(out, SolveOutcome::Unknown),
+        matches!(out, SolveOutcome::Unknown(_)),
         "encode error in stateless_solve → Unknown, got {:?}",
         out
     );
@@ -1367,7 +1367,7 @@ fn cached_path_bitprop_sees_bitsum_polys() {
     let class = |o: &SolveOutcome| match o {
         SolveOutcome::Sat(_) => "sat",
         SolveOutcome::Unsat(_) => "unsat",
-        SolveOutcome::Unknown => "unknown",
+        SolveOutcome::Unknown(_) => "unknown",
     };
     assert_eq!(
         class(&stateless),

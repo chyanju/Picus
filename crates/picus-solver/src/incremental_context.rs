@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::split_gb::bitprop::{BitProp, BitPropState};
-use crate::solve::SolveOutcome;
+use crate::solve::{SolveOutcome, UnknownCause};
 use crate::frontend::encoder::{
     encode, encode_constraint_side, ConstraintSystem,
 };
@@ -173,7 +173,7 @@ impl IncrementalSolverContext {
                 }
                 ResumeOutcome::StillPartial => {
                     self.partial_build = Some(partial);
-                    return SolveOutcome::Unknown;
+                    return SolveOutcome::Unknown(UnknownCause::Cancelled);
                 }
                 ResumeOutcome::Failed => {
                     return stateless_solve(cs, cancel);
@@ -194,7 +194,7 @@ impl IncrementalSolverContext {
             // If the rebuild was cancelled, `rebuild_base` left
             // `partial_build` populated for resumption.
             if self.partial_build.is_some() && self.cached_base.is_none() {
-                return SolveOutcome::Unknown;
+                return SolveOutcome::Unknown(UnknownCause::Cancelled);
             }
         } else {
             metric::incr!(NATIVE_FF.cache_hits);
@@ -717,7 +717,13 @@ fn solve_with_cached(
         cancel,
     ) {
         Ok(b) => b,
-        Err(_) => return SolveOutcome::Unknown,
+        Err(_) => {
+            return SolveOutcome::Unknown(if cancel.is_cancelled() {
+                UnknownCause::Cancelled
+            } else {
+                UnknownCause::EngineFailure
+            });
+        }
     };
 
     if new_basis.iter().any(|b| b.is_whole_ring()) {
@@ -751,14 +757,29 @@ fn solve_with_cached(
             if model::verify_model(poly_ring, &full_polys, &model_map) {
                 SolveOutcome::Sat(model_map)
             } else {
-                SolveOutcome::Unknown
+                // Same engine-defect signal as the stateless path's
+                // gate (solve.rs); the cached path names itself so a
+                // cache-related defect is attributable.
+                log::warn!("cached-path model validation failed; reporting Unknown");
+                metric::incr!(crate::profile::UNKNOWNS.model_validation_failures);
+                SolveOutcome::Unknown(UnknownCause::ModelValidation)
             }
         }
         Ok(SplitFindZeroOutcome::Unsat) => {
             SolveOutcome::Unsat(None)
         }
-        Ok(SplitFindZeroOutcome::Unknown) => SolveOutcome::Unknown,
-        Err(_) => SolveOutcome::Unknown,
+        Ok(SplitFindZeroOutcome::Unknown) => {
+            SolveOutcome::Unknown(if cancel.is_cancelled() {
+                UnknownCause::Cancelled
+            } else {
+                UnknownCause::BoundedSearch
+            })
+        }
+        Err(_) => SolveOutcome::Unknown(if cancel.is_cancelled() {
+            UnknownCause::Cancelled
+        } else {
+            UnknownCause::EngineFailure
+        }),
     };
     outcome
 }
@@ -766,7 +787,14 @@ fn solve_with_cached(
 fn stateless_solve(cs: &ConstraintSystem, cancel: &CancelToken) -> SolveOutcome {
     match encode(cs) {
         Ok(encoded) => crate::solve::solve_encoded_with_cancel(&encoded, cancel),
-        Err(_) => SolveOutcome::Unknown,
+        Err(e) => {
+            // An encoder rejection is a property of the input, not a
+            // timeout; log the actionable message and classify it so
+            // the seam does not report it as retryable.
+            log::warn!("encode failed; reporting Unknown: {}", e);
+            metric::incr!(crate::profile::UNKNOWNS.encoding_failures);
+            SolveOutcome::Unknown(UnknownCause::EncodingFailure)
+        }
     }
 }
 

@@ -28,7 +28,7 @@ fn solve(system: &NamedSystem) -> &'static str {
     match solve_encoded(&encoded) {
         SolveOutcome::Sat(_) => "sat",
         SolveOutcome::Unsat(_) => "unsat",
-        SolveOutcome::Unknown => "unknown",
+        SolveOutcome::Unknown(_) => "unknown",
     }
 }
 

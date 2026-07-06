@@ -11,6 +11,7 @@
 //! [`Solver::trail`].
 
 use super::clause::{Clause, ClauseArena, ClauseRef};
+use crate::metric;
 use super::lit::{LBool, Lit, Var};
 
 /// Outcome of [`Solver::handle_conflict`].
@@ -494,6 +495,8 @@ impl Solver {
                     // conflict so the caller routes to Unknown rather than
                     // silently dropping a propagation.
                     self.give_up = true;
+                    metric::incr!(crate::profile::UNKNOWNS.sat_give_ups);
+                    log::error!("sat: fail-closed give-up (watched-literal enqueue of a proven-Undef literal failed)");
                     while read < watchers.len() {
                         watchers[write] = watchers[read];
                         write += 1;
@@ -557,6 +560,8 @@ impl Solver {
         // mirroring [`Self::enqueue_theory`].
         if lits.iter().any(|&l| self.lit_value(l) != LBool::False) {
             self.give_up = true;
+            metric::incr!(crate::profile::UNKNOWNS.sat_give_ups);
+            log::error!("sat: fail-closed give-up (theory lemma literal not False — explanation diverged from the SAT trail)");
             return None;
         }
         lits.sort_by_key(|&l| std::cmp::Reverse(self.level[l.var().index()]));
@@ -591,6 +596,8 @@ impl Solver {
                     // learnt reason is asserting. Must NOT report UNSAT:
                     // flag give-up so the caller returns Unknown.
                     self.give_up = true;
+                    metric::incr!(crate::profile::UNKNOWNS.sat_give_ups);
+                    log::error!("sat: fail-closed give-up (1-UIP resolution bailed)");
                     None
                 }
             }
@@ -622,6 +629,8 @@ impl Solver {
     /// Unknown. The CDCL(T) caller observes this via [`Self::gave_up`].
     pub(crate) fn mark_give_up(&mut self) {
         self.give_up = true;
+        metric::incr!(crate::profile::UNKNOWNS.sat_give_ups);
+        log::error!("sat: fail-closed give-up (theory core literal unassigned in SAT — trail divergence)");
     }
 
     /// Number of literals on the trail.
@@ -694,6 +703,8 @@ impl Solver {
                     // bail so the caller routes to Unknown rather than
                     // emitting a wrong verdict.
                     self.give_up = true;
+                    metric::incr!(crate::profile::UNKNOWNS.sat_give_ups);
+                    log::error!("sat: fail-closed give-up (1-UIP trail walk exhausted)");
                     return None;
                 }
                 trail_idx -= 1;

@@ -187,7 +187,7 @@ fn time_solve_median(cs: &NamedSystem, iters: usize) -> (u128, &'static str) {
         verdict = match out {
             SolveOutcome::Sat(_) => "sat",
             SolveOutcome::Unsat(_) => "unsat",
-            SolveOutcome::Unknown => "unknown",
+            SolveOutcome::Unknown(_) => "unknown",
         };
     }
     total_times.sort();

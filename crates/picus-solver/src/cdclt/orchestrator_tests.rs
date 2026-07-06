@@ -431,7 +431,7 @@ fn loop_post_check_unknown_returns_unknown() {
     let mut th = ScriptedTheory::new();
     th.checks.push_back(CheckOutcome::Unknown);
     let r = drive_loop(&mut sat, &mut th, &CancelToken::none());
-    assert!(matches!(r, SolveOutcome::Unknown), "got {:?}", r);
+    assert!(matches!(r, SolveOutcome::Unknown(_)), "got {:?}", r);
 }
 
 #[test]
@@ -792,7 +792,7 @@ fn hardprobe_cancel_short_circuits_loop_across_theory_scripts() {
         let mut sat = Solver::new();
         let mut th = ScriptedTheory::new();
         let r = cdclt_loop(&mut sat, &mut th, &CancelToken::cancelled());
-        assert!(matches!(r, SolveOutcome::Unknown), "Idle: got {r:?}");
+        assert!(matches!(r, SolveOutcome::Unknown(_)), "Idle: got {r:?}");
     }
     // Progressed-trigger.
     {
@@ -803,7 +803,7 @@ fn hardprobe_cancel_short_circuits_loop_across_theory_scripts() {
         th.props.push_back(vec![(b, true)]);
         th.reasons.insert(b, vec![(a, true)]);
         let r = cdclt_loop(&mut sat, &mut th, &CancelToken::cancelled());
-        assert!(matches!(r, SolveOutcome::Unknown), "Progressed: got {r:?}");
+        assert!(matches!(r, SolveOutcome::Unknown(_)), "Progressed: got {r:?}");
     }
     // Post_check Sat.
     {
@@ -811,7 +811,7 @@ fn hardprobe_cancel_short_circuits_loop_across_theory_scripts() {
         let mut th = ScriptedTheory::new();
         th.checks.push_back(CheckOutcome::Sat(HashMap::new()));
         let r = cdclt_loop(&mut sat, &mut th, &CancelToken::cancelled());
-        assert!(matches!(r, SolveOutcome::Unknown), "PostSat: got {r:?}");
+        assert!(matches!(r, SolveOutcome::Unknown(_)), "PostSat: got {r:?}");
     }
     // Post_check Unsat.
     {
@@ -820,7 +820,7 @@ fn hardprobe_cancel_short_circuits_loop_across_theory_scripts() {
         let mut th = ScriptedTheory::new();
         th.checks.push_back(CheckOutcome::Unsat { core: vec![v] });
         let r = cdclt_loop(&mut sat, &mut th, &CancelToken::cancelled());
-        assert!(matches!(r, SolveOutcome::Unknown), "PostUnsat: got {r:?}");
+        assert!(matches!(r, SolveOutcome::Unknown(_)), "PostUnsat: got {r:?}");
     }
     // Post_check Unknown.
     {
@@ -828,7 +828,7 @@ fn hardprobe_cancel_short_circuits_loop_across_theory_scripts() {
         let mut th = ScriptedTheory::new();
         th.checks.push_back(CheckOutcome::Unknown);
         let r = cdclt_loop(&mut sat, &mut th, &CancelToken::cancelled());
-        assert!(matches!(r, SolveOutcome::Unknown), "PostUnknown: got {r:?}");
+        assert!(matches!(r, SolveOutcome::Unknown(_)), "PostUnknown: got {r:?}");
     }
 }
 
@@ -851,7 +851,7 @@ fn hardprobe_cancel_set_before_loop_invariant_outcome_is_unknown() {
     let cancel = CancelToken::cancelled();
     let r = cdclt_loop(&mut sat, &mut th, &cancel);
     assert!(
-        matches!(r, SolveOutcome::Unknown),
+        matches!(r, SolveOutcome::Unknown(_)),
         "SPEC: pre-cancelled token must yield Unknown, not Sat (got {r:?})"
     );
 }
@@ -910,7 +910,7 @@ fn hardprobe_iter_cap_does_not_flip_verdict_on_decidable_instance() {
     let cls = |r: &SolveOutcome| match r {
         SolveOutcome::Sat(_) => "Sat",
         SolveOutcome::Unsat(_) => "Unsat",
-        SolveOutcome::Unknown => "Unknown",
+        SolveOutcome::Unknown(_) => "Unknown",
     };
     assert_eq!(
         cls(&r1),
@@ -929,7 +929,7 @@ fn hardprobe_cancellation_does_not_leak_across_solve_calls() {
     let f = eq(1, 0, 5);
     // First call: cancelled token ⇒ Unknown.
     let r1 = solve_formula(prime.clone(), &vn, &f, &CancelToken::cancelled());
-    assert!(matches!(r1, SolveOutcome::Unknown), "SPEC: first call Unknown, got {r1:?}");
+    assert!(matches!(r1, SolveOutcome::Unknown(_)), "SPEC: first call Unknown, got {r1:?}");
     // Second call: fresh token ⇒ Sat with x=5.
     let r2 = solve_formula(prime, &vn, &f, &CancelToken::none());
     match r2 {
@@ -1156,7 +1156,7 @@ fn hardprobe_gf7_3bit_collision_keeps_real_solution() {
         SolveOutcome::Unsat(_) => panic!(
             "GF(7) collision: (1,1,1) is a real solution; UNSAT is unsound (bitprop fit-guard class)"
         ),
-        SolveOutcome::Unknown => {}
+        SolveOutcome::Unknown(_) => {}
     }
 }
 
@@ -1303,7 +1303,7 @@ fn hardprobe_bitsum_pre_cancelled_returns_unknown() {
         bitsum_eq_const(&[0, 1, 2], 5),
     ]);
     let r = solve_formula(prime, &vn, &f, &CancelToken::cancelled());
-    assert!(matches!(r, SolveOutcome::Unknown),
+    assert!(matches!(r, SolveOutcome::Unknown(_)),
         "pre-cancelled bitsum solve must return Unknown, got {:?}", r);
 }
 
@@ -1536,7 +1536,7 @@ fn hardprobe_gf7_3bit_all_pins_must_be_sat() {
             SolveOutcome::Unsat(_) => panic!(
                 "GF(7) v={}: real solution exists; UNSAT is unsound (bitprop fit-guard class)", v
             ),
-            SolveOutcome::Unknown => {}
+            SolveOutcome::Unknown(_) => {}
         }
     }
 }

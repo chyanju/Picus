@@ -88,6 +88,21 @@ enum ModelExtraction {
     Unknown,
 }
 
+/// Log + count one sticky-degradation transition. A routine timeout is
+/// debug-level (budget-limited runs would otherwise flood warn); an
+/// engine failure is warn-level with the error preserved.
+fn degrade(site: &str, e: &crate::EngineError) {
+    crate::metric::incr!(crate::profile::UNKNOWNS.theory_degradations);
+    match e {
+        crate::EngineError::Timeout => {
+            log::debug!("incremental FF theory degraded at {}: timeout", site);
+        }
+        other => {
+            log::warn!("incremental FF theory degraded at {}: {}", site, other);
+        }
+    }
+}
+
 impl<'a> IncrementalFfTheoryState<'a> {
     pub(crate) fn new(atoms: &'a AtomTable, cancel: &'a CancelToken, max_vars: usize) -> Self {
         let prime = atoms.prime().clone();
@@ -244,7 +259,8 @@ impl<'a> IncrementalFfTheoryState<'a> {
                 // Err (timeout/engine failure) ⇒ the basis may lack this
                 // slot's field polynomial; only Unknown is safe until a
                 // `pop` past this level restores basis and flag together.
-                if self.igb.add_generators(vec![fp]).is_err() {
+                if let Err(e) = self.igb.add_generators(vec![fp]) {
+                    degrade("field-poly extend", &e);
                     self.degraded = true;
                 }
             }
@@ -321,6 +337,11 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
         let polys = match self.build_atom_polys(atom, polarity) {
             Some(p) => p,
             None => {
+                log::warn!(
+                    "incremental FF theory degraded: atom unencodable or \
+                     slot budget exhausted"
+                );
+                crate::metric::incr!(crate::profile::UNKNOWNS.theory_degradations);
                 self.degraded = true;
                 return;
             }
@@ -329,7 +350,8 @@ impl<'a> Theory for IncrementalFfTheoryState<'a> {
         // Err (timeout/engine failure) may leave `igb` partially extended;
         // roll the trail back and degrade so `post_check` answers Unknown
         // until a `pop` restores basis and flag together.
-        if self.igb.add_generators(polys).is_err() {
+        if let Err(e) = self.igb.add_generators(polys) {
+            degrade("fact extend", &e);
             self.facts.pop();
             self.degraded = true;
         }

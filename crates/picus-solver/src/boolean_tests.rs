@@ -124,7 +124,7 @@ fn outcome_kind(o: &SolveOutcome) -> &'static str {
     match o {
         SolveOutcome::Sat(_) => "sat",
         SolveOutcome::Unsat(_) => "unsat",
-        SolveOutcome::Unknown => "unknown",
+        SolveOutcome::Unknown(_) => "unknown",
     }
 }
 
@@ -269,7 +269,7 @@ fn solve_boolean_query_dnf_returns_unknown_past_cap() {
 "#;
     let q = crate::smt2::parse_boolean(src).expect("parse");
     let outcome = solve_boolean_query_dnf(&q, &CancelToken::none());
-    assert!(matches!(outcome, SolveOutcome::Unknown));
+    assert!(matches!(outcome, SolveOutcome::Unknown(_)));
 }
 
 #[test]
@@ -505,7 +505,7 @@ fn solve_boolean_query_dnf_returns_unknown_when_cancelled_mid_enumeration() {
     let q = BooleanQuery::from_builder_and_formula(builder, f);
     assert_eq!(q.dnf().len(), 1);
     let outcome = solve_boolean_query_dnf(&q, &CancelToken::cancelled());
-    assert!(matches!(outcome, SolveOutcome::Unknown));
+    assert!(matches!(outcome, SolveOutcome::Unknown(_)));
 }
 
 #[test]
@@ -528,5 +528,5 @@ fn solve_boolean_query_dnf_encode_error_disjunct_yields_unknown() {
     // returns Err — confirming the precondition the solver path relies on.
     assert!(encode(&systems[0]).is_err());
     let outcome = solve_boolean_query_dnf(&q, &CancelToken::none());
-    assert!(matches!(outcome, SolveOutcome::Unknown));
+    assert!(matches!(outcome, SolveOutcome::Unknown(_)));
 }

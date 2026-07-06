@@ -25,6 +25,50 @@ use std::time::Duration;
 /// — consumers must not substitute a fabricated one.
 pub type UnsatCore = Vec<usize>;
 
+/// Why a solve returned [`SolveOutcome::Unknown`]. Carried on the
+/// variant so the backend seam can map each cause to the right
+/// user-facing reason (retryable timeout vs incompleteness vs engine
+/// defect) instead of labelling every Unknown a timeout. Verdict
+/// classification is unaffected — every cause is still just Unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnknownCause {
+    /// The cancel token fired (external cancel or per-call timeout).
+    Cancelled,
+    /// CDCL(T) outer-iteration cap (`cdclt_iter_cap`) exhausted.
+    IterCap,
+    /// DNF expansion cap (`dnf_cap`) exceeded.
+    DnfCap,
+    /// A bounded (non-exhaustive) model search ran dry without a
+    /// verdict.
+    BoundedSearch,
+    /// A theory degraded (sticky degradation flag, SAT give-up, slot
+    /// budget) and no verdict over the full trail is safe.
+    DegradedTheory,
+    /// Engine failure: caught panic or internal error, fail-closed.
+    EngineFailure,
+    /// The encoder rejected the input.
+    EncodingFailure,
+    /// A produced model failed re-verification (an engine defect; the
+    /// fail-closed gate held).
+    ModelValidation,
+}
+
+impl std::fmt::Display for UnknownCause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            UnknownCause::Cancelled => "cancelled/timeout",
+            UnknownCause::IterCap => "cdclt iteration cap",
+            UnknownCause::DnfCap => "dnf expansion cap",
+            UnknownCause::BoundedSearch => "bounded search exhausted",
+            UnknownCause::DegradedTheory => "theory degraded",
+            UnknownCause::EngineFailure => "engine failure",
+            UnknownCause::EncodingFailure => "encoding failure",
+            UnknownCause::ModelValidation => "model validation failure",
+        };
+        f.write_str(s)
+    }
+}
+
 /// Outcome of the core solver.
 ///
 /// `Unsat` and `Unknown` are distinct: `Unsat` is a proof of
@@ -38,9 +82,9 @@ pub enum SolveOutcome {
     /// contradiction; `None` means no attributable core was computed
     /// (the verdict is still a proof).
     Unsat(Option<UnsatCore>),
-    /// Unknown — the solver was cancelled, or bounded search exhausted
-    /// without proving a definite verdict. Distinct from `Unsat`.
-    Unknown,
+    /// Unknown — no verdict; the [`UnknownCause`] says why. Distinct
+    /// from `Unsat`.
+    Unknown(UnknownCause),
 }
 
 /// Solve a system of polynomial constraints using the Split GB algorithm.
@@ -182,7 +226,13 @@ pub fn solve_split_gb_cancel<'r>(
         cancel,
     ) {
         Ok(t) => t,
-        Err(_) => return SolveOutcome::Unknown,
+        Err(_) => {
+            return SolveOutcome::Unknown(if cancel.is_cancelled() {
+                UnknownCause::Cancelled
+            } else {
+                UnknownCause::EngineFailure
+            });
+        }
     };
     let split_basis = traced.split_basis;
 
@@ -205,14 +255,24 @@ pub fn solve_split_gb_cancel<'r>(
                 SolveOutcome::Sat(model_map)
             } else {
                 log::warn!("model validation failed; reporting Unknown");
-                SolveOutcome::Unknown
+                SolveOutcome::Unknown(UnknownCause::ModelValidation)
             }
         }
         Ok(crate::split_gb::SplitFindZeroOutcome::Unsat) => {
             SolveOutcome::Unsat(None)
         }
-        Ok(crate::split_gb::SplitFindZeroOutcome::Unknown) => SolveOutcome::Unknown,
-        Err(_) => SolveOutcome::Unknown,
+        Ok(crate::split_gb::SplitFindZeroOutcome::Unknown) => {
+            SolveOutcome::Unknown(if cancel.is_cancelled() {
+                UnknownCause::Cancelled
+            } else {
+                UnknownCause::BoundedSearch
+            })
+        }
+        Err(_) => SolveOutcome::Unknown(if cancel.is_cancelled() {
+            UnknownCause::Cancelled
+        } else {
+            UnknownCause::EngineFailure
+        }),
     }
 }
 

@@ -13,9 +13,11 @@ use commands::{cmd_check, cmd_info, exit_error, install_profile_signal_handler, 
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
-        // Keep the knob-gated GB diagnostics reaching stderr as before;
-        // an explicit RUST_LOG overrides this default.
-        "error,picus::gb_stats=debug,picus::gb_trace=trace",
+        // warn by default so the solver's Unknown-cause diagnostics
+        // (degradations, caps, validation failures) reach stderr without
+        // a hand-set RUST_LOG; the knob-gated GB diagnostics keep their
+        // targets. An explicit RUST_LOG overrides this default.
+        "warn,picus::gb_stats=debug,picus::gb_trace=trace",
     ))
     .init();
     install_profile_signal_handler();

@@ -144,7 +144,7 @@ impl RebuildOnCheckSolver {
             Ok(e) => e,
             Err(e) => {
                 log::error!("encode failed: {e}");
-                return SolveOutcome::Unknown;
+                return SolveOutcome::Unknown(crate::solve::UnknownCause::EncodingFailure);
             }
         };
         solve_encoded_with_cancel(&encoded, cancel)

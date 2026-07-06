@@ -15,7 +15,7 @@ fn solve_system(system: &NamedSystem) -> &'static str {
     match solve_encoded(&encoded) {
         SolveOutcome::Sat(_) => "sat",
         SolveOutcome::Unsat(_) => "unsat",
-        SolveOutcome::Unknown => panic!("unknown (cancelled)"),
+        SolveOutcome::Unknown(_) => panic!("unknown (cancelled)"),
     }
 }
 

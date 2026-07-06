@@ -135,7 +135,7 @@ fn encode_failure_surfaces_as_unknown() {
         })
         .collect();
     solver.assert_equality(terms);
-    assert!(matches!(solver.check(), SolveOutcome::Unknown));
+    assert!(matches!(solver.check(), SolveOutcome::Unknown(_)));
 }
 
 #[test]

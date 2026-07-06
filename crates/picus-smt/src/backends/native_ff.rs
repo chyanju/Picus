@@ -197,19 +197,49 @@ impl SolverBackend for NativeFfBackend {
             match outcome {
                 SolveOutcome::Sat(model) => Ok(SolverResult::Sat(model)),
                 SolveOutcome::Unsat(_) => Ok(SolverResult::Unsat),
-                SolveOutcome::Unknown => Ok(SolverResult::Unknown(UnknownReason::Timeout)),
+                // Map each Unknown cause to the reason class consumers
+                // act on: Timeout is retryable with a larger budget;
+                // IncompleteTheory says retrying the same budget is
+                // pointless; BackendError flags an engine-side defect.
+                SolveOutcome::Unknown(cause) => {
+                    use picus_solver::solve::UnknownCause;
+                    let reason = match cause {
+                        UnknownCause::Cancelled => UnknownReason::Timeout,
+                        UnknownCause::IterCap
+                        | UnknownCause::DnfCap
+                        | UnknownCause::BoundedSearch
+                        | UnknownCause::DegradedTheory => UnknownReason::IncompleteTheory,
+                        UnknownCause::EngineFailure
+                        | UnknownCause::EncodingFailure
+                        | UnknownCause::ModelValidation => {
+                            UnknownReason::BackendError(format!("native-ff: {}", cause))
+                        }
+                    };
+                    Ok(SolverResult::Unknown(reason))
+                }
             }
         }));
         drop(silence_guard);
 
         match result {
             Ok(r) => r,
-            Err(_) => {
-                log::warn!(
-                    "native-ff: solver panicked (likely degree overflow); returning Unknown"
-                );
+            Err(payload) => {
+                // A panic that escaped the GB engine's own unwind
+                // boundary (model search, DFS, FGLM, …). Preserve the
+                // payload text and count it — inside the boundary the
+                // same defect gets an error log plus a counter, and
+                // this outer net must not be quieter.
+                let message = if let Some(s) = payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else if let Some(s) = payload.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "non-string panic payload".to_string()
+                };
+                metric::incr!(NATIVE_FF.backend_panics);
+                log::error!("native-ff: solver panicked: {}", message);
                 Ok(SolverResult::Unknown(UnknownReason::BackendError(
-                    "native-ff solver panicked".into(),
+                    format!("native-ff solver panicked: {}", message),
                 )))
             }
         }

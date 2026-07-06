@@ -117,6 +117,33 @@ atomic_counters! {
 pub static IDEAL: IdealCounters = IdealCounters::new_const();
 
 atomic_counters! {
+    /// Per-cause Unknown accounting: how many times each in-spec bound
+    /// or fail-closed degradation produced an Unknown. Lets an operator
+    /// tuning `dnf_cap` / `cdclt_iter_cap` (or triaging a degraded run)
+    /// tell cap from clock from defect in the gb-stats dump.
+    pub struct UnknownCauseCounters {
+        /// CDCL(T) outer-iteration cap (`cdclt_iter_cap`) exhausted.
+        pub iter_cap_hits: AtomicU64,
+        /// DNF expansion cap (`dnf_cap`) exceeded pre-materialisation.
+        pub dnf_cap_hits: AtomicU64,
+        /// Bounded (non-exhaustive) model search ran dry.
+        pub bounded_search_exhausted: AtomicU64,
+        /// SAT-solver fail-closed give-ups (invariant-break detectors).
+        pub sat_give_ups: AtomicU64,
+        /// Theory degradations (sticky flag: unencodable atom, slot
+        /// budget, failed basis extend).
+        pub theory_degradations: AtomicU64,
+        /// Produced models that failed re-verification (engine defect;
+        /// the fail-closed gate held).
+        pub model_validation_failures: AtomicU64,
+        /// Encoder rejections converted to Unknown.
+        pub encoding_failures: AtomicU64,
+    }
+}
+
+pub static UNKNOWNS: UnknownCauseCounters = UnknownCauseCounters::new_const();
+
+atomic_counters! {
     /// Counters for the native-ff SMT backend, surfaced when `gb_stats` is
     /// enabled. Reports per-call encoding vs. solving time and
     /// constraint-side digest stability across consecutive calls.
@@ -142,6 +169,10 @@ atomic_counters! {
         /// Number of partial builds that completed (`partial_build`
         /// → `cached_base`).
         pub cache_partial_completions: AtomicU64,
+        /// Panics caught at the backend's outer `catch_unwind` (outside
+        /// the GB engine boundary — model search, DFS, FGLM, …). Each
+        /// one is an engine bug that degraded fail-closed to Unknown.
+        pub backend_panics: AtomicU64,
     }
 }
 
@@ -177,7 +208,9 @@ pub fn dump_split_stats_to_stderr() {
     // were never exercised) for the entire run.
     let nothing_recorded = SPLIT_DFS.branches_tried.load(Ordering::Relaxed) == 0
         && SPLIT_GB.split_gb_extend_calls.load(Ordering::Relaxed) == 0
-        && NATIVE_FF.solve_calls.load(Ordering::Relaxed) == 0;
+        && NATIVE_FF.solve_calls.load(Ordering::Relaxed) == 0
+        && IDEAL.engine_panics.load(Ordering::Relaxed) == 0
+        && NATIVE_FF.backend_panics.load(Ordering::Relaxed) == 0;
     if nothing_recorded {
         return;
     }
@@ -302,6 +335,42 @@ pub fn dump_split_stats_to_stderr() {
                 hit_pct, rebuild_ms, diff_ms, resumes, completions,
             );
         }
+    }
+    let id = &IDEAL;
+    if load(&id.is_zero_dim_calls) > 0
+        || load(&id.quotient_dimension_calls) > 0
+        || load(&id.engine_panics) > 0
+    {
+        eprintln!(
+            "[ideal] is_zero_dim_calls={} quotient_dimension_calls={} engine_panics={}",
+            load(&id.is_zero_dim_calls),
+            load(&id.quotient_dimension_calls),
+            load(&id.engine_panics),
+        );
+    }
+    let u = &UNKNOWNS;
+    let unknown_total = load(&u.iter_cap_hits)
+        + load(&u.dnf_cap_hits)
+        + load(&u.bounded_search_exhausted)
+        + load(&u.sat_give_ups)
+        + load(&u.theory_degradations)
+        + load(&u.model_validation_failures)
+        + load(&u.encoding_failures)
+        + load(&NATIVE_FF.backend_panics);
+    if unknown_total > 0 {
+        eprintln!(
+            "[unknown-causes] iter_cap={} dnf_cap={} bounded_search={} sat_give_ups={} \
+             theory_degradations={} model_validation_failures={} encoding_failures={} \
+             backend_panics={}",
+            load(&u.iter_cap_hits),
+            load(&u.dnf_cap_hits),
+            load(&u.bounded_search_exhausted),
+            load(&u.sat_give_ups),
+            load(&u.theory_degradations),
+            load(&u.model_validation_failures),
+            load(&u.encoding_failures),
+            load(&NATIVE_FF.backend_panics),
+        );
     }
     eprintln!("=== end split-GB stats ===\n");
 }

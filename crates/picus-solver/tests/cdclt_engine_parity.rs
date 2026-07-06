@@ -24,7 +24,7 @@ fn verdict(o: &SolveOutcome) -> Verdict {
     match o {
         SolveOutcome::Sat(_) => Verdict::Sat,
         SolveOutcome::Unsat(_) => Verdict::Unsat,
-        SolveOutcome::Unknown => Verdict::Unknown,
+        SolveOutcome::Unknown(_) => Verdict::Unknown,
     }
 }
 

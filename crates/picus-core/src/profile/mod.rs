@@ -22,8 +22,8 @@ mod phase;
 
 pub use counters::{
     dump_split_stats_to_stderr, gb_stats_enabled, gb_trace_enabled, observe_max, IdealCounters,
-    NativeFfBackendCounters, SplitDfsCounters, SplitGbCounters, IDEAL, NATIVE_FF, SPLIT_DFS,
-    SPLIT_GB,
+    NativeFfBackendCounters, SplitDfsCounters, SplitGbCounters, UnknownCauseCounters, IDEAL,
+    NATIVE_FF, SPLIT_DFS, SPLIT_GB, UNKNOWNS,
 };
 pub use metric::{Gate, LocalTimer, MetricTimer};
 pub use phase::{dump_to_stderr, is_enabled, take, ScopedTimer};

@@ -484,7 +484,7 @@ fn knob_grid_never_wrong_verdict() {
                         case_name
                     );
                 }
-                SolveOutcome::Unknown => {
+                SolveOutcome::Unknown(_) => {
                     // Always sound; tracked so a config that degrades the
                     // whole corpus to Unknown cannot pass silently.
                     unknowns += 1;

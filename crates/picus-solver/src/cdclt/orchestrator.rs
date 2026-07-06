@@ -10,7 +10,8 @@ use std::collections::HashMap;
 use num_bigint::BigUint;
 
 use crate::frontend::formula::Formula;
-use crate::solve::SolveOutcome;
+use crate::metric;
+use crate::solve::{SolveOutcome, UnknownCause};
 use crate::sat::{ConflictOutcome, LBool, Lit, Solver, Var};
 use crate::timeout::CancelToken;
 
@@ -253,17 +254,25 @@ fn cdclt_loop<T: Theory>(
 
     loop {
         if cancel.is_cancelled() {
-            return SolveOutcome::Unknown;
+            return SolveOutcome::Unknown(UnknownCause::Cancelled);
         }
         iters += 1;
         if iters > cap {
-            return SolveOutcome::Unknown;
+            log::debug!(
+                target: "picus::gb_stats",
+                "cdclt: iteration cap reached (cdclt_iter_cap = {})",
+                cap
+            );
+            metric::incr!(crate::profile::UNKNOWNS.iter_cap_hits);
+            return SolveOutcome::Unknown(UnknownCause::IterCap);
         }
 
         if let Some(conflict) = sat.propagate() {
             match sat.handle_conflict(conflict) {
                 ConflictOutcome::RootUnsat => return SolveOutcome::Unsat(None),
-                ConflictOutcome::GiveUp => return SolveOutcome::Unknown,
+                ConflictOutcome::GiveUp => {
+                    return SolveOutcome::Unknown(UnknownCause::DegradedTheory)
+                }
                 ConflictOutcome::Learned { trail_pre } => {
                     resync_after_lemma(sat, theory, &mut theory_levels, &mut notified, trail_pre);
                     continue;
@@ -286,7 +295,7 @@ fn cdclt_loop<T: Theory>(
                 continue;
             }
             TheoryStep::RootUnsat => return SolveOutcome::Unsat(None),
-            TheoryStep::GiveUp => return SolveOutcome::Unknown,
+            TheoryStep::GiveUp => return SolveOutcome::Unknown(UnknownCause::DegradedTheory),
             TheoryStep::Idle => {}
         }
 
@@ -306,13 +315,21 @@ fn cdclt_loop<T: Theory>(
                     let trail_pre_lemma = apply_theory_conflict(sat, &core);
                     let trail_pre_lemma = match trail_pre_lemma {
                         Some(n) => n,
-                        None if sat.gave_up() => return SolveOutcome::Unknown,
+                        None if sat.gave_up() => {
+                            return SolveOutcome::Unknown(UnknownCause::DegradedTheory)
+                        }
                         None => return SolveOutcome::Unsat(None),
                     };
                     resync_after_lemma(sat, theory, &mut theory_levels, &mut notified, trail_pre_lemma);
                     continue;
                 }
-                CheckOutcome::Unknown => return SolveOutcome::Unknown,
+                CheckOutcome::Unknown => {
+                    return SolveOutcome::Unknown(if cancel.is_cancelled() {
+                        UnknownCause::Cancelled
+                    } else {
+                        UnknownCause::DegradedTheory
+                    })
+                }
             }
         }
 

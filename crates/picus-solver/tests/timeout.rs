@@ -39,7 +39,7 @@ fn test_pre_cancelled_returns_unknown() {
     let encoded = system.encode().unwrap();
     let cancel = CancelToken::cancelled();
     match solve_encoded_with_cancel(&encoded, &cancel) {
-        SolveOutcome::Unknown => {} // expected
+        SolveOutcome::Unknown(_) => {} // expected
         other => panic!("expected Unknown, got {:?}", other),
     }
 }
@@ -156,7 +156,7 @@ fn test_incremental_check_pre_cancelled() {
     solver.assert_equality(vec![vt("x"), vt("y"), ct(4)]);
     let cancel = CancelToken::cancelled();
     match solver.check_with_cancel(&cancel) {
-        SolveOutcome::Unknown => {} // expected
+        SolveOutcome::Unknown(_) => {} // expected
         other => panic!("expected Unknown, got {:?}", other),
     }
 }

@@ -144,7 +144,7 @@ fn satisfiable_system_with_bitsum_shaped_linear_part_is_not_false_unsat() {
         SolveOutcome::Unsat(_) => {
             panic!("false UNSAT: q has {n_sols} roots over GF(7)^3 but solver returned UNSAT")
         }
-        SolveOutcome::Sat(_) | SolveOutcome::Unknown => {}
+        SolveOutcome::Sat(_) | SolveOutcome::Unknown(_) => {}
     }
 }
 
@@ -497,7 +497,7 @@ fn prop_solve_split_gb_deterministic_verdict_class() {
     let cls = |o: &SolveOutcome| match o {
         SolveOutcome::Sat(_) => "Sat",
         SolveOutcome::Unsat(_) => "Unsat",
-        SolveOutcome::Unknown => "Unknown",
+        SolveOutcome::Unknown(_) => "Unknown",
     };
     assert_eq!(cls(&r1), cls(&r2));
 }
@@ -745,7 +745,7 @@ fn unsat_core_resolve_oracle_random_battery() {
             SolveOutcome::Unsat(None) => {}
             // The pins are always contradictory, so Sat must not happen.
             SolveOutcome::Sat(m) => panic!("seed {}: contradictory pins solved Sat: {:?}", seed, m),
-            SolveOutcome::Unknown => {}
+            SolveOutcome::Unknown(_) => {}
         }
     }
 }

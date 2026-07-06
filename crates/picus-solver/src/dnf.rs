@@ -6,7 +6,8 @@
 
 use crate::frontend::encoder::encode;
 use crate::frontend::formula::BooleanQuery;
-use crate::solve::{solve_encoded_with_cancel, SolveOutcome};
+use crate::metric;
+use crate::solve::{solve_encoded_with_cancel, SolveOutcome, UnknownCause};
 use crate::timeout::CancelToken;
 
 /// Maximum DNF disjunct count before [`solve_boolean_query_dnf`]
@@ -27,33 +28,44 @@ pub fn dnf_size_cap() -> u64 {
 pub fn solve_boolean_query_dnf(query: &BooleanQuery, cancel: &CancelToken) -> SolveOutcome {
     let cap = dnf_size_cap();
     if query.formula.dnf_size_estimate(cap) >= cap {
-        return SolveOutcome::Unknown;
+        log::debug!(
+            target: "picus::gb_stats",
+            "dnf: expansion cap reached (dnf_cap = {})",
+            cap
+        );
+        metric::incr!(crate::profile::UNKNOWNS.dnf_cap_hits);
+        return SolveOutcome::Unknown(UnknownCause::DnfCap);
     }
     let systems = query.to_disjunct_systems();
     if systems.is_empty() {
         return SolveOutcome::Unsat(None);
     }
-    let mut saw_unknown = false;
+    // First Unknown cause seen; a single undecided disjunct blocks the
+    // UNSAT conclusion, so the aggregate cause is the first blocker.
+    let mut saw_unknown: Option<UnknownCause> = None;
     for sys in &systems {
         if cancel.is_cancelled() {
-            return SolveOutcome::Unknown;
+            return SolveOutcome::Unknown(UnknownCause::Cancelled);
         }
         let encoded = match encode(sys) {
             Ok(e) => e,
-            Err(_) => {
-                saw_unknown = true;
+            Err(e) => {
+                log::warn!("dnf: disjunct rejected by the encoder: {}", e);
+                metric::incr!(crate::profile::UNKNOWNS.encoding_failures);
+                saw_unknown.get_or_insert(UnknownCause::EncodingFailure);
                 continue;
             }
         };
         match solve_encoded_with_cancel(&encoded, cancel) {
             SolveOutcome::Sat(m) => return SolveOutcome::Sat(m),
-            SolveOutcome::Unknown => saw_unknown = true,
+            SolveOutcome::Unknown(cause) => {
+                saw_unknown.get_or_insert(cause);
+            }
             SolveOutcome::Unsat(_) => continue,
         }
     }
-    if saw_unknown {
-        SolveOutcome::Unknown
-    } else {
-        SolveOutcome::Unsat(None)
+    match saw_unknown {
+        Some(cause) => SolveOutcome::Unknown(cause),
+        None => SolveOutcome::Unsat(None),
     }
 }

@@ -409,7 +409,7 @@ impl SmtSession {
                     .collect();
                 SessionVerdict::Unsat
             }
-            crate::solve::SolveOutcome::Unknown => {
+            crate::solve::SolveOutcome::Unknown(_) => {
                 self.last_check = Some(SessionVerdict::Unknown);
                 self.last_model = None;
                 self.last_unsat_core_names.clear();

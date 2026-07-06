@@ -474,7 +474,7 @@ pub(crate) fn check_full_with_atoms(
                 None => CheckOutcome::Unknown,
             }
         }
-        SolveOutcome::Unknown => CheckOutcome::Unknown,
+        SolveOutcome::Unknown(_) => CheckOutcome::Unknown,
     }
 }
 

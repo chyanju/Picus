@@ -54,7 +54,7 @@ fn picus_solve(src: &str, timeout_ms: u64) -> (Verdict, Duration) {
     let v = match solve_formula(q.prime.clone(), q.var_names(), &q.formula, &cancel) {
         SolveOutcome::Sat(_) => Verdict::Sat,
         SolveOutcome::Unsat(_) => Verdict::Unsat,
-        SolveOutcome::Unknown => Verdict::Unknown,
+        SolveOutcome::Unknown(_) => Verdict::Unknown,
     };
     (v, t0.elapsed())
 }
