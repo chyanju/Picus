@@ -398,20 +398,22 @@ fn continue_partial_inner(
             .collect();
         seed_self_membership(&mut partial.contains_memo, &split_basis);
 
-        let mut to_propagate =
-            bit_prop.get_bit_equalities_with_cancel(&split_basis, Some(cancel));
+        let bit_eqs = bit_prop.get_bit_equalities_with_cancel(&split_basis, Some(cancel));
         if cancel.is_cancelled() {
             partial.bit_prop_state = bit_prop.to_state();
             return ResumeOutcome::StillPartial;
         }
+        // Candidates by reference; cloned only in the NewGenerator arm
+        // (mirroring `run_fixpoint`).
+        let mut to_propagate: Vec<&Poly> = bit_eqs.iter().collect();
         for b in &split_basis {
             for p in &b.basis {
-                to_propagate.push(poly_ring.ring.clone_el(p));
+                to_propagate.push(p);
             }
         }
 
         let mut any_new = false;
-        for p in &to_propagate {
+        for &p in &to_propagate {
             if cancel.is_cancelled() {
                 partial.bit_prop_state = bit_prop.to_state();
                 return ResumeOutcome::StillPartial;

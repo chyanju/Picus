@@ -364,26 +364,66 @@ fn assignment_poly(pr: &FfPolyRing, var: usize, val: &FieldElem) -> Poly {
 /// Substitute the partial assignment into a polynomial and evaluate it.
 /// Returns `Some(value)` if all variables in `p` are assigned (so it can
 /// be fully evaluated); otherwise `None`.
+///
+/// Hot path: called per basis polynomial on every quick-UNSAT probe of
+/// the DFS descent, where the dominant outcome is an early `None`.
+/// Walks each representation's own term storage — the sparse arm visits
+/// only the (var, exp) support pairs, the dense arm the raw exponent
+/// rows — instead of materialising facade monomials and scanning all
+/// `n_vars` per term.
 pub(super) fn evaluate_full(pr: &FfPolyRing, p: &Poly, r: &PartialPoint) -> Option<FieldElem> {
-    let ring = &pr.ring;
+    use picus_core::ff::repr::MonomialRepr;
     let fp = &pr.field();
-    let mut acc = fp.zero();
-    for (c, m) in ring.terms(p) {
-        let mut term_val = fp.clone_el(c);
-        for v in 0..pr.n_vars() {
-            let e = ring.exponent_at(&m, v);
-            if e == 0 { continue; }
-            match &r[v] {
-                None => return None,
-                Some(val) => {
-                    let pow = fp.pow_u64(val, e as u64);
-                    fp.mul_assign(&mut term_val, &pow);
+    match p {
+        Poly::Sparse(sp) => {
+            let mut acc = fp.zero();
+            for (m, c) in sp.iter_terms() {
+                let mut term_val = fp.clone_el(c);
+                let mut missing = false;
+                m.for_each_nonzero(|v, e| {
+                    if missing {
+                        return;
+                    }
+                    match &r[v] {
+                        None => missing = true,
+                        Some(val) => {
+                            let pow = fp.pow_u64(val, e as u64);
+                            fp.mul_assign(&mut term_val, &pow);
+                        }
+                    }
+                });
+                if missing {
+                    return None;
                 }
+                fp.add_assign(&mut acc, term_val);
             }
+            Some(acc)
         }
-        fp.add_assign(&mut acc, term_val);
+        Poly::Dense(d) => {
+            let n = pr.n_vars();
+            let exps = d.raw_exponents();
+            let coeffs = d.raw_coeffs();
+            let mut acc = fp.zero();
+            for (i, c) in coeffs.iter().enumerate() {
+                let row = &exps[i * n..(i + 1) * n];
+                let mut term_val = fp.clone_el(c);
+                for (v, &e) in row.iter().enumerate() {
+                    if e == 0 {
+                        continue;
+                    }
+                    match &r[v] {
+                        None => return None,
+                        Some(val) => {
+                            let pow = fp.pow_u64(val, e as u64);
+                            fp.mul_assign(&mut term_val, &pow);
+                        }
+                    }
+                }
+                fp.add_assign(&mut acc, term_val);
+            }
+            Some(acc)
+        }
     }
-    Some(acc)
 }
 
 #[cfg(test)]

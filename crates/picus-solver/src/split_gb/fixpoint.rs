@@ -174,15 +174,19 @@ fn run_fixpoint<'r>(
         // trivially `contains(p, j) = true`.
         seed_self_membership(&mut contains_memo, &split_basis);
 
-        let mut to_propagate = {
+        let bit_eqs = {
             metric::timer!(SPLIT_GB.time_in_bit_eq_ns);
             bit_prop.get_bit_equalities_with_cancel(&split_basis, Some(cancel))
         };
-        metric::add!(SPLIT_GB.bit_eq_emitted_total, to_propagate.len() as u64);
+        metric::add!(SPLIT_GB.bit_eq_emitted_total, bit_eqs.len() as u64);
         if cancel.is_cancelled() { return Err(Cancelled); }
+        // Candidates are only ever scanned by reference; ownership is
+        // taken solely in the NewGenerator arm below, so the whole split
+        // basis is not deep-cloned on every fixpoint iteration.
+        let mut to_propagate: Vec<&Poly> = bit_eqs.iter().collect();
         for b in &split_basis {
             for p in &b.basis {
-                to_propagate.push(poly_ring.ring.clone_el(p));
+                to_propagate.push(p);
             }
         }
 
@@ -196,7 +200,7 @@ fn run_fixpoint<'r>(
         let mut any_new = false;
         {
             metric::timer!(SPLIT_GB.time_in_contains_ns);
-            for p in &to_propagate {
+            for &p in &to_propagate {
                 if cancel.is_cancelled() { return Err(Cancelled); }
                 let p_hash = p.content_hash();
                 for j in 0..k {
@@ -418,19 +422,22 @@ fn run_fixpoint_traced<'r>(
             .flat_map(|bd| bd.iter())
             .flat_map(|s| s.iter().copied())
             .collect();
-        let mut to_propagate: Vec<(Poly, BTreeSet<usize>)> = Vec::new();
-        for p in bit_eqs {
-            to_propagate.push((p, bit_eq_deps.clone()));
+        // Candidates by reference, deps cloned only in the NewGenerator
+        // arm (mirroring the untraced driver's reference-based scan).
+        let mut to_propagate: Vec<(&Poly, &BTreeSet<usize>)> = Vec::new();
+        for p in &bit_eqs {
+            to_propagate.push((p, &bit_eq_deps));
         }
+        let empty_deps = BTreeSet::new();
         for j in 0..k {
             for (idx, p) in split_basis[j].basis.iter().enumerate() {
-                let deps = basis_deps[j].get(idx).cloned().unwrap_or_default();
-                to_propagate.push((poly_ring.ring.clone_el(p), deps));
+                let deps = basis_deps[j].get(idx).unwrap_or(&empty_deps);
+                to_propagate.push((p, deps));
             }
         }
 
         let mut any_new = false;
-        for (p, p_deps) in &to_propagate {
+        for &(p, p_deps) in &to_propagate {
             if cancel.is_cancelled() {
                 return Err(Cancelled);
             }
