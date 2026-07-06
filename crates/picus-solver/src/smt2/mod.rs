@@ -1242,8 +1242,8 @@ fn collect_assert_primes(
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-#[path = "tests_session.rs"]
-mod tests_session;
+#[path = "session_tests_script.rs"]
+mod session_tests_script;
 #[cfg(test)]
 #[path = "tests_property.rs"]
 mod tests_property;

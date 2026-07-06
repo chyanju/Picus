@@ -681,3 +681,101 @@ fn eval_poly_core(
     }
     acc
 }
+
+// ────────── UNSAT-core re-solve oracle ──────────
+
+/// Tiny xorshift for deterministic random system generation.
+fn core_oracle_xorshift(state: &mut u64) -> u64 {
+    *state ^= *state << 13;
+    *state ^= *state >> 7;
+    *state ^= *state << 17;
+    *state
+}
+
+/// The defining property of an UNSAT core: re-solving exactly the
+/// core-indexed subsystem must still be UNSAT (an under-inclusive core
+/// would come back Sat/Unknown here — the failure mode that would turn
+/// into an unsound CDCL(T) conflict clause on the live path).
+#[test]
+fn unsat_core_resolve_oracle_random_battery() {
+    for seed in 0..40u64 {
+        let mut st = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(11);
+        let prime = if core_oracle_xorshift(&mut st) & 1 == 0 { 7u32 } else { 17 };
+        let n_vars = 3 + (core_oracle_xorshift(&mut st) as usize % 3);
+        let names: Vec<String> = (0..n_vars).map(|i| format!("v{}", i)).collect();
+        let pr = FfPolyRing::new(ff(prime), names);
+        let f = pr.field();
+
+        let mut polys: Vec<crate::poly::Poly> = Vec::new();
+        // Conflicting pins on one shared variable (the true core).
+        let pinned = core_oracle_xorshift(&mut st) as usize % n_vars;
+        let a = core_oracle_xorshift(&mut st) % (prime as u64);
+        let b = (a + 1 + core_oracle_xorshift(&mut st) % (prime as u64 - 1)) % prime as u64;
+        polys.push(pr.sub(pr.var(pinned), pr.constant(f.from_int(a as i64))));
+        polys.push(pr.sub(pr.var(pinned), pr.constant(f.from_int(b as i64))));
+        // Irrelevant fillers: a nonlinear product constraint and a bit
+        // constraint on other variables (consistent on their own).
+        let u = (pinned + 1) % n_vars;
+        let w = (pinned + 2) % n_vars;
+        polys.push(pr.sub(pr.mul(pr.var(u), pr.var(w)), pr.one()));
+        let bit = pr.sub(pr.mul(pr.var(u), pr.var(u)), pr.var(u));
+        if core_oracle_xorshift(&mut st) & 1 == 0 {
+            polys.push(bit);
+        }
+
+        match solve_split_gb(&pr, &polys, &[]) {
+            SolveOutcome::Unsat(Some(core)) => {
+                assert!(
+                    core.iter().all(|&i| i < polys.len()),
+                    "seed {}: core indices in range",
+                    seed
+                );
+                assert!(!core.is_empty(), "seed {}: attributable core non-empty", seed);
+                let sub: Vec<crate::poly::Poly> =
+                    core.iter().map(|&i| pr.clone_poly(&polys[i])).collect();
+                match solve_split_gb(&pr, &sub, &[]) {
+                    SolveOutcome::Unsat(_) => {}
+                    other => panic!(
+                        "seed {}: core-indexed subsystem must stay UNSAT, got {:?}",
+                        seed, other
+                    ),
+                }
+            }
+            // No attributable core / DFS-derived UNSAT: nothing to check.
+            SolveOutcome::Unsat(None) => {}
+            // The pins are always contradictory, so Sat must not happen.
+            SolveOutcome::Sat(m) => panic!("seed {}: contradictory pins solved Sat: {:?}", seed, m),
+            SolveOutcome::Unknown => {}
+        }
+    }
+}
+
+/// The contradiction here is derived through an S-pair reduction
+/// (`x*y − 1` against `x` yields the unit), not by initial reduction
+/// alone — pinning the tracer's `on_pair_reducers`/`on_new_poly` leg
+/// through a real nonlinear Buchberger run.
+#[test]
+fn traced_core_from_spair_derived_contradiction() {
+    let pr = FfPolyRing::new(ff(7), vec!["x".into(), "y".into()]);
+    let f = pr.field();
+    let p0 = pr.sub(pr.mul(pr.var(0), pr.var(1)), pr.one()); // x*y - 1
+    let p1 = pr.var(0); // x
+    let p2 = pr.sub(pr.var(1), pr.constant(f.from_int(3))); // y - 3 (irrelevant)
+    let polys = vec![p0, p1, p2];
+    match solve_split_gb(&pr, &polys, &[]) {
+        SolveOutcome::Unsat(Some(core)) => {
+            assert!(
+                core.contains(&0) && core.contains(&1),
+                "core must contain the S-pair contradiction inputs, got {:?}",
+                core
+            );
+            let sub: Vec<crate::poly::Poly> =
+                core.iter().map(|&i| pr.clone_poly(&polys[i])).collect();
+            assert!(
+                matches!(solve_split_gb(&pr, &sub, &[]), SolveOutcome::Unsat(_)),
+                "core subsystem must stay UNSAT"
+            );
+        }
+        other => panic!("expected UNSAT with an attributable core, got {:?}", other),
+    }
+}

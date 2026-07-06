@@ -2,7 +2,12 @@
 //! [`picus_solver::smt2::SmtSession`].
 //!
 //! Usage:
-//!   run_smt2 <file.smt2> [iters]
+//!   run_smt2 [--config <knobs.toml>] <file.smt2> [iters]
+//!
+//! `--config` reads a flat TOML of engine-knob overrides (the
+//! `RuntimeOverlay` field names, e.g. `use_f4 = true`), applies them
+//! over the compiled defaults, and prints the resolved non-default
+//! knobs to stderr so a repro run records its configuration.
 //!
 //! Default (`iters` omitted or 1): the script is evaluated once and
 //! every non-silent command's response is printed in source order
@@ -20,9 +25,18 @@ use std::time::Instant;
 use picus_solver::smt2::{SessionOutput, SessionVerdict, SmtSession};
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--config") {
+        if i + 1 >= args.len() {
+            eprintln!("--config requires a path");
+            std::process::exit(2);
+        }
+        let cfg_path = args.remove(i + 1);
+        args.remove(i);
+        apply_config_file(&cfg_path);
+    }
     if args.len() < 2 {
-        eprintln!("usage: {} <file.smt2> [iters]", args[0]);
+        eprintln!("usage: {} [--config <knobs.toml>] <file.smt2> [iters]", args[0]);
         std::process::exit(2);
     }
     let path = &args[1];
@@ -82,4 +96,26 @@ fn main() {
         .and_then(|s| s.to_str())
         .unwrap_or(path);
     println!("{},{},{},{},{},{}", name, verdict_str, iters, med, min, max);
+}
+
+/// Deserialize a flat `RuntimeOverlay` TOML, apply it over the compiled
+/// defaults, install it for this process, and record the resolved
+/// non-default knobs on stderr.
+fn apply_config_file(path: &str) {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| {
+        eprintln!("read {}: {}", path, e);
+        std::process::exit(1);
+    });
+    let overlay: picus_core::config::RuntimeOverlay =
+        toml::from_str(&text).unwrap_or_else(|e| {
+            eprintln!("parse {}: {}", path, e);
+            std::process::exit(1);
+        });
+    let mut cfg = picus_core::config::RuntimeConfig::default();
+    cfg.apply_overlay(&overlay);
+    let default = picus_core::config::RuntimeConfig::default();
+    if cfg != default {
+        eprintln!("[run_smt2] non-default config: {:?}", overlay);
+    }
+    picus_core::config::set(cfg);
 }

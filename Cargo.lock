@@ -727,6 +727,7 @@ dependencies = [
  "picus-core",
  "picus-metric-macros",
  "thiserror",
+ "toml",
 ]
 
 [[package]]

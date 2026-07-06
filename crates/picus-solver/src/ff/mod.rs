@@ -20,5 +20,6 @@ pub(crate) mod sparse_gb;
 pub(crate) mod univariate;
 
 #[cfg(test)]
+#[path = "repr_oracle_tests.rs"]
 mod repr_oracle;
 

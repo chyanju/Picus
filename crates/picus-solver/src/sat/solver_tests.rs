@@ -1460,3 +1460,83 @@ fn hardprobe_enqueue_theory_root_then_restart_then_conflict_is_unsat() {
     assert_eq!(s.solve(), SolveResult::Unsat);
 }
 
+
+// ────────── Randomized brute-force differential oracle ──────────
+
+fn oracle_xorshift(state: &mut u64) -> u64 {
+    *state ^= *state << 13;
+    *state ^= *state >> 7;
+    *state ^= *state << 17;
+    *state
+}
+
+/// Ground truth by exhaustive enumeration: is some assignment of the
+/// first `n_vars` variables satisfying every clause?
+fn brute_force_sat(n_vars: usize, clauses: &[Vec<Lit>]) -> bool {
+    for mask in 0u32..(1u32 << n_vars) {
+        let val = |l: Lit| {
+            let bit = (mask >> l.var().index()) & 1 == 1;
+            if l.is_positive() { bit } else { !bit }
+        };
+        if clauses.iter().all(|c| c.iter().any(|&l| val(l))) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Differential oracle for the CDCL core in isolation: a few hundred
+/// seeded random CNFs cross-checked against exhaustive enumeration, on
+/// clause orderings no hand-written test anticipates. On Sat the model
+/// must satisfy every input clause.
+#[test]
+fn random_cnf_brute_force_oracle() {
+    for seed in 0..250u64 {
+        let mut st = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(5);
+        let n_vars = 3 + (oracle_xorshift(&mut st) as usize % 8); // 3..=10
+        let n_clauses = 4 + (oracle_xorshift(&mut st) as usize % 27); // 4..=30
+        let mut s = Solver::new();
+        let vars: Vec<Var> = (0..n_vars).map(|_| s.new_var()).collect();
+        let mut clauses: Vec<Vec<Lit>> = Vec::new();
+        let mut root_unsat = false;
+        for _ in 0..n_clauses {
+            let len = 1 + (oracle_xorshift(&mut st) as usize % 3); // 1..=3
+            let mut c: Vec<Lit> = Vec::with_capacity(len);
+            for _ in 0..len {
+                let v = vars[oracle_xorshift(&mut st) as usize % n_vars];
+                let lit = if oracle_xorshift(&mut st) & 1 == 1 {
+                    Lit::neg(v)
+                } else {
+                    Lit::pos(v)
+                };
+                c.push(lit);
+            }
+            clauses.push(c.clone());
+            if !s.add_clause(c) {
+                root_unsat = true;
+                break;
+            }
+        }
+        let expected = brute_force_sat(n_vars, &clauses);
+        if root_unsat {
+            assert!(!expected, "seed {}: add_clause said UNSAT but brute force is SAT", seed);
+            continue;
+        }
+        match s.solve() {
+            SolveResult::Sat => {
+                assert!(expected, "seed {}: solver Sat, brute force UNSAT", seed);
+                for c in &clauses {
+                    assert!(
+                        clause_is_sat(&s, c),
+                        "seed {}: model violates clause {:?}",
+                        seed, c
+                    );
+                }
+            }
+            SolveResult::Unsat => {
+                assert!(!expected, "seed {}: solver Unsat, brute force SAT", seed);
+            }
+            SolveResult::Unknown => panic!("seed {}: unexpected Unknown", seed),
+        }
+    }
+}

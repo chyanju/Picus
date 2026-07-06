@@ -5,6 +5,13 @@
 //! replacement for cvc5's QF_FF theory solver within the Picus ecosystem.
 //!
 //! The algorithm follows [OKTB23] "Satisfiability Modulo Finite Fields" (CAV 2023).
+//!
+//! Test-file convention: the unit tests for `x.rs` live in the sibling
+//! `x_tests.rs` (attached with `#[cfg(test)] #[path = ...]`); additional
+//! suites for the same module are `x_tests_<topic>.rs` with an
+//! unabbreviated topic. Files compiled only under `cfg(test)` carry the
+//! `_tests` suffix so an audit of the runtime surface can skip them by
+//! name.
 
 #![warn(unreachable_pub)]
 

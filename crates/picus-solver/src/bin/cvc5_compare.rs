@@ -146,6 +146,10 @@ fn parse_args() -> Args {
                     .expect("--iters expects integer");
                 i += 2;
             }
+            "--config" => {
+                apply_config_file(&next_value(&args, i, "--config"));
+                i += 2;
+            }
             _ => {
                 eprintln!("ignoring arg: {}", args[i]);
                 i += 1;
@@ -226,4 +230,26 @@ fn main() {
             ratio,
         );
     }
+}
+
+/// Deserialize a flat `RuntimeOverlay` TOML, apply it over the compiled
+/// defaults, install it for this process, and record the resolved
+/// non-default knobs on stderr — a head-to-head run must carry its
+/// configuration, not silently benchmark compiled defaults.
+fn apply_config_file(path: &str) {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| {
+        eprintln!("read {}: {}", path, e);
+        std::process::exit(1);
+    });
+    let overlay: picus_core::config::RuntimeOverlay =
+        toml::from_str(&text).unwrap_or_else(|e| {
+            eprintln!("parse {}: {}", path, e);
+            std::process::exit(1);
+        });
+    let mut cfg = picus_core::config::RuntimeConfig::default();
+    cfg.apply_overlay(&overlay);
+    if cfg != picus_core::config::RuntimeConfig::default() {
+        eprintln!("[cvc5_compare] non-default config: {:?}", overlay);
+    }
+    picus_core::config::set(cfg);
 }

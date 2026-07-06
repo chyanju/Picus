@@ -225,7 +225,11 @@ fn bench_f4_non_cyclic_workloads() {
     ///   P_i = Σ_{j=-n..n} u_{|j|} · u_{|i-j|} - u_i   for 0 ≤ i ≤ n-1
     ///   P_n = Σ_{j=-n..n} u_{|j|} - 1
     /// ```
-    fn katsura_n(n: usize, ring: &Arc<PolyRing>) -> Vec<Polynomial> {
+    // Standard Faugère Katsura-n (n+1 variables, ±j convolution). A
+    // DIFFERENT ideal from `katsura_reduced_vars` below — the two used
+    // to share one name, silently making their printed timings
+    // incomparable.
+    fn katsura_faugere(n: usize, ring: &Arc<PolyRing>) -> Vec<Polynomial> {
         let xs: Vec<Polynomial> = (0..=n).map(|i| Polynomial::variable(i, ring)).collect();
         let mut polys: Vec<Polynomial> = Vec::new();
         let two = ring.field.from_int(2);
@@ -324,7 +328,7 @@ fn bench_f4_non_cyclic_workloads() {
             names,
             MonomialOrder::DegRevLex,
         );
-        let polys = katsura_n(n, &ring);
+        let polys = katsura_faugere(n, &ring);
         let pp = median_times(&polys, &ring, false);
         let f4 = median_times(&polys, &ring, true);
         let ratio = if pp == 0 {
@@ -334,7 +338,7 @@ fn bench_f4_non_cyclic_workloads() {
         };
         println!(
             "{:<24} | {:>8} | {:>10} | {:>10} | {}",
-            format!("katsura-{}", n),
+            format!("katsura-faugere-{}", n),
             polys.len(),
             pp,
             f4,
@@ -638,7 +642,7 @@ fn audit_p3_cyclic_n_hilbert_and_sparse_cache_do_not_regress() {
     // batch cyclic-N produces. Definition (Faugère normalisation):
     //   u_n = 2 * (u_1 + u_2 + ... + u_{n-1}) + u_0,  u_0 + u_n = 1
     //   for k = 1..n-1: sum_{i+j=k, |i|,|j|≤n} u_|i| * u_|j| = u_k
-    fn katsura_n(n: usize, ring: &Arc<PolyRing>) -> Vec<picus_core::ff::polynomial::Polynomial> {
+    fn katsura_reduced_vars(n: usize, ring: &Arc<PolyRing>) -> Vec<picus_core::ff::polynomial::Polynomial> {
         use picus_core::ff::polynomial::Polynomial;
         // u_i is stored at index i (0..n).
         let us: Vec<Polynomial> = (0..n).map(|i| Polynomial::variable(i, ring)).collect();
@@ -684,7 +688,7 @@ fn audit_p3_cyclic_n_hilbert_and_sparse_cache_do_not_regress() {
             names,
             MonomialOrder::DegRevLex,
         );
-        let polys = katsura_n(n_vars, &ring);
+        let polys = katsura_reduced_vars(n_vars, &ring);
         let pp_med = {
             let mut ts = Vec::new();
             let _ = run_one(&polys, &ring, false);
@@ -718,12 +722,12 @@ fn audit_p3_cyclic_n_hilbert_and_sparse_cache_do_not_regress() {
         let f4_h_ratio = f4_h_med as f64 / pp_med as f64;
         println!(
             "{:<10} | {:>10} | {:>10} | {:>10} | {:>9.2}x | {:>9.2}x",
-            format!("katsura-{}", n_vars),
+            format!("katsura-reduced-{}", n_vars),
             pp_med, f4_med, f4_h_med, f4_ratio, f4_h_ratio
         );
         assert!(
             f4_h_ratio <= f4_ratio * 1.20 + 0.05,
-            "katsura-{}: Hilbert+sparse F4 (ratio {:.2}x) regressed >20% vs sugar F4 (ratio {:.2}x)",
+            "katsura-reduced-{}: Hilbert+sparse F4 (ratio {:.2}x) regressed >20% vs sugar F4 (ratio {:.2}x)",
             n_vars, f4_h_ratio, f4_ratio
         );
     }
