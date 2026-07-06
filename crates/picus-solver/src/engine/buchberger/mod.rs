@@ -267,9 +267,9 @@ pub(crate) fn interreduce_with_cancel(
     filtered
 }
 
-use crate::ff::spair_criteria::{b_criterion_kill, gm_insert, merge_sorted_descending};
+use crate::engine::spair_criteria::{b_criterion_kill, gm_insert, merge_sorted_descending};
 
-impl crate::ff::spair_criteria::LeadingTerms for Vec<BasisElement> {
+impl crate::engine::spair_criteria::LeadingTerms for Vec<BasisElement> {
     type Mono = Monomial;
     fn lt_at(&self, idx: usize) -> &Monomial {
         &self[idx].lt
@@ -1115,7 +1115,7 @@ impl BuchbergerState {
         if sugars.len() <= 1 {
             return lowest_sugar;
         }
-        let current_lts: Vec<crate::ff::monomial::Monomial> = self
+        let current_lts: Vec<crate::engine::monomial::Monomial> = self
             .basis
             .iter()
             .filter(|e| e.active)
@@ -1130,7 +1130,7 @@ impl BuchbergerState {
         let mut best_sugar = lowest_sugar;
         let mut best_drop: i128 = 0;
         for &sugar in &sugars {
-            let lcms: Vec<crate::ff::monomial::Monomial> = self
+            let lcms: Vec<crate::engine::monomial::Monomial> = self
                 .open
                 .iter()
                 .filter(|p| p.sugar == sugar && p.generation >= self.generation)

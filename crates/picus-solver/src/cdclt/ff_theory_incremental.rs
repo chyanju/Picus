@@ -12,9 +12,9 @@ use std::sync::Arc;
 
 use num_bigint::BigUint;
 
-use picus_core::ff::field::PrimeField;
-use picus_core::ff::monomial::{Monomial, MonomialOrder};
-use picus_core::ff::polynomial::{DensePoly, PolyRing};
+use crate::engine::field::PrimeField;
+use crate::engine::monomial::{Monomial, MonomialOrder};
+use crate::engine::polynomial::{DensePoly, PolyRing};
 
 use crate::gb::ideal::{incremental_engine, IncrementalGB};
 use crate::gb::model::{find_zero_cancel, FindZeroOutcome};
@@ -142,7 +142,7 @@ impl<'a> IncrementalFfTheoryState<'a> {
     /// call unconditionally — callers must enable `gb_stats` to read
     /// non-zero counters).
     #[cfg(test)]
-    pub(crate) fn engine_stats(&self) -> &crate::ff::buchberger::GbProfileCounters {
+    pub(crate) fn engine_stats(&self) -> &crate::engine::buchberger::GbProfileCounters {
         self.igb.engine_stats()
     }
 
@@ -192,7 +192,7 @@ impl<'a> IncrementalFfTheoryState<'a> {
         // re-wrap is structural and zero-copy at the storage layer.
         let basis_user: Vec<Poly> = basis_dense
             .into_iter()
-            .map(picus_core::ff::polynomial::Polynomial::Dense)
+            .map(crate::engine::polynomial::Polynomial::Dense)
             .collect();
 
         let outcome = find_zero_cancel(&user_ring, &basis_user, self.cancel);

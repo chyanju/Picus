@@ -19,7 +19,7 @@
 //! strict ascending degree, avoiding the "intermediate expression
 //! swell" that stalls bit-decomposition ideals.
 
-use crate::ff::monomial::MonomialOrder;
+use crate::engine::monomial::MonomialOrder;
 use crate::gb::homog_ring::HomogRing;
 use crate::gb::ideal::{compute_gb_direct, interreduce_basis, GbOutcome};
 use crate::metric;
@@ -98,5 +98,5 @@ pub fn compute_gb_by_homog(
 }
 
 #[cfg(test)]
-#[path = "gb_homog_tests.rs"]
+#[path = "homog_tests.rs"]
 mod tests;

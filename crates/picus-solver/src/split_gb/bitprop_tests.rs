@@ -1,5 +1,5 @@
 use super::*;
-use crate::ff::field::PrimeField;
+use crate::engine::field::PrimeField;
 use num_bigint::BigUint;
 
 fn ff(p: u32) -> PrimeField {
@@ -856,7 +856,7 @@ fn hardprobe_phase1_bn254_64bit_bitsum() {
         b"21888242871839275222246405745257275088548364400416034343698204186575808495617",
         10,
     ).unwrap();
-    let pr_field = crate::ff::field::PrimeField::new(prime.clone());
+    let pr_field = crate::engine::field::PrimeField::new(prime.clone());
     // 16 bits — keeps the GB cheap while still exceeding small-prime caps.
     let k = 16usize;
     let names: Vec<String> = (0..k).map(|i| format!("b{}", i)).collect();

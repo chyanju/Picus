@@ -1,5 +1,5 @@
 use super::*;
-use crate::ff::monomial::MonomialOrder;
+use crate::engine::monomial::MonomialOrder;
 use num_bigint::BigUint;
 
 fn ring(n_vars: usize) -> Arc<PolyRing> {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::ff::field::PrimeField;
+use crate::engine::field::PrimeField;
 
 fn field7() -> PrimeField {
     PrimeField::new(BigUint::from(7u32))

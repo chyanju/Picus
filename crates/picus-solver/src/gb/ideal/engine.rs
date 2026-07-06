@@ -7,9 +7,9 @@
 use std::cell::RefCell;
 
 use crate::config::GbStrategy;
-use crate::ff::buchberger::{self, BuchbergerConfig, GBasis};
-pub(crate) use crate::ff::buchberger::IncrementalGB;
-use crate::ff::monomial::MonomialOrder as FfOrder;
+use crate::engine::buchberger::{self, BuchbergerConfig, GBasis};
+pub(crate) use crate::engine::buchberger::IncrementalGB;
+use crate::engine::monomial::MonomialOrder as FfOrder;
 use crate::gb::tracer::GbTracer;
 use crate::poly::{FfPolyRing, Poly};
 use crate::timeout::CancelToken;
@@ -19,7 +19,7 @@ use crate::EngineError;
 /// Pluggable Groebner-basis algorithm.
 ///
 /// Every public GB entry point (`compute_gb_with_order` and its
-/// traced sibling) routes through [`compute_gb_dispatch`], which
+/// traced sibling) routes through `compute_gb_dispatch`, which
 /// selects a strategy from [`crate::config::RuntimeConfig::gb_strategy`]
 /// and forwards.
 ///
@@ -35,7 +35,7 @@ use crate::EngineError;
 /// Buchberger/F4 engine, not as a new trait impl.
 ///
 /// Two execution modes are supported. `compute` is the basic call;
-/// `compute_traced` feeds a [`GbTracer`] observer for UNSAT-core
+/// `compute_traced` feeds a `GbTracer` observer for UNSAT-core
 /// extraction. Algorithms that don't support tracing leave
 /// `supports_tracing` at its default `false`; dispatch then falls back
 /// to [`BuchbergerDirect`] for traced requests so UNSAT-core extraction
@@ -133,7 +133,7 @@ impl GbAlgorithm for BuchbergerByHomog {
         order: FfOrder,
     ) -> Result<Vec<Poly>, EngineError> {
         if order == FfOrder::DegRevLex {
-            match crate::gb::gb_homog::compute_gb_by_homog(pr, gens, cancel) {
+            match crate::gb::homog::compute_gb_by_homog(pr, gens, cancel) {
                 GbOutcome::Basis(b) => Ok(b),
                 GbOutcome::Cancelled => Err(EngineError::Timeout),
                 GbOutcome::Failed => {
@@ -252,7 +252,7 @@ fn compute_gb_dispatch(
 
 /// Build a per-call `ff::PolyRing` whose monomial order matches `order`.
 /// Cheap (an `Arc<PolyRing>` with the same field/var-name data).
-pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::sync::Arc<crate::ff::polynomial::PolyRing> {
+pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::sync::Arc<crate::engine::polynomial::PolyRing> {
     let ctx = poly_ring.ctx();
     if ctx.order == order {
         // Dominant case (DegRevLex request on a DegRevLex ring): reuse
@@ -261,7 +261,7 @@ pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::syn
     }
     // Rebuild under the requested order, carrying the source ring's
     // representation (never the ambient config's).
-    crate::ff::polynomial::PolyRing::new_with_repr(
+    crate::engine::polynomial::PolyRing::new_with_repr(
         poly_ring.field().clone(),
         poly_ring.var_names().to_vec(),
         order,
@@ -300,10 +300,10 @@ fn sparse_gb_route(
 ) -> Result<Vec<Poly>, EngineError> {
     let ring = ring_for_order(poly_ring, order);
     catch_engine_panic("sparse Buchberger", || {
-        let sparse: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
+        let sparse: Vec<crate::engine::sparse_polynomial::SparsePolynomial> =
             generators.iter().map(|p| p.to_sparse(&ring)).collect();
-        let gb = crate::ff::sparse_gb::groebner_basis(sparse, &ring, Some(cancel));
-        let reduced = crate::ff::sparse_gb::interreduce(gb, &ring, Some(cancel));
+        let gb = crate::engine::sparse_gb::groebner_basis(sparse, &ring, Some(cancel));
+        let reduced = crate::engine::sparse_gb::interreduce(gb, &ring, Some(cancel));
         Ok(reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>())
     })
 }
@@ -311,7 +311,7 @@ fn sparse_gb_route(
 /// Unwrap a vector of solve-core `Poly` to the dense `DensePoly` the
 /// Gröbner engine consumes. On the dense path every element is already
 /// the `Dense` arm; a stray sparse element is materialised to dense.
-pub(crate) fn unwrap_dense_vec(v: Vec<Poly>, ring: &crate::ff::polynomial::PolyRing) -> Vec<crate::ff::DensePoly> {
+pub(crate) fn unwrap_dense_vec(v: Vec<Poly>, ring: &crate::engine::polynomial::PolyRing) -> Vec<crate::engine::DensePoly> {
     v.into_iter()
         .map(|p| match p {
             Poly::Dense(d) => d,
@@ -321,7 +321,7 @@ pub(crate) fn unwrap_dense_vec(v: Vec<Poly>, ring: &crate::ff::polynomial::PolyR
 }
 
 /// Wrap dense engine output back into solve-core `Poly`.
-pub(crate) fn wrap_dense_vec(v: Vec<crate::ff::DensePoly>) -> Vec<Poly> {
+pub(crate) fn wrap_dense_vec(v: Vec<crate::engine::DensePoly>) -> Vec<Poly> {
     v.into_iter().map(Poly::Dense).collect()
 }
 
@@ -404,7 +404,7 @@ fn finish_gb(
 /// incremental consumer (the engine's own extend entries, the resumable
 /// cache, and the cdclt incremental theory).
 pub(crate) fn incremental_engine(
-    ring: std::sync::Arc<crate::ff::polynomial::PolyRing>,
+    ring: std::sync::Arc<crate::engine::polynomial::PolyRing>,
     cancel: Option<CancelToken>,
 ) -> IncrementalGB {
     IncrementalGB::new(
@@ -446,8 +446,8 @@ pub(crate) fn catch_engine_panic<T>(
 }
 
 /// Compute a Groebner basis of `generators` in the requested monomial
-/// order, routed through [`compute_gb_dispatch`] (dense) or the sparse
-/// engine ([`sparse_gb_route`]) per the ring's representation. See
+/// order, routed through `compute_gb_dispatch` (dense) or the sparse
+/// engine (`sparse_gb_route`) per the ring's representation. See
 /// [`GbOutcome`] for the cancellation/failure contract.
 #[metric]
 pub fn compute_gb_with_order(
@@ -467,7 +467,7 @@ pub fn compute_gb_with_order(
         let strat = resolve_strategy(poly_ring, &generators);
         if strat == GbStrategy::ByHomog && order == FfOrder::DegRevLex {
             record_dispatched("sparse-by-homog");
-            return crate::gb::gb_homog::compute_gb_by_homog(poly_ring, generators, cancel);
+            return crate::gb::homog::compute_gb_by_homog(poly_ring, generators, cancel);
         }
         record_dispatched("sparse-buchberger");
         let result = sparse_gb_route(poly_ring, generators, order, cancel);
@@ -504,7 +504,7 @@ pub(crate) fn compute_gb_buchberger(
     let cfg = BuchbergerConfig {
         cancel_token: Some(cancel.clone()),
         abort_on_trivial: true,
-        use_f4: crate::ff::buchberger::use_f4_default(),
+        use_f4: crate::engine::buchberger::use_f4_default(),
         ..BuchbergerConfig::default()
     };
     let dense_gens = unwrap_dense_vec(generators, &ring);
@@ -564,12 +564,12 @@ pub fn compute_gb_incremental_with_order(
         // `finish_gb`, mirroring the dense incremental path.
         let ring = ring_for_order(poly_ring, order);
         let result = catch_engine_panic("incremental sparse Buchberger", || {
-            let known: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
+            let known: Vec<crate::engine::sparse_polynomial::SparsePolynomial> =
                 known_gb.iter().map(|p| p.to_sparse(&ring)).collect();
-            let fresh: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
+            let fresh: Vec<crate::engine::sparse_polynomial::SparsePolynomial> =
                 new_polys.iter().map(|p| p.to_sparse(&ring)).collect();
-            let gb = crate::ff::sparse_gb::groebner_basis_incremental(known, fresh, &ring, Some(cancel));
-            let reduced = crate::ff::sparse_gb::interreduce(gb, &ring, Some(cancel));
+            let gb = crate::engine::sparse_gb::groebner_basis_incremental(known, fresh, &ring, Some(cancel));
+            let reduced = crate::engine::sparse_gb::interreduce(gb, &ring, Some(cancel));
             Ok(reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>())
         });
         return finish_gb(result, cancel, "incremental sparse GB");
@@ -597,7 +597,7 @@ pub fn compute_gb_incremental_with_order(
 
 /// Traced sibling of [`compute_gb_with_order`]: feeds Buchberger steps
 /// to `tracer` for UNSAT-core extraction. Routes through
-/// [`compute_gb_dispatch`] with `Some(tracer)`; if the dispatched
+/// `compute_gb_dispatch` with `Some(tracer)`; if the dispatched
 /// algorithm doesn't support tracing, dispatch silently falls back to
 /// [`BuchbergerDirect`] for that call.
 ///
@@ -638,7 +638,7 @@ pub(crate) fn compute_gb_buchberger_traced(
     let cfg = BuchbergerConfig {
         cancel_token: Some(cancel.clone()),
         abort_on_trivial: true,
-        use_f4: crate::ff::buchberger::use_f4_default(),
+        use_f4: crate::engine::buchberger::use_f4_default(),
         ..BuchbergerConfig::default()
     };
     let dense_gens = unwrap_dense_vec(generators, &ring);

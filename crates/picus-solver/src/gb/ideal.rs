@@ -1,18 +1,18 @@
 //! Ideal operations over GF(p)[x_1, ..., x_n].
 //!
-//! Thin shim over the in-tree [`crate::ff`] Buchberger / Ideal
+//! Thin shim over the in-tree `crate::ff` Buchberger / Ideal
 //! implementation. Public API: [`Ideal`], [`compute_gb_with_order`],
-//! [`compute_gb_with_order_traced`], [`interreduce_basis`],
+//! [`compute_gb_with_order_traced`], `interreduce_basis`,
 //! [`leading_monomial`], [`leading_coefficient`],
-//! [`GbAlgorithm`], [`last_dispatched_algorithm`].
+//! [`GbAlgorithm`], `last_dispatched_algorithm`.
 
 use std::collections::HashSet;
 
-use crate::ff::buchberger::{self, poly_coefficient_at};
-use crate::ff::polynomial::Polynomial;
-use crate::ff::monomial::Monomial;
-use crate::ff::monomial::MonomialOrder as FfOrder;
-use crate::ff::field::FieldElem;
+use crate::engine::buchberger::{self, poly_coefficient_at};
+use crate::engine::polynomial::Polynomial;
+use crate::engine::monomial::Monomial;
+use crate::engine::monomial::MonomialOrder as FfOrder;
+use crate::engine::field::FieldElem;
 use crate::metric;
 use crate::poly::{FfPolyRing, Mono, Poly, PolyRingType};
 use crate::timeout::{CancelToken, Cancelled};
@@ -253,13 +253,13 @@ impl<'r> Ideal<'r> {
     /// `dim_k(R/I)` — the number of standard monomials, equivalently the
     /// number of solutions of `I` with multiplicity over the algebraic
     /// closure — read off the leading monomials of this basis via the
-    /// Hilbert function ([`crate::ff::hilbert::quotient_dimension`]).
+    /// Hilbert function (`crate::engine::hilbert::quotient_dimension`).
     ///
     /// `Some(0)` for the whole ring, `Some(d)` for a zero-dimensional ideal,
     /// `None` when `R/I` is not finite-dimensional (positive-dimensional) or
     /// the dimension is declined for a pathologically large ideal. A pure
     /// combinatorial read of the finished basis (sound, verdict-neutral);
-    /// cross-checks the FGLM staircase size in [`crate::gb::fglm`].
+    /// cross-checks the FGLM staircase size in `crate::gb::fglm`.
     pub fn quotient_dimension(&self) -> Option<u128> {
         metric::incr!(picus_core::profile::IDEAL.quotient_dimension_calls);
         if self.is_whole_ring() {
@@ -279,7 +279,7 @@ impl<'r> Ideal<'r> {
                 lead.push(lm);
             }
         }
-        crate::ff::hilbert::quotient_dimension(&lead, n_vars)
+        crate::engine::hilbert::quotient_dimension(&lead, n_vars)
     }
 
     /// Compute the minimal polynomial of `var_idx` in `R/I`.
@@ -430,9 +430,9 @@ pub(crate) fn interreduce_basis(
     }
     if use_sparse_gb(poly_ring) {
         let ctx = poly_ring.ctx();
-        let sparse: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
+        let sparse: Vec<crate::engine::sparse_polynomial::SparsePolynomial> =
             basis.iter().map(|p| p.to_sparse(ctx)).collect();
-        let reduced = crate::ff::sparse_gb::interreduce(sparse, ctx, Some(cancel));
+        let reduced = crate::engine::sparse_gb::interreduce(sparse, ctx, Some(cancel));
         return reduced.into_iter().map(Poly::Sparse).collect();
     }
     wrap_dense_vec(buchberger::interreduce_with_cancel(

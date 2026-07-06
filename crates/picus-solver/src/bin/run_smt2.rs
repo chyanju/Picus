@@ -2,7 +2,7 @@
 //! [`picus_solver::smt2::SmtSession`].
 //!
 //! Usage:
-//!   run_smt2 [--config <knobs.toml>] <file.smt2> [iters]
+//!   run_smt2 [--config <knobs.toml>] <file.smt2> `iters`
 //!
 //! `--config` reads a flat TOML of engine-knob overrides (the
 //! `RuntimeOverlay` field names, e.g. `use_f4 = true`), applies them

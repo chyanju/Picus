@@ -1,5 +1,5 @@
 use super::*;
-use crate::ff::buchberger::BuchbergerConfig;
+use crate::engine::buchberger::BuchbergerConfig;
 use crate::frontend::encoder::{ConstraintSystemBuilder, PolyTerm};
 use num_bigint::BigUint;
 
@@ -675,7 +675,7 @@ fn continue_partial_reduces_pending_against_nonempty_basis() {
     // Seed basis 0 with `x` (x = 0). Pending: `x` (reduces to 0, filtered)
     // and `y` (reduces to itself, survives and is added). After resume the
     // build completes with both x and y in basis 0's reduced GB.
-    let field = crate::ff::field::PrimeField::new(BigUint::from(7u32));
+    let field = crate::engine::field::PrimeField::new(BigUint::from(7u32));
     let pr = Arc::new(FfPolyRing::new(field, vec!["x".into(), "y".into()]));
     let seed = vec![vec![pr.var(0)], vec![]];
     let pending = vec![vec![pr.var(0), pr.var(1)], vec![]];
@@ -697,7 +697,7 @@ fn continue_partial_empty_pending_quiescent_completes() {
     // Both inflight GBs are quiescent (fresh) and pending is empty: the
     // fixpoint loop performs no extend work and converges immediately to a
     // Complete with empty bases.
-    let field = crate::ff::field::PrimeField::new(BigUint::from(7u32));
+    let field = crate::engine::field::PrimeField::new(BigUint::from(7u32));
     let pr = Arc::new(FfPolyRing::new(field, vec!["x".into()]));
     let mut partial = hand_partial(pr, vec![vec![], vec![]], vec![vec![], vec![]]);
     let out = continue_partial(&mut partial, &CancelToken::none());
@@ -799,7 +799,7 @@ fn solve_with_cached_sat_verifies_bitsum_polys() {
     // CachedBase whose model (x = 0, pinned by the linear basis) satisfies
     // constraint_polys and bitsum_polys: the SAT path includes bitsum_polys
     // in the verification set and the model passes → Sat.
-    let field = crate::ff::field::PrimeField::new(BigUint::from(7u32));
+    let field = crate::engine::field::PrimeField::new(BigUint::from(7u32));
     let pr = Arc::new(FfPolyRing::new(field, vec!["x".into()]));
     let x_basis = pr.var(0); // x  (=> x = 0)
     let x_constraint = pr.var(0);
@@ -887,7 +887,7 @@ fn solve_with_cached_sat_rejected_by_bitsum_returns_unknown() {
     // `x - 1` (violated by x = 0). The model found by the search satisfies
     // the bases but fails verification against the full set including the
     // bitsum def, so solve_with_cached returns Unknown instead of Sat.
-    let field = crate::ff::field::PrimeField::new(BigUint::from(7u32));
+    let field = crate::engine::field::PrimeField::new(BigUint::from(7u32));
     let pr = Arc::new(FfPolyRing::new(field, vec!["x".into()]));
     let x_basis = pr.var(0); // x => x = 0
     // x - 1 : violated by x = 0.
@@ -1086,7 +1086,7 @@ fn continue_partial_all_pending_reduce_to_zero_runs_run_only_branch() {
     // The build then converges: partition 0 holds `{x}`, propagation seeds
     // partition 1 with `x` on iteration 2, and the loop terminates with both
     // bases equal to `{x}`.
-    let field = crate::ff::field::PrimeField::new(BigUint::from(7u32));
+    let field = crate::engine::field::PrimeField::new(BigUint::from(7u32));
     let pr = Arc::new(FfPolyRing::new(field, vec!["x".into(), "y".into()]));
     let seed = vec![vec![pr.var(0)], vec![]];
     let pending = vec![vec![pr.var(0)], vec![]];
@@ -1183,7 +1183,7 @@ fn solve_with_cached_k1_fallback_places_query_in_partition_zero() {
     //     pushes the poly to partition 0.
     // The 1-partition split_gb_extend then accepts the Rabinowitsch poly
     // and find_zero discovers a model satisfying `x != y` (e.g. x=1,y=0,w=1).
-    let field = crate::ff::field::PrimeField::new(BigUint::from(7u32));
+    let field = crate::engine::field::PrimeField::new(BigUint::from(7u32));
     let pr = Arc::new(FfPolyRing::new(
         field,
         vec!["x".into(), "y".into(), "__w_diseq_0".into()],

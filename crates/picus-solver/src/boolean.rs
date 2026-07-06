@@ -2,7 +2,7 @@
 //! `boolean::` paths as re-exports.
 //!
 //! The Boolean IR lives in [`crate::frontend::formula`]; the DNF
-//! strategy in [`crate::dnf`]; the CDCL(T) strategy in
+//! strategy in `crate::dnf`; the CDCL(T) strategy in
 //! [`crate::cdclt`]. This module owns only the choice between them, so
 //! neither strategy depends on the other.
 

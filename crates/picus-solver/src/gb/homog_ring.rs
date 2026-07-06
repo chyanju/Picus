@@ -1,7 +1,7 @@
 //! Homogenization helpers for GB computation.
 //!
 //! Provides the lift / homogenize / dehomogenize primitives used by
-//! [`crate::gb::gb_homog::compute_gb_by_homog`].
+//! [`crate::gb::homog::compute_gb_by_homog`].
 //!
 //! Background. Plain Buchberger on a non-homogeneous input in
 //! `P = GF(p)[x_1, ..., x_n]` suffers from sugar mis-prediction: S-pairs
@@ -15,7 +15,7 @@
 //! The `ext` ring is a regular [`FfPolyRing`] with `n + 1` variables;
 //! the extra variable `h` lives at index `n` (= `base.n_vars()`).
 
-use crate::ff::field::PrimeField;
+use crate::engine::field::PrimeField;
 use crate::poly::{FfPolyRing, Poly};
 
 /// Wraps a base polynomial ring `P` and exposes a fresh ring `Ph = P[h]`

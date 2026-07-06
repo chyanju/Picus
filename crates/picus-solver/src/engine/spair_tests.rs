@@ -1,5 +1,5 @@
 use super::*;
-use crate::ff::divmask::DivMaskScheme;
+use crate::engine::divmask::DivMaskScheme;
 use std::cmp::Ordering;
 
 fn make(i: usize, j: usize, sugar: u32, lcm_deg: u32, age: u64) -> SPair {
@@ -61,7 +61,7 @@ fn partial_ord_matches_ord() {
 
 #[test]
 fn criterion_pair_impl_exposes_lcm_parents_and_key() {
-    use crate::ff::spair_criteria::CriterionPair;
+    use crate::engine::spair_criteria::CriterionPair;
     let p = make(2, 5, 3, 4, 8);
     assert_eq!(p.parents(), (2, 5));
     assert_eq!(p.cmp_key(), (3, 4, 8));
@@ -71,7 +71,7 @@ fn criterion_pair_impl_exposes_lcm_parents_and_key() {
 
 #[test]
 fn coprime_flag_is_propagated_through_criterion_trait() {
-    use crate::ff::spair_criteria::CriterionPair;
+    use crate::engine::spair_criteria::CriterionPair;
     let mut p = make(0, 1, 3, 5, 7);
     p.is_coprime = true;
     assert!(p.is_coprime());

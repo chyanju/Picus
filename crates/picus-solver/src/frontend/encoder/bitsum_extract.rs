@@ -35,20 +35,20 @@ pub(crate) fn bitsum_fits(len: usize, p: &BigUint) -> bool {
 /// Algorithm:
 /// 1. Collect `bits`: variables appearing in `system.bitsums`, plus
 ///    any variable `b` with an equality of the form `b·(b − 1) = 0`
-///    (matched by [`detect_bit_constraint`]).
+///    (matched by `detect_bit_constraint`).
 /// 2. For each equality, repeatedly find the longest sub-sum
 ///    `c·b_0 + 2c·b_1 + ... + 2^k·c·b_k` where each `b_i ∈ bits`
 ///    appears as a single-variable degree-1 term. Base coefficients
 ///    are tried in ascending symmetric-residue order
 ///    (`min(c, p − c)`, ties broken by raw value).
-/// 3. On a chain of length ≥ [`MIN_AUTO_BITSUM_LEN`]: drop the
+/// 3. On a chain of length ≥ `MIN_AUTO_BITSUM_LEN`: drop the
 ///    chain's terms from the equality, append a `c · __bitsum_N`
 ///    term, append the bit list to `system.bitsums`. The encoder
 ///    emits `b_0 + 2·b_1 + ... + 2^k·b_k − __bitsum_N = 0` into
 ///    `bitsum_polys` (split-GB seeder routes those to partition 0 only).
 ///
 /// Soundness gate: chain length capped at `floor(log2(prime))` (via
-/// [`bitsum_fits`]) so distinct bit patterns never collide modulo
+/// `bitsum_fits`) so distinct bit patterns never collide modulo
 /// `prime`. The same invariant gates the `basis2` propagation lemma in
 /// `picus-analysis`. For cryptographic primes the cap is ~254; for
 /// small primes (GF(7), GF(11), GF(13)) it's 2-3.

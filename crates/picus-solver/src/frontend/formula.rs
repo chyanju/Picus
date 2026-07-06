@@ -66,7 +66,7 @@ impl Formula {
         }
     }
 
-    /// Expand to disjunctive normal form. Caller must call [`nnf`]
+    /// Expand to disjunctive normal form. Caller must call `nnf`
     /// first. The result is `Vec<Vec<Literal>>` where the outer list is
     /// the disjuncts and each inner list is a conjunction of literals.
     /// `vec![]` represents `False`; `vec![vec![]]` represents `True`.

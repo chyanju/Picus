@@ -29,7 +29,7 @@
 //!   filter before the O(n_vars) `Monomial::divides` check.
 //! * The monomial → column index uses a `HashMap` built from a
 //!   single sort pass over the unique monomial set.
-//! * The sparse echelon ([`picus_core::ff::linalg::echelonize`])
+//! * The sparse echelon ([`crate::engine::linalg::echelonize`])
 //!   borrows pivot rows in place via `split_at_mut` and threads one
 //!   scratch row through every axpy, moving `FieldElem` coefficients
 //!   into the merge instead of cloning them.
@@ -342,7 +342,7 @@ pub(crate) fn process_batch_with_workspace(
     }
 
     // Step 5: sparse row-echelon reduce.
-    crate::ff::linalg::echelonize(&mut rows, &mut provs, &ring.field, cancel);
+    crate::engine::linalg::echelonize(&mut rows, &mut provs, &ring.field, cancel);
 
     if cancel.map(|c| c.is_cancelled()).unwrap_or(false) {
         return Vec::new();

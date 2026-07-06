@@ -431,7 +431,7 @@ fn audit_branching_incremental_gb_parity() {
     // class (Sat/Unsat/Unknown) and the same model values when Sat,
     // because both build the same reduced GB modulo canonicalisation.
     use crate::poly::FfPolyRing;
-    use crate::ff::field::PrimeField;
+    use crate::engine::field::PrimeField;
     use num_bigint::BigUint;
     let f = || PrimeField::new(BigUint::from(7u32));
     let cases: Vec<(&'static str, Vec<(usize, i64, Vec<(usize, u32)>)>)> = vec![

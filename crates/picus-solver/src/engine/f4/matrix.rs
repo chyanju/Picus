@@ -1,7 +1,7 @@
 //! F4 matrix encoding: row ↔ polynomial conversion and provenance.
 //!
 //! The sparse GF(p) row-echelon reducer itself lives in
-//! [`picus_core::ff::linalg`] (shared with the linear and FGLM engines);
+//! [`crate::engine::linalg`] (shared with the linear and FGLM engines);
 //! this module supplies the F4-specific pieces: encoding a [`DensePoly`]
 //! to / from a sparse `(column, coefficient)` row, the [`MonoKey`]
 //! column ordering, and the [`RowProv`] provenance carried through the
@@ -13,10 +13,10 @@
 
 use std::collections::BTreeSet;
 
-use crate::ff::field::FieldElem;
-use crate::ff::linalg::{Provenance, Row};
-use crate::ff::monomial::{Monomial, MonomialOrder};
-use crate::ff::polynomial::{PolyRing, DensePoly};
+use crate::engine::field::FieldElem;
+use crate::engine::linalg::{Provenance, Row};
+use crate::engine::monomial::{Monomial, MonomialOrder};
+use crate::engine::polynomial::{PolyRing, DensePoly};
 
 /// Row-provenance bookkeeping for the F4 echelon. Tracks which input
 /// S-pairs and reducer basis elements have been linearly combined into a
@@ -51,7 +51,7 @@ impl Provenance for RowProv {
 /// Sparse row over GF(p): `(column, coefficient)` pairs sorted by column
 /// ASCENDING. Column 0 corresponds to the LARGEST monomial in the column
 /// index, so the first nonzero entry is the row's LT. Alias of the shared
-/// [`picus_core::ff::linalg::Row`].
+/// [`crate::engine::linalg::Row`].
 pub(super) type SparseRow = Row;
 
 /// Convert a polynomial to sparse row form (column-ascending). The

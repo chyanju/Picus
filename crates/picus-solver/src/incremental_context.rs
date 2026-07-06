@@ -6,7 +6,7 @@
 //! prior split-GB and encodes only the per-query disequalities
 //! (Rabinowitsch polynomials). Sub-iter resumability: when a fresh
 //! cache build is cancelled mid-build, the per-partition
-//! [`IncrementalGB`] in-flight state is preserved as a
+//! `IncrementalGB` in-flight state is preserved as a
 //! `PartialBuild` and resumed on the next solve call with the
 //! matching digest.
 
@@ -19,7 +19,7 @@ use crate::frontend::encoder::{
     encode, encode_constraint_side, ConstraintSystem,
 };
 use crate::gb::ideal::{incremental_engine, IncrementalGB};
-use crate::ff::monomial::MonomialOrder;
+use crate::engine::monomial::MonomialOrder;
 use crate::gb::ideal::{interreduce_basis, ring_for_order, unwrap_dense_vec, wrap_dense_vec, Ideal};
 use crate::gb::model;
 use crate::metric;

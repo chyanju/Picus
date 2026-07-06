@@ -1,6 +1,6 @@
 use super::*;
-use crate::ff::field::PrimeField;
-use crate::ff::monomial::MonomialOrder;
+use crate::engine::field::PrimeField;
+use crate::engine::monomial::MonomialOrder;
 use num_bigint::BigUint;
 use std::sync::Arc;
 
@@ -249,12 +249,12 @@ fn interreduce_returns_early_on_pre_cancelled_token() {
 // invariants (ideal-membership, uniqueness of the reduced GB,
 // idempotence, determinism) — NOT against what the source does.
 
-use crate::ff::buchberger::{
+use crate::engine::buchberger::{
     groebner_basis as dense_gb, interreduce as dense_interreduce, BuchbergerConfig,
 };
-use crate::ff::polynomial::DensePoly;
-use crate::ff::repr::MonomialRepr;
-use crate::ff::sparse_monomial::SparseMonomial;
+use crate::engine::polynomial::DensePoly;
+use crate::engine::repr::MonomialRepr;
+use crate::engine::sparse_monomial::SparseMonomial;
 
 /// Polynomial ring builder for a given prime + variable count.
 fn ring_p(p: u64, n_vars: usize) -> Arc<PolyRing> {

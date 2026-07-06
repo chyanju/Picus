@@ -21,8 +21,8 @@
 //! check, so they are scheme-agnostic: each engine populates its pairs'
 //! `lcm_divmask` its own way and the result is identical.
 
-use picus_core::ff::divmask::DivMask;
-use picus_core::ff::repr::MonomialRepr;
+use crate::engine::divmask::DivMask;
+use crate::engine::repr::MonomialRepr;
 
 /// What the GM / B criteria need from an S-pair, independent of the
 /// monomial representation.

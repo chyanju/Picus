@@ -23,8 +23,8 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
-use crate::ff::field::FieldElem;
-use crate::ff::monomial::{Monomial, MonomialOrder};
+use crate::engine::field::FieldElem;
+use crate::engine::monomial::{Monomial, MonomialOrder};
 use crate::gb::ideal::Ideal;
 use crate::poly::Poly;
 use crate::timeout::CancelToken;
@@ -184,7 +184,7 @@ pub(crate) fn fglm_to_lex_cancel(ideal: &Ideal, cancel: &CancelToken) -> Option<
 
     // Sound cross-check: the staircase is a k-basis of R/I, so its size
     // equals dim_k(R/I) read independently off the leading-term ideal via
-    // the Hilbert function (`crate::ff::hilbert`). A mismatch means the
+    // the Hilbert function (`crate::engine::hilbert`). A mismatch means the
     // FGLM combination accounting is inconsistent — rather than trust a lex
     // basis that may not lie in I, return None so the caller falls back to
     // direct Buchberger Lex (sound). Runs in release, not just debug.

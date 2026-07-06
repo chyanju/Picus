@@ -47,7 +47,7 @@ pub(crate) use branching::apply_rule;
 pub(crate) use fixpoint::split_gb;
 
 use crate::split_gb::bitprop::BitProp;
-use crate::ff::field::FieldElem;
+use crate::engine::field::FieldElem;
 use crate::gb::ideal::Ideal;
 use crate::poly::{FfPolyRing, Poly};
 use crate::timeout::{CancelToken, Cancelled};

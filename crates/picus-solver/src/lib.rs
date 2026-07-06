@@ -4,7 +4,7 @@
 //! polynomial systems over prime finite fields GF(p), designed as a drop-in
 //! replacement for cvc5's QF_FF theory solver within the Picus ecosystem.
 //!
-//! The algorithm follows [OKTB23] "Satisfiability Modulo Finite Fields" (CAV 2023).
+//! The algorithm follows `OKTB23` "Satisfiability Modulo Finite Fields" (CAV 2023).
 //!
 //! Test-file convention: the unit tests for `x.rs` live in the sibling
 //! `x_tests.rs` (attached with `#[cfg(test)] #[path = ...]`); additional
@@ -22,7 +22,7 @@
 pub mod boolean;
 pub mod cdclt;
 pub(crate) mod dnf;
-pub(crate) mod ff;
+pub(crate) mod engine;
 pub mod frontend;
 pub mod gb;
 pub mod incremental_context;

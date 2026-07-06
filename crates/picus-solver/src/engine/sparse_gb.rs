@@ -14,7 +14,7 @@
 //! processed, never the final ideal) leave the result identical to the
 //! dense engine's; `repr_oracle` checks that term-for-term.
 
-use crate::ff::spair_criteria::{b_criterion_kill, gm_insert, merge_sorted_descending};
+use crate::engine::spair_criteria::{b_criterion_kill, gm_insert, merge_sorted_descending};
 use crate::timeout::CancelToken;
 
 use super::divmask::DivMask;

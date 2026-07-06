@@ -82,7 +82,7 @@ fn test_roots_high_degree_with_irreducible_factors() {
 }
 
 /// Sort roots as BigUint for stable comparison.
-fn sorted_roots(ff: &PrimeField, roots: &[picus_core::ff::field::FieldElem]) -> Vec<BigUint> {
+fn sorted_roots(ff: &PrimeField, roots: &[crate::engine::field::FieldElem]) -> Vec<BigUint> {
     let mut v: Vec<BigUint> = roots.iter().map(|r| ff.to_biguint(r)).collect();
     v.sort();
     v

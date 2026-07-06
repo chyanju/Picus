@@ -1,6 +1,6 @@
 use super::*;
-use crate::ff::field::PrimeField;
-use crate::ff::monomial::MonomialOrder;
+use crate::engine::field::PrimeField;
+use crate::engine::monomial::MonomialOrder;
 use crate::gb::ideal::compute_gb_with_order;
 use crate::poly::FfPolyRing;
 use num_bigint::BigUint;

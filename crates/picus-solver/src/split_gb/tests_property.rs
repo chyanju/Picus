@@ -1,5 +1,5 @@
 use super::*;
-use crate::ff::field::PrimeField;
+use crate::engine::field::PrimeField;
 use crate::split_gb::bitprop::BitProp;
 use num_bigint::BigUint;
 

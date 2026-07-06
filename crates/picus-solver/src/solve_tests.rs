@@ -1,5 +1,5 @@
 use super::*;
-use crate::ff::field::PrimeField;
+use crate::engine::field::PrimeField;
 
 fn ff(p: u32) -> PrimeField {
     PrimeField::new(BigUint::from(p))
@@ -664,8 +664,8 @@ fn prop_unsat_core_indices_in_range() {
 fn eval_poly_core(
     pr: &FfPolyRing,
     p: &crate::poly::Poly,
-    point: &[crate::ff::field::FieldElem],
-) -> crate::ff::field::FieldElem {
+    point: &[crate::engine::field::FieldElem],
+) -> crate::engine::field::FieldElem {
     let ring = &pr.ring;
     let fp = &pr.field();
     let mut acc = fp.zero();

@@ -25,7 +25,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::ff::field::FieldElem;
+use crate::engine::field::FieldElem;
 use crate::poly::{FfPolyRing, Poly};
 
 /// Information about a detected bit constraint:  `var * (var - 1) == 0`

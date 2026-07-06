@@ -1,6 +1,6 @@
 use super::*;
 use crate::timeout::CancelToken;
-use crate::ff::field::PrimeField;
+use crate::engine::field::PrimeField;
 use num_bigint::BigUint;
 
 fn pr_one_var() -> FfPolyRing {

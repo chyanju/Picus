@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::split_gb::bitprop::BitProp;
 use crate::gb::brancher::Brancher;
-use crate::ff::field::{FieldElem, PrimeField};
+use crate::engine::field::{FieldElem, PrimeField};
 use crate::gb::ideal::Ideal;
 use crate::poly::{FfPolyRing, Poly};
 use crate::timeout::CancelToken;
@@ -372,7 +372,7 @@ fn assignment_poly(pr: &FfPolyRing, var: usize, val: &FieldElem) -> Poly {
 /// rows — instead of materialising facade monomials and scanning all
 /// `n_vars` per term.
 pub(super) fn evaluate_full(pr: &FfPolyRing, p: &Poly, r: &PartialPoint) -> Option<FieldElem> {
-    use picus_core::ff::repr::MonomialRepr;
+    use crate::engine::repr::MonomialRepr;
     let fp = &pr.field();
     match p {
         Poly::Sparse(sp) => {

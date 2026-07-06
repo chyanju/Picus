@@ -17,17 +17,17 @@ use num_bigint::BigUint;
 #[test]
 #[ignore]
 fn bench_f4_vs_per_pair_large() {
-    use crate::ff::buchberger::{BuchbergerConfig, IncrementalGB};
-    use picus_core::ff::monomial::MonomialOrder;
-    use picus_core::ff::polynomial::PolyRing;
-    use picus_core::ff::field::PrimeField;
+    use crate::engine::buchberger::{BuchbergerConfig, IncrementalGB};
+    use crate::engine::monomial::MonomialOrder;
+    use crate::engine::polynomial::PolyRing;
+    use crate::engine::field::PrimeField;
     use std::sync::Arc;
     use std::time::Instant;
 
     /// `cyclic-N`: the N-variable cyclic ideal. Classical GB benchmark
     /// known to produce many same-sugar batches and a large basis.
-    fn cyclic_n(n: usize, ring: &Arc<PolyRing>) -> Vec<picus_core::ff::polynomial::Polynomial> {
-        use picus_core::ff::polynomial::Polynomial;
+    fn cyclic_n(n: usize, ring: &Arc<PolyRing>) -> Vec<crate::engine::polynomial::Polynomial> {
+        use crate::engine::polynomial::Polynomial;
         let xs: Vec<Polynomial> = (0..n).map(|i| Polynomial::variable(i, ring)).collect();
         let mut polys: Vec<Polynomial> = Vec::new();
         // f_d = sum over rotation r of (product x_{(r+0)..r+d})  for d = 1..n
@@ -54,7 +54,7 @@ fn bench_f4_vs_per_pair_large() {
     }
 
     fn run_one(
-        polys: &[picus_core::ff::polynomial::Polynomial],
+        polys: &[crate::engine::polynomial::Polynomial],
         ring: &Arc<PolyRing>,
         use_f4: bool,
     ) -> u128 {
@@ -142,23 +142,23 @@ fn bench_f4_vs_per_pair_large() {
         for &n_polys in &[10usize, 20, 30] {
             let mut polys = Vec::new();
             for _ in 0..n_polys {
-                let mut acc = picus_core::ff::polynomial::Polynomial::zero();
+                let mut acc = crate::engine::polynomial::Polynomial::zero();
                 for _ in 0..6 {
                     let coeff = ((rand() % 7000) + 1) as i64;
                     let c = ring.field.from_int(coeff);
                     let i = (rand() as usize) % n_vars;
                     let j = (rand() as usize) % n_vars;
-                    let xi = picus_core::ff::polynomial::Polynomial::variable(i, &ring);
-                    let xj = picus_core::ff::polynomial::Polynomial::variable(j, &ring);
+                    let xi = crate::engine::polynomial::Polynomial::variable(i, &ring);
+                    let xj = crate::engine::polynomial::Polynomial::variable(j, &ring);
                     let term = xi.mul(&xj, &ring);
                     let scaled = term.mul(
-                        &picus_core::ff::polynomial::Polynomial::constant(c, &ring),
+                        &crate::engine::polynomial::Polynomial::constant(c, &ring),
                         &ring,
                     );
                     acc = acc.add(&scaled, &ring);
                 }
                 let cc = ring.field.from_int(((rand() % 7) + 1) as i64);
-                let cp = picus_core::ff::polynomial::Polynomial::constant(cc, &ring);
+                let cp = crate::engine::polynomial::Polynomial::constant(cc, &ring);
                 acc = acc.add(&cp, &ring);
                 if !acc.is_zero() {
                     polys.push(acc);
@@ -210,10 +210,10 @@ fn bench_f4_vs_per_pair_large() {
 #[test]
 #[ignore]
 fn bench_f4_non_cyclic_workloads() {
-    use crate::ff::buchberger::{BuchbergerConfig, IncrementalGB};
-    use picus_core::ff::monomial::MonomialOrder;
-    use picus_core::ff::polynomial::{PolyRing, Polynomial};
-    use picus_core::ff::field::PrimeField;
+    use crate::engine::buchberger::{BuchbergerConfig, IncrementalGB};
+    use crate::engine::monomial::MonomialOrder;
+    use crate::engine::polynomial::{PolyRing, Polynomial};
+    use crate::engine::field::PrimeField;
     use std::sync::Arc;
     use std::time::Instant;
 
@@ -387,10 +387,10 @@ fn bench_f4_non_cyclic_workloads() {
 #[test]
 #[ignore]
 fn bench_f4_vs_per_pair() {
-    use crate::ff::buchberger::{BuchbergerConfig, IncrementalGB};
-    use picus_core::ff::monomial::MonomialOrder;
-    use picus_core::ff::polynomial::PolyRing;
-    use picus_core::ff::field::PrimeField;
+    use crate::engine::buchberger::{BuchbergerConfig, IncrementalGB};
+    use crate::engine::monomial::MonomialOrder;
+    use crate::engine::polynomial::PolyRing;
+    use crate::engine::field::PrimeField;
     use std::sync::Arc;
     use std::time::Instant;
 
@@ -401,7 +401,7 @@ fn bench_f4_vs_per_pair() {
         n_polys: usize,
         seed: u64,
         ring: &Arc<PolyRing>,
-    ) -> Vec<picus_core::ff::polynomial::Polynomial> {
+    ) -> Vec<crate::engine::polynomial::Polynomial> {
         let mut s = seed;
         let mut rand = || {
             s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
@@ -409,23 +409,23 @@ fn bench_f4_vs_per_pair() {
         };
         let mut out = Vec::new();
         for _ in 0..n_polys {
-            let mut acc = picus_core::ff::polynomial::Polynomial::zero();
+            let mut acc = crate::engine::polynomial::Polynomial::zero();
             for _ in 0..6 {
                 let coeff = ((rand() % 7000) + 1) as i64;
                 let c = ring.field.from_int(coeff);
                 let i = (rand() as usize) % n_vars;
                 let j = (rand() as usize) % n_vars;
-                let xi = picus_core::ff::polynomial::Polynomial::variable(i, ring);
-                let xj = picus_core::ff::polynomial::Polynomial::variable(j, ring);
+                let xi = crate::engine::polynomial::Polynomial::variable(i, ring);
+                let xj = crate::engine::polynomial::Polynomial::variable(j, ring);
                 let term = xi.mul(&xj, ring);
                 let scaled = term.mul(
-                    &picus_core::ff::polynomial::Polynomial::constant(c, ring),
+                    &crate::engine::polynomial::Polynomial::constant(c, ring),
                     ring,
                 );
                 acc = acc.add(&scaled, ring);
             }
             let cc = ring.field.from_int(((rand() % 7) + 1) as i64);
-            let cp = picus_core::ff::polynomial::Polynomial::constant(cc, ring);
+            let cp = crate::engine::polynomial::Polynomial::constant(cc, ring);
             acc = acc.add(&cp, ring);
             if !acc.is_zero() {
                 out.push(acc);
@@ -435,7 +435,7 @@ fn bench_f4_vs_per_pair() {
     }
 
     fn time_one(
-        polys: &[picus_core::ff::polynomial::Polynomial],
+        polys: &[crate::engine::polynomial::Polynomial],
         ring: &Arc<PolyRing>,
         use_f4: bool,
         iters: usize,
@@ -513,15 +513,15 @@ fn bench_f4_vs_per_pair() {
 #[test]
 #[ignore]
 fn audit_p3_cyclic_n_hilbert_and_sparse_cache_do_not_regress() {
-    use crate::ff::buchberger::{BuchbergerConfig, IncrementalGB};
-    use picus_core::ff::monomial::MonomialOrder;
-    use picus_core::ff::polynomial::PolyRing;
-    use picus_core::ff::field::PrimeField;
+    use crate::engine::buchberger::{BuchbergerConfig, IncrementalGB};
+    use crate::engine::monomial::MonomialOrder;
+    use crate::engine::polynomial::PolyRing;
+    use crate::engine::field::PrimeField;
     use std::sync::Arc;
     use std::time::Instant;
 
-    fn cyclic_n(n: usize, ring: &Arc<PolyRing>) -> Vec<picus_core::ff::polynomial::Polynomial> {
-        use picus_core::ff::polynomial::Polynomial;
+    fn cyclic_n(n: usize, ring: &Arc<PolyRing>) -> Vec<crate::engine::polynomial::Polynomial> {
+        use crate::engine::polynomial::Polynomial;
         let xs: Vec<Polynomial> = (0..n).map(|i| Polynomial::variable(i, ring)).collect();
         let mut polys: Vec<Polynomial> = Vec::new();
         for d in 1..n {
@@ -546,7 +546,7 @@ fn audit_p3_cyclic_n_hilbert_and_sparse_cache_do_not_regress() {
     }
 
     fn run_one(
-        polys: &[picus_core::ff::polynomial::Polynomial],
+        polys: &[crate::engine::polynomial::Polynomial],
         ring: &Arc<PolyRing>,
         use_f4: bool,
     ) -> u128 {
@@ -642,8 +642,8 @@ fn audit_p3_cyclic_n_hilbert_and_sparse_cache_do_not_regress() {
     // batch cyclic-N produces. Definition (Faugère normalisation):
     //   u_n = 2 * (u_1 + u_2 + ... + u_{n-1}) + u_0,  u_0 + u_n = 1
     //   for k = 1..n-1: sum_{i+j=k, |i|,|j|≤n} u_|i| * u_|j| = u_k
-    fn katsura_reduced_vars(n: usize, ring: &Arc<PolyRing>) -> Vec<picus_core::ff::polynomial::Polynomial> {
-        use picus_core::ff::polynomial::Polynomial;
+    fn katsura_reduced_vars(n: usize, ring: &Arc<PolyRing>) -> Vec<crate::engine::polynomial::Polynomial> {
+        use crate::engine::polynomial::Polynomial;
         // u_i is stored at index i (0..n).
         let us: Vec<Polynomial> = (0..n).map(|i| Polynomial::variable(i, ring)).collect();
         let mut polys = Vec::new();

@@ -18,7 +18,7 @@ use std::collections::HashSet;
 use num_bigint::BigUint;
 use num_traits::Zero;
 
-use crate::ff::field::FieldElem;
+use crate::engine::field::FieldElem;
 use crate::frontend::encoder::bitsum_fits;
 use crate::gb::ideal::Ideal;
 use crate::metric;

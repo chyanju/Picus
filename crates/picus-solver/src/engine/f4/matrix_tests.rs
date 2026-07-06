@@ -1,5 +1,5 @@
 use super::*;
-use crate::ff::field::PrimeField;
+use crate::engine::field::PrimeField;
 use num_bigint::BigUint;
 use std::collections::HashMap;
 use std::sync::Arc;

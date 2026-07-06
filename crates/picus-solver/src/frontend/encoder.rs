@@ -23,9 +23,9 @@
 use num_bigint::BigUint;
 use std::collections::HashMap;
 
-use crate::ff::field::PrimeField;
-use crate::ff::matrix_order::{intern as intern_order, MatrixOrder};
-use crate::ff::monomial::MonomialOrder;
+use crate::engine::field::PrimeField;
+use crate::engine::matrix_order::{intern as intern_order, MatrixOrder};
+use crate::engine::monomial::MonomialOrder;
 use crate::EngineError;
 use crate::poly::{FfPolyRing, Poly};
 

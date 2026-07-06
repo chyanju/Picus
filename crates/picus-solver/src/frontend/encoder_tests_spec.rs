@@ -57,7 +57,7 @@ fn bitdecomp_system(prime: u32, k: usize) -> (ConstraintSystem, VarIdx, Vec<VarI
 // (Fermat, Rabinowitsch trick, binary representation), NOT from
 // observed encoder output. A failure here is a SOUNDNESS-class bug.
 
-use crate::ff::field::FieldElem;
+use crate::engine::field::FieldElem;
 
 /// Evaluate a slice of `BigUint` values (interpreted modulo the ring's
 /// prime) as a `FieldElem` vector of length `n_vars`. Indices past the

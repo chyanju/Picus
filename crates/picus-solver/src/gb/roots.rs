@@ -1,6 +1,6 @@
 //! Univariate root finding over GF(p).
 //!
-//! Forwards to [`crate::ff::univariate::find_roots`], which runs:
+//! Forwards to `crate::engine::univariate::find_roots`, which runs:
 //!
 //! 1. Squarefree preprocessing via `gcd(f, x^q - x mod f)` to isolate
 //!    distinct linear factors.
@@ -8,8 +8,8 @@
 //!
 //! Semantics match cvc5's univariate root finding.
 
-use crate::ff::univariate::{self, UnivariatePoly};
-use crate::ff::field::{FieldElem, PrimeField};
+use crate::engine::univariate::{self, UnivariatePoly};
+use crate::engine::field::{FieldElem, PrimeField};
 use crate::metric;
 
 /// Find all roots of a univariate polynomial over GF(p).
@@ -20,7 +20,7 @@ pub fn find_roots(field: &PrimeField, coeffs: &[FieldElem]) -> Vec<FieldElem> {
 }
 
 /// Like [`find_roots`], returning `(roots, complete)`. See
-/// [`crate::ff::univariate::find_roots_checked`] for the completeness
+/// `crate::engine::univariate::find_roots_checked` for the completeness
 /// contract: when `complete == false` the returned roots are only a subset
 /// of the true root set, so callers must not treat exhausting them as proof
 /// of infeasibility.
