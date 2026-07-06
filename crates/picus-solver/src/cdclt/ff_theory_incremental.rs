@@ -198,6 +198,19 @@ impl<'a> IncrementalFfTheoryState<'a> {
         let outcome = find_zero_cancel(&user_ring, &basis_user, self.cancel);
         match outcome {
             FindZeroOutcome::Sat(raw_model) => {
+                // Verify the pre-filter model (witness slots carry the
+                // Rabinowitsch values the basis constrains) before
+                // trusting Sat. This seam forwards Sat straight to the
+                // CDCL(T) loop — every other Sat producer in the crate
+                // sits behind such a gate, so this one carries its own
+                // even though `find_zero_cancel` checks its output.
+                if !crate::gb::model::verify_model(&user_ring, &basis_user, &raw_model) {
+                    log::warn!(
+                        "incremental FF theory: extracted model failed \
+                         verification; degrading to Unknown"
+                    );
+                    return ModelExtraction::Unknown;
+                }
                 // Drop placeholder bindings before returning.
                 let mut filtered: HashMap<String, BigUint> = HashMap::new();
                 for (name, value) in raw_model {

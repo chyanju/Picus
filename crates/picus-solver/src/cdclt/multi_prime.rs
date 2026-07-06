@@ -154,11 +154,32 @@ impl<'a> Theory for FfTheoryRouter<'a> {
         } else if any_unknown {
             CheckOutcome::Unknown
         } else {
-            // Every slot was Sat in this check: per-prime variable sets
-            // are disjoint, so the union is the combined model.
+            // Every slot was Sat in this check. Per-prime variable sets
+            // are expected to be disjoint (an equality between fields of
+            // different sizes is ill-typed SMT-LIB, and the parser
+            // rejects cross-prime asserts) — but nothing upstream
+            // *enforces* name disjointness across slots, and a silent
+            // last-writer-wins union would return a witness violating
+            // the overwritten slot's constraints. Guard: a colliding
+            // name with a conflicting value degrades to Unknown.
             let mut combined: HashMap<String, BigUint> = HashMap::new();
             for m in slot_models {
-                combined.extend(m);
+                for (name, value) in m {
+                    match combined.get(&name) {
+                        Some(prev) if *prev != value => {
+                            log::warn!(
+                                "multi-prime model join: variable {} bound in \
+                                 two slots with different values; degrading \
+                                 to Unknown",
+                                name
+                            );
+                            return CheckOutcome::Unknown;
+                        }
+                        _ => {
+                            combined.insert(name, value);
+                        }
+                    }
+                }
             }
             CheckOutcome::Sat(combined)
         }

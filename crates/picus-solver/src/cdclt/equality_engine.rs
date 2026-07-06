@@ -185,10 +185,20 @@ impl EqualityEngine {
         let (lo, hi) = if ra.0 <= rb.0 { (ra, rb) } else { (rb, ra) };
         self.parent[hi.0 as usize] = lo;
         // Migrate any polarity asserted on the absorbed endpoint into the
-        // surviving rep so subsequent notify() calls find it.
+        // surviving rep so subsequent notify() calls find it. The
+        // migration is trailed like a notify(): a polarity asserted at
+        // decision level k must not survive a pop below k just because a
+        // union moved it onto a new representative. The witness that
+        // first asserted the polarity moves with it, so contradiction
+        // lemmas keep pointing at the true origin.
         if self.rep_polarity.get(&lo).is_none() {
             if let Some(p) = pa.or(pb) {
+                let prior_witness = self.polarity_witness.get(&lo).copied();
+                self.trail.push((lo, None, prior_witness));
                 self.rep_polarity.insert(lo, p);
+                if let Some(w) = self.polarity_witness.get(&hi).copied() {
+                    self.polarity_witness.insert(lo, w);
+                }
             }
         }
         RegisterOutcome::Ok

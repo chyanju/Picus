@@ -413,7 +413,10 @@ pub(crate) fn interreduce(
             if others.is_empty() {
                 None
             } else {
-                Some(filtered[i].reduce_by_refs(&others, ring))
+                // Cancel-aware like the dense interreduce: a single long
+                // tail reduction must not overshoot the deadline (the
+                // between-elements poll above cannot interrupt it).
+                Some(filtered[i].reduce_by_refs_cancel(&others, ring, cancel))
             }
         };
         if let Some(red) = red {

@@ -85,6 +85,10 @@ pub(crate) fn find_zero_cancel(
     // True iff at least one popped brancher was a non-exhaustive
     // RoundRobin (i.e. we never enumerated its full per-variable range).
     let mut bounded_search_used = false;
+    // True iff an extracted full assignment failed verification against
+    // the inputs (a corrupted node basis); exhaustion then degrades to
+    // Unknown rather than UNSAT.
+    let mut model_verification_failed = false;
 
     while !ideals.is_empty() {
         if cancel.is_cancelled() { return FindZeroOutcome::Unknown; }
@@ -97,9 +101,29 @@ pub(crate) fn find_zero_cancel(
             continue;
         }
 
-        // Check if all variables are assigned
+        // Check if all variables are assigned. The extracted point is
+        // trusted only after it verifies against the original
+        // generators: an engine failure upstream maps a node's basis to
+        // an empty one (fail-closed), and a full assignment reached
+        // through such a node constrains nothing — forwarding it
+        // unverified would hand a fabricated witness to callers that
+        // treat Sat as a checked counter-example.
         if let Some(model) = try_extract_full_assignment(poly_ring, ideal) {
-            return FindZeroOutcome::Sat(model);
+            if verify_model(poly_ring, initial_gb, &model) {
+                return FindZeroOutcome::Sat(model);
+            }
+            // Not a model of the inputs: reject the node and let the
+            // parent brancher try its next candidate. Exhaustion after a
+            // rejected point is no longer trustworthy as UNSAT (the
+            // rejection signals a corrupted node basis), so degrade the
+            // final verdict to Unknown instead.
+            log::warn!(
+                "find_zero: extracted assignment failed verification; \
+                 rejecting the node and degrading exhaustion to Unknown"
+            );
+            model_verification_failed = true;
+            ideals.pop();
+            continue;
         }
 
         // If this ideal doesn't have a brancher yet, create one
@@ -158,11 +182,44 @@ pub(crate) fn find_zero_cancel(
         }
     }
 
-    if bounded_search_used {
+    if bounded_search_used || model_verification_failed {
         FindZeroOutcome::Unknown
     } else {
         FindZeroOutcome::Unsat
     }
+}
+
+/// Evaluate every polynomial at the point given by a full index-keyed
+/// assignment; `true` iff all vanish. Exact evaluation (no reduction),
+/// used as the leaf gate of the triangular DFS.
+fn assignment_satisfies(
+    poly_ring: &FfPolyRing,
+    polys: &[Poly],
+    assignment: &HashMap<usize, FieldElem>,
+) -> bool {
+    let ring = &poly_ring.ring;
+    let fp = &poly_ring.field();
+    for p in polys {
+        let mut val = fp.zero();
+        for (c, m) in ring.terms(p) {
+            let mut term_val = fp.clone_el(c);
+            for v in 0..poly_ring.n_vars() {
+                let e = ring.exponent_at(&m, v);
+                if e > 0 {
+                    let Some(var_val) = assignment.get(&v) else {
+                        return false;
+                    };
+                    let pow = fp.pow_u64(var_val, e as u64);
+                    fp.mul_assign(&mut term_val, &pow);
+                }
+            }
+            fp.add_assign(&mut val, term_val);
+        }
+        if !fp.is_zero(&val) {
+            return false;
+        }
+    }
+    true
 }
 
 /// Triangular model construction for a zero-dimensional ideal (cvc5
@@ -209,7 +266,15 @@ fn tri_dfs(
         return false;
     }
     if assignment.len() == poly_ring.n_vars() {
-        return true;
+        // Leaf residue check: accept the full assignment only if it
+        // actually zeroes every input polynomial. Without it a stray
+        // sequence of root choices (several same-variable univariate
+        // residues at the last level) could be reported as a model —
+        // and a consumer that replays the "model" as an exhaustive
+        // candidate set would convert the junk into a wrong UNSAT.
+        // A genuine common zero always passes, so completeness is
+        // unchanged.
+        return assignment_satisfies(poly_ring, gb_polys, assignment);
     }
     let assign_polys: Vec<Poly> = assignment
         .iter()
@@ -358,8 +423,9 @@ fn compute_candidates(
     // precondition; (ii) `fglm_to_lex_cancel` returns None on staircase /
     // Hilbert-dimension mismatch and on cancellation, so a fall-through
     // never reports Unsat; (iii) when Case 2.5 yields a full assignment
-    // the model is replayed through the ordinary search loop one variable
-    // at a time, which re-verifies each step against the augmented GB;
+    // the DFS leaf has already verified it against the Lex GB
+    // (`assignment_satisfies`), and the replay through the ordinary
+    // search loop re-checks each augmentation step;
     // (iv) when Case 2.5 exhausts every branch on the Lex GB, the
     // sub-ideal has no F_p solution under the algebraic-closure-on-GF(p)
     // gate of field-polynomial injection upstream — returning

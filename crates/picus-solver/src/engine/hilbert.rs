@@ -234,13 +234,40 @@ impl HilbertNum {
     /// `HilbertNum` itself — would make every `HilbertNum::clone` /
     /// `add_assign` carry a Vec<Monomial> through the BCR pivot
     /// recursion and is the wrong place to hold the invariant.
+    /// Unbudgeted variant; test-only (production goes through
+    /// [`Self::add_generators_incremental_checked`]).
+    #[cfg(test)]
     pub(crate) fn add_generators_incremental(
         &self,
         existing_gens: &[Monomial],
         new_gens: &[Monomial],
     ) -> Self {
+        let mut budget = u64::MAX;
+        self.add_generators_incremental_impl(existing_gens, new_gens, &mut budget)
+            .expect("unbounded budget cannot decline")
+    }
+
+    /// Budgeted variant of [`Self::add_generators_incremental`] for
+    /// deadline-bound callers: one shared work budget spans every colon
+    /// recursion of the update, and `None` means the budget tripped —
+    /// the caller falls back (the selection oracle keeps `lowest_sugar`).
+    pub(crate) fn add_generators_incremental_checked(
+        &self,
+        existing_gens: &[Monomial],
+        new_gens: &[Monomial],
+    ) -> Option<Self> {
+        let mut budget = BCR_WORK_BUDGET;
+        self.add_generators_incremental_impl(existing_gens, new_gens, &mut budget)
+    }
+
+    fn add_generators_incremental_impl(
+        &self,
+        existing_gens: &[Monomial],
+        new_gens: &[Monomial],
+        budget: &mut u64,
+    ) -> Option<Self> {
         if new_gens.is_empty() {
-            return self.clone();
+            return Some(self.clone());
         }
         let mut current_gens: Vec<Monomial> = existing_gens.to_vec();
         let mut current_hn = self.clone();
@@ -263,109 +290,163 @@ impl HilbertNum {
                     .collect();
                 colon_gens.push(Monomial::from_exponents(out_exps));
             }
-            let n_colon = hilbert_numerator(&colon_gens);
+            let n_colon = hilbert_numerator_impl(&colon_gens, budget)?;
             let mut shifted = n_colon;
             shifted.mul_t_pow_assign(g.total_degree());
             current_hn.sub_assign(&shifted);
             current_gens.push(g.clone());
         }
-        current_hn
+        Some(current_hn)
     }
 }
 
+/// Unbudgeted variant; test-only (production goes through
+/// [`hilbert_numerator_checked`]).
+#[cfg(test)]
 pub(crate) fn hilbert_numerator(gens: &[Monomial]) -> HilbertNum {
-    if gens.is_empty() {
-        return HilbertNum::one();
-    }
-    if gens.iter().any(|m| m.is_one()) {
-        return HilbertNum::zero();
-    }
+    let mut budget = u64::MAX;
+    hilbert_numerator_impl(gens, &mut budget).expect("unbounded budget cannot decline")
+}
 
-    // Minimal generating set: a monomial `m_j` is redundant iff some
-    // other `m_i` divides it. Build the minimal set in one O(s^2) pass
-    // by sweeping generators and dropping each one already dominated
-    // (or any earlier-kept one dominated by the newcomer).
-    let mut minimal: Vec<Monomial> = Vec::new();
-    'outer: for m in gens.iter() {
-        for k in &minimal {
-            if k.divides(m) {
-                continue 'outer;
+/// Budgeted variant of [`hilbert_numerator`] for deadline-bound callers:
+/// `None` means the work budget tripped before the evaluation finished.
+/// Every production consumer has a sound decline path
+/// ([`quotient_dimension`] → `None`, the F4 selection oracle →
+/// `lowest_sugar`), so a pathological leading-term set costs a bounded
+/// amount of work instead of an uninterruptible worst-case-exponential
+/// run inside a deadline-bound solve.
+pub(crate) fn hilbert_numerator_checked(gens: &[Monomial]) -> Option<HilbertNum> {
+    let mut budget = BCR_WORK_BUDGET;
+    hilbert_numerator_impl(gens, &mut budget)
+}
+
+/// Work budget shared across one budgeted BCR evaluation, measured in
+/// generator-pair scans (each processed node costs ~|minimal|² divides).
+/// Typical selection-oracle and quotient-dimension instances finish in
+/// well under 1% of this; the cap turns the worst case into a quick,
+/// sound decline.
+const BCR_WORK_BUDGET: u64 = 5_000_000;
+
+/// Iterative BCR evaluation. The recursion
+/// `N(I) = N(I + (p)) + t^deg(p) · N(I : p)` is linearised into an
+/// explicit worklist of `(generators, t-shift)` subproblems whose leaf
+/// numerators are shifted and summed — same tree, no call-stack use
+/// (removes the stack-overflow surface), and each processed node
+/// charges its `|minimal|²` scan cost against `budget`.
+fn hilbert_numerator_impl(gens: &[Monomial], budget: &mut u64) -> Option<HilbertNum> {
+    let mut acc = HilbertNum::zero();
+    let mut stack: Vec<(Vec<Monomial>, u32)> = vec![(gens.to_vec(), 0)];
+
+    while let Some((node_gens, shift)) = stack.pop() {
+        if node_gens.is_empty() {
+            let mut base = HilbertNum::one();
+            base.mul_t_pow_assign(shift);
+            acc.add_assign(&base);
+            continue;
+        }
+        if node_gens.iter().any(|m| m.is_one()) {
+            // N = 0: contributes nothing.
+            continue;
+        }
+
+        // Minimal generating set: a monomial `m_j` is redundant iff some
+        // other `m_i` divides it. Build the minimal set in one O(s^2)
+        // pass by sweeping generators and dropping each one already
+        // dominated (or any earlier-kept one dominated by the newcomer).
+        let mut minimal: Vec<Monomial> = Vec::new();
+        'outer: for m in node_gens.iter() {
+            for k in &minimal {
+                if k.divides(m) {
+                    continue 'outer;
+                }
+            }
+            minimal.retain(|k| !m.divides(k));
+            minimal.push(m.clone());
+        }
+
+        let s = minimal.len() as u64;
+        let cost = s.saturating_mul(s).max(1);
+        if *budget < cost {
+            return None;
+        }
+        *budget -= cost;
+
+        if minimal.len() == 1 {
+            let mut base = HilbertNum::one_minus_t_pow(minimal[0].total_degree());
+            base.mul_t_pow_assign(shift);
+            acc.add_assign(&base);
+            continue;
+        }
+
+        // Pairwise-coprime shortcut: `N(I) = ∏ (1 - t^deg(m_i))`. This
+        // is the only case where the numerator has the "regular
+        // sequence" shape; everything else needs the splitting below.
+        let coprime = (0..minimal.len()).all(|i| {
+            ((i + 1)..minimal.len()).all(|j| minimal[i].is_coprime(&minimal[j]))
+        });
+        if coprime {
+            let mut result = HilbertNum::one();
+            for g in &minimal {
+                result = result.mul(&HilbertNum::one_minus_t_pow(g.total_degree()));
+            }
+            result.mul_t_pow_assign(shift);
+            acc.add_assign(&result);
+            continue;
+        }
+
+        // Choose pivot: variable `k` appearing in the most minimal
+        // generators (ties: smallest index), exponent `e` = the minimum
+        // nonzero exponent of `x_k` across the minimal generators.
+        let n_vars = minimal[0].n_vars();
+        let mut occurrence = vec![0usize; n_vars];
+        for m in &minimal {
+            for (v, &e) in m.exponents().iter().enumerate() {
+                if e > 0 {
+                    occurrence[v] += 1;
+                }
             }
         }
-        minimal.retain(|k| !m.divides(k));
-        minimal.push(m.clone());
+        let (pivot_var, _) = occurrence
+            .iter()
+            .enumerate()
+            .max_by_key(|&(_, &c)| c)
+            .expect("at least one variable present (non-coprime branch)");
+        let pivot_exp = minimal
+            .iter()
+            .map(|m| m.exponent(pivot_var))
+            .filter(|&e| e > 0)
+            .min()
+            .expect("at least one gen has x_{pivot_var} > 0");
+
+        let pivot = Monomial::single_var(n_vars, pivot_var, pivot_exp);
+        let pivot_deg = pivot.total_degree();
+
+        // I + (pivot): drop minimal gens divisible by pivot (newly
+        // redundant), then add pivot itself.
+        let mut i_plus: Vec<Monomial> = minimal
+            .iter()
+            .filter(|m| !pivot.divides(m))
+            .cloned()
+            .collect();
+        i_plus.push(pivot.clone());
+
+        // I : pivot = (m_i / gcd(m_i, pivot) : i). For gens not
+        // involving `pivot_var` this leaves them unchanged; for gens
+        // with `x_pivot_var^e_i`, the resulting exponent is
+        // `e_i - min(e_i, pivot_exp)`.
+        let i_quot: Vec<Monomial> = minimal
+            .iter()
+            .map(|m| {
+                let g = m.gcd(&pivot);
+                m.div(&g)
+            })
+            .collect();
+
+        stack.push((i_plus, shift));
+        stack.push((i_quot, shift + pivot_deg));
     }
 
-    if minimal.len() == 1 {
-        return HilbertNum::one_minus_t_pow(minimal[0].total_degree());
-    }
-
-    // Pairwise-coprime shortcut: `N(I) = ∏ (1 - t^deg(m_i))`. This is
-    // the only case where the numerator has the "regular sequence"
-    // shape; everything else needs the recursive splitting below.
-    let coprime = (0..minimal.len()).all(|i| {
-        ((i + 1)..minimal.len()).all(|j| minimal[i].is_coprime(&minimal[j]))
-    });
-    if coprime {
-        let mut result = HilbertNum::one();
-        for g in &minimal {
-            result = result.mul(&HilbertNum::one_minus_t_pow(g.total_degree()));
-        }
-        return result;
-    }
-
-    // Choose pivot: variable `k` appearing in the most minimal
-    // generators (ties: smallest index), exponent `e` = the minimum
-    // nonzero exponent of `x_k` across the minimal generators.
-    let n_vars = minimal[0].n_vars();
-    let mut occurrence = vec![0usize; n_vars];
-    for m in &minimal {
-        for (v, &e) in m.exponents().iter().enumerate() {
-            if e > 0 {
-                occurrence[v] += 1;
-            }
-        }
-    }
-    let (pivot_var, _) = occurrence
-        .iter()
-        .enumerate()
-        .max_by_key(|&(_, &c)| c)
-        .expect("at least one variable present (non-coprime branch)");
-    let pivot_exp = minimal
-        .iter()
-        .map(|m| m.exponent(pivot_var))
-        .filter(|&e| e > 0)
-        .min()
-        .expect("at least one gen has x_{pivot_var} > 0");
-
-    let pivot = Monomial::single_var(n_vars, pivot_var, pivot_exp);
-    let pivot_deg = pivot.total_degree();
-
-    // I + (pivot): drop minimal gens divisible by pivot (newly
-    // redundant), then add pivot itself.
-    let mut i_plus: Vec<Monomial> = minimal
-        .iter()
-        .filter(|m| !pivot.divides(m))
-        .cloned()
-        .collect();
-    i_plus.push(pivot.clone());
-
-    // I : pivot = (m_i / gcd(m_i, pivot) : i). For gens not involving
-    // `pivot_var` this leaves them unchanged; for gens with
-    // `x_pivot_var^e_i`, the resulting exponent is `e_i - min(e_i, pivot_exp)`.
-    let i_quot: Vec<Monomial> = minimal
-        .iter()
-        .map(|m| {
-            let g = m.gcd(&pivot);
-            m.div(&g)
-        })
-        .collect();
-
-    let mut result = hilbert_numerator(&i_plus);
-    let mut t_quot = hilbert_numerator(&i_quot);
-    t_quot.mul_t_pow_assign(pivot_deg);
-    result.add_assign(&t_quot);
-    result
+    Some(acc)
 }
 
 /// Binomial coefficient `C(m, r)` as `i128`, saturating on overflow.
@@ -453,7 +534,11 @@ pub(crate) fn quotient_dimension(gens: &[Monomial], n_vars: usize) -> Option<u12
         return None; // declined: pathologically large, never wrong
     }
 
-    let num = hilbert_numerator(gens);
+    // Budgeted evaluation: a pathological leading-term set declines
+    // (`None` = positive-dimensional/undecided semantics, verdict-
+    // neutral) instead of running unbounded inside a deadline-bound
+    // solve.
+    let num = hilbert_numerator_checked(gens)?;
     let mut dim: u128 = 0;
     for d in 0..=(d_max as u32) {
         let hf = num.hf_at(d, n_vars);

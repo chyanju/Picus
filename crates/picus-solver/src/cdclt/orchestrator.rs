@@ -166,6 +166,12 @@ fn run_with_optional_ee<T: Theory>(
 /// ([`solve_formula`]) verbatim so callers can route both shapes
 /// through the same multi-prime API.
 ///
+/// Precondition: per-prime `var_names` sets are disjoint (cross-prime
+/// equalities are ill-typed SMT-LIB, and `parse_boolean_multi` rejects
+/// them). The router's model join guards this: a colliding name with a
+/// conflicting value degrades the check to Unknown rather than
+/// returning a last-writer-wins witness.
+///
 /// PARKED: no production caller — see `smt2::parse_boolean_multi`.
 #[doc(hidden)]
 #[allow(dead_code)] // parked: no production caller yet

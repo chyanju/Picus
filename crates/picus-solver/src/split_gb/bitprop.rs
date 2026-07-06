@@ -112,7 +112,24 @@ impl<'r> BitProp<'r> {
     /// would let `get_bit_equalities` treat a non-bit variable as a bit on a
     /// sibling branch and emit a spurious overflow contradiction (false
     /// UNSAT). `self.bits` therefore holds only globally-valid bits.
+    #[cfg(test)]
     pub(crate) fn is_bit(&self, var: usize, split_basis: &[Ideal<'r>]) -> bool {
+        self.is_bit_cancel(var, split_basis, None)
+    }
+
+    /// Cancel-aware [`Self::is_bit`]: the per-basis proof is a full
+    /// normal-form reduction whose cost is unbounded in the basis size,
+    /// so it must share the fixpoint's deadline. A cancelled reduction
+    /// can only be spuriously *false* (a partial remainder stays in the
+    /// same residue class, so a zero remainder is a genuine membership
+    /// certificate) — the equality is simply not emitted, matching the
+    /// partial-output contract of `get_bit_equalities_with_cancel`.
+    pub(crate) fn is_bit_cancel(
+        &self,
+        var: usize,
+        split_basis: &[Ideal<'r>],
+        cancel: Option<&CancelToken>,
+    ) -> bool {
         if self.bits.contains(&var) {
             return true;
         }
@@ -120,7 +137,10 @@ impl<'r> BitProp<'r> {
         let x = pr.var(var);
         let x2 = pr.mul(pr.clone_poly(&x), pr.clone_poly(&x));
         let bit_poly = pr.sub(x2, x);
-        split_basis.iter().any(|b| b.contains(&bit_poly))
+        split_basis.iter().any(|b| match cancel {
+            Some(c) => b.contains_with_cancel(&bit_poly, c),
+            None => b.contains(&bit_poly),
+        })
     }
 
     /// Derive new equalities (as polynomials whose `=0` form is asserted)
@@ -180,7 +200,7 @@ impl<'r> BitProp<'r> {
                     continue;
                 }
                 // It is a constant.  Check all bits are bit-constrained.
-                let all_bits = bs.iter().all(|&v| self.is_bit(v, split_basis));
+                let all_bits = bs.iter().all(|&v| self.is_bit_cancel(v, split_basis, cancel));
                 if !all_bits { continue; }
 
                 // val = the constant
@@ -235,7 +255,10 @@ impl<'r> BitProp<'r> {
                 // bitwise propagation would delete a real solution (false UNSAT).
                 if !bitsum_fits(max, pr.field().prime()) { continue; }
 
-                let all_bits = a.iter().chain(b.iter()).all(|&v| self.is_bit(v, split_basis));
+                let all_bits = a
+                    .iter()
+                    .chain(b.iter())
+                    .all(|&v| self.is_bit_cancel(v, split_basis, cancel));
                 if !all_bits { continue; }
 
                 for k in 0..min {

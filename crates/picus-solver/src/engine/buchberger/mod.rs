@@ -1124,7 +1124,13 @@ impl BuchbergerState {
         if current_lts.is_empty() {
             return lowest_sugar;
         }
-        let current_hn = super::hilbert::hilbert_numerator(&current_lts);
+        // Budgeted evaluation: the oracle is a selection heuristic, so a
+        // pathological leading-term set falls back to `lowest_sugar`
+        // (the documented tie behaviour) instead of running unbounded
+        // inside a deadline-bound solve.
+        let Some(current_hn) = super::hilbert::hilbert_numerator_checked(&current_lts) else {
+            return lowest_sugar;
+        };
         let n_vars = self.ring.n_vars;
 
         let mut best_sugar = lowest_sugar;
@@ -1142,7 +1148,11 @@ impl BuchbergerState {
             // BCR-incremental: `N(I ∪ candidate_LCMs)` from cached
             // `N(I)` + colon recursion on the new LCMs, instead of a
             // full union BCR.
-            let hyp_hn = current_hn.add_generators_incremental(&current_lts, &lcms);
+            let Some(hyp_hn) =
+                current_hn.add_generators_incremental_checked(&current_lts, &lcms)
+            else {
+                return lowest_sugar;
+            };
 
             let degree = sugar;
             let before = current_hn.hf_at(degree, n_vars);
