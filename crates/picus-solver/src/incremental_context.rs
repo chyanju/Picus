@@ -240,11 +240,10 @@ impl IncrementalSolverContext {
             build_partitions(&encoded.poly_ring, &encoded.polynomials, &encoded.bitsum_polys);
 
         let mut bit_prop = BitProp::new(&encoded.poly_ring);
-        // Order matters: phase 1 of the scan populates the bit-hint set
-        // that phase 2 chain parsing depends on, so originals go first —
-        // matching the stateless path, which scans both sets. Omitting
-        // the bitsum scan here silently disabled bitsum-derived
-        // propagation on every cache-backed solve.
+        // Both sets are scanned, matching the stateless path (BitProp
+        // facts feed the split-GB fixpoint and model search). Order
+        // matters: phase 1 populates the bit-hint set that phase 2 chain
+        // parsing depends on, so originals go first.
         bit_prop.scan_polys(&encoded.polynomials);
         bit_prop.scan_polys(&encoded.bitsum_polys);
 

@@ -497,7 +497,7 @@ fn knob_grid_never_wrong_verdict() {
     // degrade to Unknown; beyond that the grid is not testing verdicts.
     assert!(
         unknowns * 3 <= checked,
-        "{} of {} grid runs returned Unknown — harness lost its teeth",
+        "{} of {} grid runs returned Unknown — verdict coverage below the floor",
         unknowns,
         checked
     );

@@ -294,13 +294,13 @@ pub(crate) fn bit_sums(
         }
 
         // Index positions by canonical coefficient bytes, ascending, so
-        // one chain-extension step is a lookup + short scan instead of a
-        // rescan of every linear monomial. Selection order matches the
-        // plain linear scan (first unconsumed position wins), so the
-        // extracted chains are identical; the unindexed extraction was
-        // ~O(n⁴) on an n-bit decomposition, which shows on 254-bit
-        // Num2Bits rows. Below the threshold the linear scan is cheaper
-        // than building the per-round map, so small rows keep it.
+        // one chain-extension step is a lookup + short scan rather than
+        // a rescan of every linear monomial (a plain rescan is ~O(n⁴)
+        // on an n-bit decomposition, e.g. a 254-bit Num2Bits row).
+        // Selection order matches the linear scan (first unconsumed
+        // position wins), so the extracted chains are identical either
+        // way. Below the threshold the map build costs more than
+        // scanning, so small rows use the linear scan.
         const BIT_SUMS_INDEX_THRESHOLD: usize = 32;
         let by_coeff: Option<HashMap<Vec<u8>, Vec<usize>>> =
             if linears.len() >= BIT_SUMS_INDEX_THRESHOLD {

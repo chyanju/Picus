@@ -346,8 +346,7 @@ fn try_disjunctive_bit(or_children: &[Formula], prime: &BigUint) -> Option<VarId
 /// constructor for every site that pins a Bool-sorted (or {0,1}-shaped)
 /// variable in the polynomial namespace — the one-shot parser's
 /// Bool-variable emission, the session's check-sat emission, and the
-/// disjunctive-bit rewrite below. A change to the Bool encoding is one
-/// edit here instead of three drifting copies.
+/// disjunctive-bit rewrite below.
 pub(crate) fn bool_bit_constraint(idx: crate::frontend::encoder::VarIdx) -> Formula {
     Formula::Lit(Literal::Eq(
         vec![PolyTerm {

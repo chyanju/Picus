@@ -119,8 +119,8 @@ impl UnivariatePoly {
             for (j, b) in other.coeffs.iter().enumerate() {
                 if field.is_zero(b) { continue; }
                 // In-place accumulate: this O(d^2) loop is the whole cost
-                // of pow_mod over BN254, and the functional add allocated
-                // a fresh GMP integer per cell update.
+                // of pow_mod over BN254 (a functional add would allocate a
+                // GMP integer per cell update).
                 let prod = field.mul(a, b);
                 field.add_assign(&mut out[i + j], prod);
             }
@@ -157,8 +157,8 @@ impl UnivariatePoly {
             let factor = field.mul(lc_rem, &lc_other_inv);
             let shift = d - m;
             field.add_assign(&mut q_coeffs[shift], field.clone_el(&factor));
-            // rem -= factor * x^shift * other, updating in place (the
-            // functional sub allocated a fresh GMP integer per cell).
+            // rem -= factor * x^shift * other, updating in place (a
+            // functional sub would allocate a GMP integer per cell).
             for (j, b) in other.coeffs.iter().enumerate() {
                 if field.is_zero(b) { continue; }
                 let prod = field.mul(&factor, b);
@@ -326,8 +326,8 @@ fn frobenius_cached(
         prime: field.prime().clone(),
         coeffs: poly.coeffs().iter().map(|c| field.to_biguint(c)).collect(),
     };
-    // Convert to FieldElem under the map borrow: one conversion pass on
-    // a hit instead of cloning the whole cached BigUint vector first.
+    // Convert to FieldElem under the map borrow: one conversion pass
+    // per hit, no intermediate clone of the cached vector.
     let cached: Option<Vec<FieldElem>> = FROBENIUS_CACHE.with(|cell| {
         let map = cell.borrow();
         map.get(&key)

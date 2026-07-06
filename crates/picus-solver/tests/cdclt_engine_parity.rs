@@ -142,7 +142,7 @@ fn assert_strict(engine: &str, set: impl Fn(&mut RuntimeConfig) + Copy) {
     }
     assert!(
         decided >= 15,
-        "engine {}: only {} of 23 baselines decided — parity matrix lost its teeth",
+        "engine {}: only {} of 23 baselines decided — below the parity-coverage floor",
         engine,
         decided
     );
@@ -188,7 +188,7 @@ fn incremental_engine_is_sound_modulo_unknown() {
     }
     assert!(
         decided >= 15,
-        "only {} of 23 baselines decided — soundness matrix lost its teeth",
+        "only {} of 23 baselines decided — below the soundness-coverage floor",
         decided
     );
 }

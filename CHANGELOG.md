@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
-## [Unreleased]
+## [1.8.29] - 2026-07-06
 
-picus-solver second architecture pass. Verdict-preserving; native gate green per checkpoint.
+picus-solver second architecture pass. Verdict-preserving; native + cvc5/z3 suites green.
 
 ### Fixed
 - `split_triangular` triangular DFS verifies the full assignment at the leaf (a stray root sequence could surface as a model / be replayed as an exhaustive candidate set → wrong UNSAT).

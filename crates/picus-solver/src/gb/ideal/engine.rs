@@ -293,16 +293,15 @@ fn compute_gb_dispatch(
 // ──────────────────── compute_gb_with_order family ────────────────────────
 
 /// The term order the GB core computes under: the single owner of the
-/// request every GB entry used to hard-code as a literal. Today this is
-/// unconditionally DegRevLex — even when the encoder pinned an
-/// elimination order on the ring (`dynamic_order` / `matrix_elim_order`),
-/// the ring-carried order shapes only the surrounding stages
-/// (pre-reduction, interreduction, fast-paths, model search) while
-/// `ring_for_order` rebuilds a DegRevLex compute ring. Computing under
-/// the ring's order instead would redefine what those two knobs measure
-/// on the circuits they were tuned on, so the unification is gated on an
-/// EdDSA-class benchmark A/B; when that lands, this function is the one
-/// edit.
+/// request for every GB entry point. Unconditionally DegRevLex — even
+/// when the encoder pinned an elimination order on the ring
+/// (`dynamic_order` / `matrix_elim_order`), the ring-carried order
+/// shapes only the surrounding stages (pre-reduction, interreduction,
+/// fast-paths, model search) while `ring_for_order` rebuilds a
+/// DegRevLex compute ring. Computing under the ring's order instead
+/// would redefine what those two knobs measure on the circuits they
+/// were tuned on, so that change requires a benchmark comparison on the
+/// elimination-order workload; it is a single edit here.
 pub(crate) fn solve_order(_poly_ring: &FfPolyRing) -> FfOrder {
     FfOrder::DegRevLex
 }
@@ -323,8 +322,8 @@ pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::syn
     // source ring's representation (never the ambient config's).
     log::debug!(
         target: "picus::gb_stats",
-        "GB compute order {:?} diverges from ring order {:?} (elim-order ring); \
-         term-order unification pending its benchmark gate",
+        "GB compute order {:?} differs from ring order {:?}; the handoff \
+         carries term lists sorted under the ring order",
         order,
         ctx.order
     );
@@ -393,10 +392,8 @@ pub(crate) fn unwrap_dense_vec(v: Vec<Poly>, ring: &crate::ff::polynomial::PolyR
 }
 
 /// Sparse counterpart of [`unwrap_dense_vec`]: moves the sparse arm out
-/// of an owned `Poly` (bit-identical to cloning it — the term list,
-/// including its stored order, is unchanged); a stray dense element is
-/// materialised. Callers previously deep-cloned every generator per GB
-/// call via `to_sparse`.
+/// of an owned `Poly` (the term list, including its stored order, is
+/// unchanged); a stray dense element is materialised.
 pub(crate) fn unwrap_sparse_vec(
     v: Vec<Poly>,
     ring: &crate::ff::polynomial::PolyRing,

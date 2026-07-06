@@ -266,13 +266,11 @@ fn tri_dfs(
     }
     if assignment.len() == poly_ring.n_vars() {
         // Leaf residue check: accept the full assignment only if it
-        // actually zeroes every input polynomial. Without it a stray
-        // sequence of root choices (several same-variable univariate
-        // residues at the last level) could be reported as a model —
-        // and a consumer that replays the "model" as an exhaustive
-        // candidate set would convert the junk into a wrong UNSAT.
-        // A genuine common zero always passes, so completeness is
-        // unchanged.
+        // zeroes every input polynomial. A stray sequence of root
+        // choices (several same-variable univariate residues at the
+        // last level) is not a model, and a consumer that replays a
+        // returned assignment as an exhaustive candidate set would turn
+        // it into a wrong UNSAT. A genuine common zero always passes.
         return assignment_satisfies(poly_ring, gb_polys, assignment);
     }
     let assign_polys: Vec<Poly> = assignment

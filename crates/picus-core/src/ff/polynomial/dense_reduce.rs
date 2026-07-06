@@ -195,9 +195,9 @@ impl DensePoly {
     }
 
     /// By-value sibling of [`Self::reduce_by_refs_geobucket`]: consumes
-    /// the subject instead of cloning it into the geobucket. The hot
-    /// callers (S-poly loop, interreduce workspace, generator intake)
-    /// own their subject and discard it, so the clone was pure tax.
+    /// the subject instead of cloning it into the geobucket. For callers
+    /// that own and discard the subject (S-poly loop, interreduce
+    /// workspace, generator intake).
     pub fn reduce_owned_by_refs_geobucket(
         self,
         divisors: &[&DensePoly],
