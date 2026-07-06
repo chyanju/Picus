@@ -306,8 +306,7 @@ fn sparse_gb_route(
 ) -> Result<Vec<Poly>, EngineError> {
     let ring = ring_for_order(poly_ring, order);
     catch_engine_panic("sparse Buchberger", || {
-        let sparse: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
-            generators.iter().map(|p| p.to_sparse(&ring)).collect();
+        let sparse = unwrap_sparse_vec(generators, &ring);
         let gb = crate::engine::sparse_gb::groebner_basis(sparse, &ring, Some(cancel));
         let reduced = crate::engine::sparse_gb::interreduce(gb, &ring, Some(cancel));
         Ok(reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>())
@@ -322,6 +321,25 @@ pub(crate) fn unwrap_dense_vec(v: Vec<Poly>, ring: &crate::ff::polynomial::PolyR
         .map(|p| match p {
             Poly::Dense(d) => d,
             Poly::Sparse(s) => s.to_dense(ring),
+        })
+        .collect()
+}
+
+/// Sparse counterpart of [`unwrap_dense_vec`]: moves the sparse arm out
+/// of an owned `Poly` (bit-identical to cloning it — the term list,
+/// including its stored order, is unchanged); a stray dense element is
+/// materialised. Callers previously deep-cloned every generator per GB
+/// call via `to_sparse`.
+pub(crate) fn unwrap_sparse_vec(
+    v: Vec<Poly>,
+    ring: &crate::ff::polynomial::PolyRing,
+) -> Vec<crate::ff::sparse_polynomial::SparsePolynomial> {
+    v.into_iter()
+        .map(|p| match p {
+            Poly::Sparse(s) => s,
+            Poly::Dense(d) => {
+                crate::ff::sparse_polynomial::SparsePolynomial::from_dense(&d, ring)
+            }
         })
         .collect()
 }
@@ -567,10 +585,8 @@ pub fn compute_gb_incremental_with_order(
         // `finish_gb`, mirroring the dense incremental path.
         let ring = ring_for_order(poly_ring, order);
         let result = catch_engine_panic("incremental sparse Buchberger", || {
-            let known: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
-                known_gb.iter().map(|p| p.to_sparse(&ring)).collect();
-            let fresh: Vec<crate::ff::sparse_polynomial::SparsePolynomial> =
-                new_polys.iter().map(|p| p.to_sparse(&ring)).collect();
+            let known = unwrap_sparse_vec(known_gb, &ring);
+            let fresh = unwrap_sparse_vec(new_polys, &ring);
             let gb = crate::engine::sparse_gb::groebner_basis_incremental(known, fresh, &ring, Some(cancel));
             let reduced = crate::engine::sparse_gb::interreduce(gb, &ring, Some(cancel));
             Ok(reduced.into_iter().map(Poly::Sparse).collect::<Vec<Poly>>())

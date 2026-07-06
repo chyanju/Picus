@@ -267,9 +267,20 @@ impl Polynomial {
     pub fn reduce_by_refs(&self, divisors: &[&Polynomial], ring: &PolyRing) -> Self {
         match self {
             Polynomial::Sparse(s) => {
-                let ds: Vec<SparsePolynomial> =
-                    divisors.iter().map(|p| p.to_sparse(ring)).collect();
-                let dr: Vec<&SparsePolynomial> = ds.iter().collect();
+                // Borrow same-arm divisors (the dominant case under the
+                // one-arm-per-ring invariant); a full clone of every
+                // divisor per reduction would tax the union-boundary
+                // callers (membership classification, extend pre-reduce).
+                let ds: Vec<std::borrow::Cow<SparsePolynomial>> = divisors
+                    .iter()
+                    .map(|p| match p {
+                        Polynomial::Sparse(sp) => std::borrow::Cow::Borrowed(sp),
+                        Polynomial::Dense(d) => {
+                            std::borrow::Cow::Owned(SparsePolynomial::from_dense(d, ring))
+                        }
+                    })
+                    .collect();
+                let dr: Vec<&SparsePolynomial> = ds.iter().map(|c| c.as_ref()).collect();
                 Polynomial::Sparse(s.reduce_by_refs(&dr, ring))
             }
             Polynomial::Dense(d) => {
@@ -288,9 +299,16 @@ impl Polynomial {
     ) -> Self {
         match self {
             Polynomial::Sparse(s) => {
-                let ds: Vec<SparsePolynomial> =
-                    divisors.iter().map(|p| p.to_sparse(ring)).collect();
-                let dr: Vec<&SparsePolynomial> = ds.iter().collect();
+                let ds: Vec<std::borrow::Cow<SparsePolynomial>> = divisors
+                    .iter()
+                    .map(|p| match p {
+                        Polynomial::Sparse(sp) => std::borrow::Cow::Borrowed(sp),
+                        Polynomial::Dense(d) => {
+                            std::borrow::Cow::Owned(SparsePolynomial::from_dense(d, ring))
+                        }
+                    })
+                    .collect();
+                let dr: Vec<&SparsePolynomial> = ds.iter().map(|c| c.as_ref()).collect();
                 Polynomial::Sparse(s.reduce_by_refs_cancel(&dr, ring, Some(cancel)))
             }
             Polynomial::Dense(d) => {

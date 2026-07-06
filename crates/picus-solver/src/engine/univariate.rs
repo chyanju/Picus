@@ -118,9 +118,11 @@ impl UnivariatePoly {
             if field.is_zero(a) { continue; }
             for (j, b) in other.coeffs.iter().enumerate() {
                 if field.is_zero(b) { continue; }
+                // In-place accumulate: this O(d^2) loop is the whole cost
+                // of pow_mod over BN254, and the functional add allocated
+                // a fresh GMP integer per cell update.
                 let prod = field.mul(a, b);
-                let acc = field.add(&out[i + j], &prod);
-                out[i + j] = acc;
+                field.add_assign(&mut out[i + j], prod);
             }
         }
         UnivariatePoly::from_coeffs(out, field)
@@ -154,14 +156,14 @@ impl UnivariatePoly {
             let lc_rem = rem.leading_coefficient().unwrap();
             let factor = field.mul(lc_rem, &lc_other_inv);
             let shift = d - m;
-            q_coeffs[shift] = field.add(&q_coeffs[shift], &factor);
-            // rem -= factor * x^shift * other
+            field.add_assign(&mut q_coeffs[shift], field.clone_el(&factor));
+            // rem -= factor * x^shift * other, updating in place (the
+            // functional sub allocated a fresh GMP integer per cell).
             for (j, b) in other.coeffs.iter().enumerate() {
                 if field.is_zero(b) { continue; }
                 let prod = field.mul(&factor, b);
                 let idx = shift + j;
-                let new = field.sub(&rem.coeffs[idx], &prod);
-                rem.coeffs[idx] = new;
+                field.sub_assign(&mut rem.coeffs[idx], &prod);
             }
             // Trim leading zeros from rem.
             while rem.coeffs.last().map_or(false, |c| field.is_zero(c)) {
@@ -324,12 +326,14 @@ fn frobenius_cached(
         prime: field.prime().clone(),
         coeffs: poly.coeffs().iter().map(|c| field.to_biguint(c)).collect(),
     };
-    let cached: Option<Vec<BigUint>> = FROBENIUS_CACHE.with(|cell| {
+    // Convert to FieldElem under the map borrow: one conversion pass on
+    // a hit instead of cloning the whole cached BigUint vector first.
+    let cached: Option<Vec<FieldElem>> = FROBENIUS_CACHE.with(|cell| {
         let map = cell.borrow();
-        map.get(&key).cloned()
+        map.get(&key)
+            .map(|big| big.iter().map(|b| field.from_biguint(b)).collect())
     });
-    if let Some(big_coeffs) = cached {
-        let coeffs: Vec<FieldElem> = big_coeffs.iter().map(|b| field.from_biguint(b)).collect();
+    if let Some(coeffs) = cached {
         return Some(UnivariatePoly::from_coeffs(coeffs, field));
     }
     let x_poly = UnivariatePoly::x(field);

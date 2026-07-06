@@ -571,12 +571,12 @@ fn reduce_spoly_against_active_cached_index_path() {
         vec![(e0, 1), (e1, 1)] // x0 + x1
     });
 
-    let (nf1, idxs1, _uc1) = state.reduce_spoly_against_active(&s_poly);
+    let (nf1, idxs1, _uc1) = state.reduce_spoly_against_active(s_poly.clone());
     assert!(nf1.is_zero(), "x0 + x1 reduces to zero against {{x0..x63}}");
     assert_eq!(idxs1.len(), ReducerIndex::SORT_THRESHOLD);
     assert!(state.red_index.is_some(), "first call populates the reducer-index cache");
 
-    let (nf2, idxs2, _uc2) = state.reduce_spoly_against_active(&s_poly);
+    let (nf2, idxs2, _uc2) = state.reduce_spoly_against_active(s_poly);
     assert!(nf2.is_zero(), "cached-index reduction agrees with the first call");
     assert_eq!(idxs2, idxs1, "active set unchanged ⇒ same index list (cache reused)");
 }

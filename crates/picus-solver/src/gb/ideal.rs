@@ -338,9 +338,9 @@ impl<'r> Ideal<'r> {
             // Reduce row against existing echelon rows.
             for (i, nf_i) in nfs.iter().enumerate() {
                 let lm_i = &pivot_monos[i];
-                let coeff_at_lm = poly_coefficient_at(row_poly.as_dense(ring).as_ref(), lm_i, ring);
+                let coeff_at_lm = coefficient_at(&row_poly, lm_i, ring);
                 if !f.is_zero(&coeff_at_lm) {
-                    let lc_i = poly_coefficient_at(nf_i.as_dense(ring).as_ref(), lm_i, ring);
+                    let lc_i = coefficient_at(nf_i, lm_i, ring);
                     debug_assert!(!f.is_zero(&lc_i));
                     let factor = f.div(&coeff_at_lm, &lc_i).unwrap();
                     let neg_factor = f.neg(&factor);
@@ -442,6 +442,37 @@ pub(crate) fn interreduce_basis(
     ))
 }
 
+
+/// Coefficient of `mono` in `p` (zero when absent), native per arm.
+/// The sparse arm binary-searches the descending term list — probing
+/// through `as_dense` materialised the whole polynomial per probe,
+/// which dominated the O(rows²) echelon loop of `min_poly` under the
+/// default sparse representation. The probe monomial conversion is
+/// O(n_vars); the search is O(log terms).
+fn coefficient_at(
+    p: &Polynomial,
+    mono: &Monomial,
+    ring: &crate::ff::polynomial::PolyRing,
+) -> FieldElem {
+    use crate::ff::repr::MonomialRepr;
+    match p {
+        Polynomial::Dense(d) => poly_coefficient_at(d, mono, ring),
+        Polynomial::Sparse(s) => {
+            let probe = crate::ff::sparse_monomial::SparseMonomial::from_exponents(
+                mono.exponents().to_vec(),
+            );
+            let terms = s.terms_ref();
+            // Terms are sorted descending by the ring order; reverse the
+            // comparator so binary_search sees an ascending sequence.
+            match terms.binary_search_by(|(m, _)| {
+                m.cmp_with_order(&probe, ring.order).reverse()
+            }) {
+                Ok(i) => ring.field.clone_el(&terms[i].1),
+                Err(_) => ring.field.zero(),
+            }
+        }
+    }
+}
 
 // ──────────────────────── IncrementalIdeal ────────────────────────────────
 

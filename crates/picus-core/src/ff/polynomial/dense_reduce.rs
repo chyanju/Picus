@@ -116,6 +116,65 @@ impl DensePoly {
         self.reduce_by_refs_geobucket(divisors, ring, None, Some(use_counts), Some(div_dms))
     }
 
+    /// By-value sibling of [`Self::reduce_by_refs_cancel`].
+    pub fn reduce_owned_by_refs_cancel(
+        self,
+        divisors: &[&DensePoly],
+        ring: &PolyRing,
+        cancel: &crate::timeout::CancelToken,
+    ) -> DensePoly {
+        if self.is_zero() || divisors.is_empty() {
+            return self;
+        }
+        self.reduce_owned_by_refs_geobucket(divisors, ring, Some(cancel), None, None)
+    }
+
+    /// By-value sibling of [`Self::reduce_by_refs_counted`].
+    pub fn reduce_owned_by_refs_counted(
+        self,
+        divisors: &[&DensePoly],
+        ring: &PolyRing,
+        use_counts: &mut [u64],
+    ) -> DensePoly {
+        debug_assert_eq!(divisors.len(), use_counts.len());
+        if self.is_zero() || divisors.is_empty() {
+            return self;
+        }
+        self.reduce_owned_by_refs_geobucket(divisors, ring, None, Some(use_counts), None)
+    }
+
+    /// By-value sibling of [`Self::reduce_by_refs_counted_cancel`].
+    pub fn reduce_owned_by_refs_counted_cancel(
+        self,
+        divisors: &[&DensePoly],
+        ring: &PolyRing,
+        cancel: &crate::timeout::CancelToken,
+        use_counts: &mut [u64],
+    ) -> DensePoly {
+        debug_assert_eq!(divisors.len(), use_counts.len());
+        if self.is_zero() || divisors.is_empty() {
+            return self;
+        }
+        self.reduce_owned_by_refs_geobucket(divisors, ring, Some(cancel), Some(use_counts), None)
+    }
+
+    /// By-value sibling of [`Self::reduce_by_refs_counted_cancel_dms`].
+    pub fn reduce_owned_by_refs_counted_cancel_dms(
+        self,
+        divisors: &[&DensePoly],
+        ring: &PolyRing,
+        cancel: &crate::timeout::CancelToken,
+        use_counts: &mut [u64],
+        div_dms: &[crate::ff::divmask::DivMask],
+    ) -> DensePoly {
+        debug_assert_eq!(divisors.len(), use_counts.len());
+        debug_assert_eq!(divisors.len(), div_dms.len());
+        if self.is_zero() || divisors.is_empty() {
+            return self;
+        }
+        self.reduce_owned_by_refs_geobucket(divisors, ring, Some(cancel), Some(use_counts), Some(div_dms))
+    }
+
     /// Geobucket-based reduction: the shared implementation every
     /// `reduce_by_refs[_cancel|_counted|…]` wrapper forwards to (each
     /// selecting a different `(cancel, count, dms)` Option triple). Prefer
@@ -125,6 +184,22 @@ impl DensePoly {
     /// index of the selected reducer is incremented every iteration.
     pub fn reduce_by_refs_geobucket(
         &self,
+        divisors: &[&DensePoly],
+        ring: &PolyRing,
+        cancel: Option<&crate::timeout::CancelToken>,
+        use_counts: Option<&mut [u64]>,
+        div_dms: Option<&[crate::ff::divmask::DivMask]>,
+    ) -> DensePoly {
+        self.clone()
+            .reduce_owned_by_refs_geobucket(divisors, ring, cancel, use_counts, div_dms)
+    }
+
+    /// By-value sibling of [`Self::reduce_by_refs_geobucket`]: consumes
+    /// the subject instead of cloning it into the geobucket. The hot
+    /// callers (S-poly loop, interreduce workspace, generator intake)
+    /// own their subject and discard it, so the clone was pure tax.
+    pub fn reduce_owned_by_refs_geobucket(
+        self,
         divisors: &[&DensePoly],
         ring: &PolyRing,
         cancel: Option<&crate::timeout::CancelToken>,
@@ -207,7 +282,7 @@ impl DensePoly {
                 None
             };
 
-        let mut gb = crate::ff::geobucket::Geobucket::from_poly(self.clone(), ring);
+        let mut gb = crate::ff::geobucket::Geobucket::from_poly(self, ring);
         let mut result_exps: Vec<u16> = Vec::new();
         let mut result_coeffs: Vec<FieldElem> = Vec::new();
         let mut result_degs: Vec<u32> = Vec::new();

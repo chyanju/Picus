@@ -204,32 +204,35 @@ pub(crate) fn interreduce_with_cancel(
         *p = p.make_monic(ring);
     }
     // Sort by leading monomial (descending) for deterministic output.
-    basis.sort_by(|a, b| {
-        let la = a.leading_monomial(ring).unwrap();
-        let lb = b.leading_monomial(ring).unwrap();
-        lb.cmp_with_order(&la, ring.order)
-    });
+    // LTs are precomputed once per element: `leading_monomial` allocates
+    // a boxed exponent vector per call, and the sort comparator plus the
+    // O(n²) prune below would otherwise recompute it per comparison.
+    let mut with_lts: Vec<(Monomial, DensePoly)> = basis
+        .into_iter()
+        .map(|p| (p.leading_monomial(ring).unwrap(), p))
+        .collect();
+    with_lts.sort_by(|(la, _), (lb, _)| lb.cmp_with_order(la, ring.order));
     // Drop any element whose LT is divisible by another's LT.
-    let mut keep = vec![true; basis.len()];
-    for i in 0..basis.len() {
+    let mut keep = vec![true; with_lts.len()];
+    for i in 0..with_lts.len() {
         if !keep[i] { continue; }
-        let li = basis[i].leading_monomial(ring).unwrap();
-        for j in 0..basis.len() {
+        let li = &with_lts[i].0;
+        for j in 0..with_lts.len() {
             if i == j || !keep[j] { continue; }
-            let lj = basis[j].leading_monomial(ring).unwrap();
+            let lj = &with_lts[j].0;
             // Drop j if li divides lj. On equal leading monomials keep the
             // lowest index (`j > i`), so duplicate-LT elements — which
             // dehomogenization can produce, e.g. `h²·m` and `h·m` both
             // collapsing to `m` — are de-duplicated rather than both kept.
-            if li.divides(&lj) && (li != lj || j > i) {
+            if li.divides(lj) && (li != lj || j > i) {
                 keep[j] = false;
             }
         }
     }
-    let mut filtered: Vec<DensePoly> = basis
+    let mut filtered: Vec<DensePoly> = with_lts
         .into_iter()
         .zip(keep.iter())
-        .filter_map(|(p, &k)| if k { Some(p) } else { None })
+        .filter_map(|((_, p), &k)| if k { Some(p) } else { None })
         .collect();
     // Single-pass tail reduction. After the pruning above no surviving
     // element's leading term divides another's (equal LTs are
@@ -462,10 +465,10 @@ impl BuchbergerState {
                     .map(|&i| &self.basis[i].poly)
                     .collect();
                 match &self.cfg.cancel_token {
-                    Some(c) => g.reduce_by_refs_counted_cancel(
+                    Some(c) => g.reduce_owned_by_refs_counted_cancel(
                         &active_refs, &self.ring, c, &mut use_counts,
                     ),
-                    None => g.reduce_by_refs_counted(
+                    None => g.reduce_owned_by_refs_counted(
                         &active_refs, &self.ring, &mut use_counts,
                     ),
                 }
@@ -710,6 +713,11 @@ impl BuchbergerState {
             if cancel.is_cancelled() {
                 return log;
             }
+            // Move the subject out (its slot becomes zero) BEFORE
+            // borrowing the others, so the reduction consumes it instead
+            // of cloning it into the geobucket. The `j != i` filter below
+            // skips the (now-zero) slot either way.
+            let subject = std::mem::replace(&mut workspace[i], DensePoly::zero());
             // Other active elements (skip self / already-zero), keeping
             // their basis positions parallel for the reducer log.
             let mut others: Vec<&DensePoly> = Vec::new();
@@ -721,11 +729,12 @@ impl BuchbergerState {
                 }
             }
             if others.is_empty() {
+                workspace[i] = subject;
                 continue;
             }
             let red = if track {
                 let mut use_counts = vec![0u64; others.len()];
-                let r = workspace[i].reduce_by_refs_counted_cancel(
+                let r = subject.reduce_owned_by_refs_counted_cancel(
                     &others, &self.ring, cancel, &mut use_counts,
                 );
                 let reducers: Vec<usize> = (0..other_pos.len())
@@ -737,7 +746,7 @@ impl BuchbergerState {
                 }
                 r
             } else {
-                workspace[i].reduce_by_refs_cancel(&others, &self.ring, cancel)
+                subject.reduce_owned_by_refs_cancel(&others, &self.ring, cancel)
             };
             workspace[i] = red;
         }
@@ -780,7 +789,7 @@ impl BuchbergerState {
     /// unchanged, keeping its `use_count`-ordered scan.
     fn reduce_spoly_against_active(
         &mut self,
-        s_poly: &DensePoly,
+        s_poly: DensePoly,
     ) -> (DensePoly, Vec<usize>, Vec<u64>) {
         let cancel = self.cfg.cancel_token.clone();
         let mut active_idxs: Vec<usize> = (0..self.basis.len())
@@ -802,11 +811,11 @@ impl BuchbergerState {
             let active_dms: Vec<DivMask> =
                 active_idxs.iter().map(|&i| self.basis[i].lt_divmask).collect();
             let nf = match cancel.as_ref() {
-                Some(c) => s_poly.reduce_by_refs_counted_cancel_dms(
+                Some(c) => s_poly.reduce_owned_by_refs_counted_cancel_dms(
                     &active_refs, &self.ring, c, &mut use_counts, &active_dms,
                 ),
-                None => s_poly.reduce_by_refs_counted_dms(
-                    &active_refs, &self.ring, &mut use_counts, &active_dms,
+                None => s_poly.reduce_owned_by_refs_geobucket(
+                    &active_refs, &self.ring, None, Some(&mut use_counts), Some(&active_dms),
                 ),
             };
             return (nf, active_idxs, use_counts);
@@ -903,7 +912,7 @@ impl BuchbergerState {
             let (mut nf, active_idxs, use_counts) = {
                 metric::timer_local!(t_reduce_ns);
                 let (nf_reduced, active_idxs, use_counts) =
-                    self.reduce_spoly_against_active(&s_poly);
+                    self.reduce_spoly_against_active(s_poly);
                 self.bump_use_counts(&active_idxs, &use_counts);
                 (nf_reduced, active_idxs, use_counts)
             };
@@ -1048,7 +1057,7 @@ impl BuchbergerState {
         // the cached divisor index across reductions whose active set is
         // unchanged, so the F4 small-batch fallback and the main loop
         // consult the same cache.
-        let (mut nf, active_idxs, use_counts) = self.reduce_spoly_against_active(&s_poly);
+        let (mut nf, active_idxs, use_counts) = self.reduce_spoly_against_active(s_poly);
         self.bump_use_counts(&active_idxs, &use_counts);
         if let Some(c) = &self.cfg.cancel_token {
             if c.is_cancelled() {

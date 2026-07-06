@@ -288,17 +288,32 @@ pub(crate) fn bit_sums(
     let (mut linears, rest) = extract_linear_monomials(pr, p)?;
     let mut bitsums: Vec<BitSum> = Vec::new();
 
-    // Helper: index linear monomials by var -> position in `linears`.
     loop {
         if linears.is_empty() {
             break;
         }
 
-        // Build var -> coeff lookup, and var -> Vec<position> (vars distinct).
-        let mut var_pos: HashMap<usize, usize> = HashMap::new();
-        for (i, lm) in linears.iter().enumerate() {
-            var_pos.insert(lm.var, i);
-        }
+        // Index positions by canonical coefficient bytes, ascending, so
+        // one chain-extension step is a lookup + short scan instead of a
+        // rescan of every linear monomial. Selection order matches the
+        // plain linear scan (first unconsumed position wins), so the
+        // extracted chains are identical; the unindexed extraction was
+        // ~O(n⁴) on an n-bit decomposition, which shows on 254-bit
+        // Num2Bits rows. Below the threshold the linear scan is cheaper
+        // than building the per-round map, so small rows keep it.
+        const BIT_SUMS_INDEX_THRESHOLD: usize = 32;
+        let by_coeff: Option<HashMap<Vec<u8>, Vec<usize>>> =
+            if linears.len() >= BIT_SUMS_INDEX_THRESHOLD {
+                let mut m: HashMap<Vec<u8>, Vec<usize>> = HashMap::new();
+                for (i, lm) in linears.iter().enumerate() {
+                    m.entry(fp.to_biguint(&lm.coeff).to_bytes_be())
+                        .or_default()
+                        .push(i);
+                }
+                Some(m)
+            } else {
+                None
+            };
 
         // Try each linear monomial as the candidate "least significant bit"
         // (i.e. with coefficient = base coeff `c`).
@@ -314,25 +329,36 @@ pub(crate) fn bit_sums(
             let base_coeff = fp.clone_el(&linears[start].coeff);
 
             let mut chain: Vec<usize> = vec![base_var];
+            let mut chain_vars: HashSet<usize> = HashSet::from([base_var]);
             let mut consumed_positions: Vec<usize> = vec![start];
+            let mut consumed: Vec<bool> = vec![false; linears.len()];
+            consumed[start] = true;
             let mut next_coeff = fp.mul_ref(&base_coeff, &two);
 
-            // Greedy extension: look for a linear monomial with coeff = next_coeff,
-            // var not yet in chain.
+            // Greedy extension: the first unconsumed position whose coeff
+            // equals next_coeff and whose var is not yet in the chain.
             loop {
-                let mut found_pos: Option<usize> = None;
-                for (i, lm) in linears.iter().enumerate() {
-                    if consumed_positions.contains(&i) { continue; }
-                    if chain.contains(&lm.var) { continue; }
-                    if fp.eq_el(&lm.coeff, &next_coeff) {
-                        found_pos = Some(i);
-                        break;
+                let found_pos = match &by_coeff {
+                    Some(index) => {
+                        let key = fp.to_biguint(&next_coeff).to_bytes_be();
+                        index.get(&key).and_then(|positions| {
+                            positions.iter().copied().find(|&i| {
+                                !consumed[i] && !chain_vars.contains(&linears[i].var)
+                            })
+                        })
                     }
-                }
+                    None => linears.iter().enumerate().position(|(i, lm)| {
+                        !consumed[i]
+                            && !chain_vars.contains(&lm.var)
+                            && fp.eq_el(&lm.coeff, &next_coeff)
+                    }),
+                };
                 match found_pos {
                     Some(i) => {
                         chain.push(linears[i].var);
+                        chain_vars.insert(linears[i].var);
                         consumed_positions.push(i);
+                        consumed[i] = true;
                         next_coeff = fp.mul_ref(&next_coeff, &two);
                     }
                     None => break,
