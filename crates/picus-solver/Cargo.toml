@@ -8,6 +8,12 @@ repository.workspace = true
 edition.workspace = true
 description = "Pure Rust finite field SMT solver for Picus"
 
+[features]
+# Exposes `picus_solver::testkit`, the shared name-keyed fixture DSL for
+# this crate's own tests and benches. Off by default: no production
+# surface grows unless a dev target opts in.
+testkit = []
+
 [dependencies]
 num-bigint.workspace = true
 num-traits.workspace = true
@@ -19,6 +25,8 @@ picus-core = { path = "../picus-core" }
 picus-metric-macros = { path = "../picus-metric-macros" }
 
 [dev-dependencies]
+# Self-dependency enabling `testkit` for every test/bench target.
+picus-solver = { path = ".", features = ["testkit"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]

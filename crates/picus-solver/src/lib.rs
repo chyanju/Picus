@@ -29,6 +29,8 @@ pub mod incremental_context;
 pub mod push_pop;
 pub mod smt2;
 pub mod solve;
+#[cfg(feature = "testkit")]
+pub mod testkit;
 pub(crate) mod split_gb;
 
 /// Renamed to [`solve`]: a top-of-stack driver named `core` inverted

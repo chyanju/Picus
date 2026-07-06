@@ -16,78 +16,20 @@
 //!   - `find_roots_gf7`    : Univariate root finding over GF(7).
 //!   - `find_roots_big`    : Univariate root finding over 2^255-19.
 
-use std::collections::BTreeMap;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use num_bigint::BigUint;
 use num_traits::One;
 
 use picus_solver::solve::solve_encoded;
-use picus_solver::frontend::encoder::{
-    encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm, VarIdx,
-};
+use picus_solver::frontend::encoder::EncodedSystem;
 use picus_core::ff::field::PrimeField;
-use picus_solver::push_pop::NamedTerm;
+use picus_solver::testkit::{ctb, pt, svt, vt, NamedSystem, NamedTerm};
 use picus_solver::gb::roots::find_roots;
 
-// ── Bench-local helpers ─────────────────────────────────────────────────────
-
-/// String-keyed system for ergonomic bench fixture writing; lowered
-/// to an index-keyed `ConstraintSystem` via [`build_system`] before
-/// encoding.
-struct NamedSystem {
-    prime: BigUint,
-    equalities: Vec<Vec<NamedTerm>>,
-    disequalities: Vec<(String, String)>,
-    assignments: Vec<(String, BigUint)>,
-    add_field_polys: bool,
-    bitsums: Vec<Vec<String>>,
-}
-
-fn intern_named(t: &NamedTerm, b: &mut ConstraintSystemBuilder) -> PolyTerm {
-    let mut counts: BTreeMap<VarIdx, u16> = BTreeMap::new();
-    for v in &t.vars {
-        let idx = b.var(v);
-        *counts.entry(idx).or_insert(0) += 1;
-    }
-    PolyTerm {
-        coeff: t.coeff.clone(),
-        vars: counts.into_iter().collect(),
-    }
-}
-
-fn build_system(s: &NamedSystem) -> ConstraintSystem {
-    let mut b = ConstraintSystemBuilder::new(s.prime.clone());
-    b.set_add_field_polys(s.add_field_polys);
-    for eq in &s.equalities {
-        let terms: Vec<PolyTerm> = eq.iter().map(|t| intern_named(t, &mut b)).collect();
-        b.add_equality(terms);
-    }
-    for (a, val) in &s.assignments {
-        let idx = b.var(a);
-        b.add_assignment(idx, val.clone());
-    }
-    for (a, c) in &s.disequalities {
-        let ai = b.var(a);
-        let bi = b.var(c);
-        b.add_disequality(ai, bi);
-    }
-    for bs in &s.bitsums {
-        let idxs: Vec<VarIdx> = bs.iter().map(|n| b.var(n)).collect();
-        b.add_bitsum(idxs);
-    }
-    b.build()
-}
 
 fn encode_named(s: &NamedSystem) -> EncodedSystem {
-    encode(&build_system(s)).unwrap()
-}
-
-fn ctb(c: BigUint) -> NamedTerm { NamedTerm { coeff: c, vars: vec![] } }
-fn vt(v: &str) -> NamedTerm { NamedTerm { coeff: BigUint::one(), vars: vec![v.into()] } }
-fn svt(c: u64, v: &str) -> NamedTerm { NamedTerm { coeff: BigUint::from(c), vars: vec![v.into()] } }
-fn pt(c: u64, vars: &[&str]) -> NamedTerm {
-    NamedTerm { coeff: BigUint::from(c), vars: vars.iter().map(|s| s.to_string()).collect() }
+    s.encode().unwrap()
 }
 
 // ── Workload builders ───────────────────────────────────────────────────────

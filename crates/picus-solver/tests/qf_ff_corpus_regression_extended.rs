@@ -7,14 +7,13 @@
 
 use picus_solver::solve::{solve_encoded, SolveOutcome};
 mod common;
-use common::{NamedSystem, NamedTerm};
+use common::{ctb, NamedSystem, NamedTerm};
 use num_bigint::BigUint;
 use num_traits::One;
 
 /// Constant term `c`.
 fn ct(c: u64) -> NamedTerm { NamedTerm { coeff: BigUint::from(c), vars: vec![] } }
-/// Constant term from BigUint.
-fn ctb(c: BigUint) -> NamedTerm { NamedTerm { coeff: c, vars: vec![] } }
+
 /// `1 * v` (single var).
 fn vt(v: &str) -> NamedTerm { NamedTerm { coeff: BigUint::one(), vars: vec![v.into()] } }
 /// `c * v` (scaled var).

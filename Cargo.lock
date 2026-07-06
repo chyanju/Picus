@@ -726,6 +726,7 @@ dependencies = [
  "oorandom",
  "picus-core",
  "picus-metric-macros",
+ "picus-solver",
  "thiserror",
  "toml",
 ]
