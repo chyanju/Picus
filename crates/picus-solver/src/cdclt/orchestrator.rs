@@ -11,7 +11,7 @@ use num_bigint::BigUint;
 
 use crate::frontend::formula::Formula;
 use crate::solve::SolveOutcome;
-use crate::sat::{LBool, Lit, Solver, Var};
+use crate::sat::{ConflictOutcome, LBool, Lit, Solver, Var};
 use crate::timeout::CancelToken;
 
 use super::atoms::AtomTable;
@@ -255,24 +255,14 @@ fn cdclt_loop<T: Theory>(
         }
 
         if let Some(conflict) = sat.propagate() {
-            if sat.decision_level() == 0 {
-                return SolveOutcome::Unsat(None);
+            match sat.handle_conflict(conflict) {
+                ConflictOutcome::RootUnsat => return SolveOutcome::Unsat(None),
+                ConflictOutcome::GiveUp => return SolveOutcome::Unknown,
+                ConflictOutcome::Learned { trail_pre } => {
+                    resync_after_lemma(sat, theory, &mut theory_levels, &mut notified, trail_pre);
+                    continue;
+                }
             }
-            let (learnt, bt) = match sat.analyze(conflict) {
-                Some(lb) => lb,
-                None => return SolveOutcome::Unknown,
-            };
-            sat.backtrack_to(bt);
-            // Snapshot trail length before `learn_clause` so the next
-            // notify pass starts at the position the asserting literal
-            // is about to occupy.
-            let trail_pre_lemma = sat.trail_len();
-            sat.learn_clause(learnt);
-            if sat.should_restart() {
-                sat.perform_restart();
-            }
-            resync_after_lemma(sat, theory, &mut theory_levels, &mut notified, trail_pre_lemma);
-            continue;
         }
 
         sync_theory_after_propagate(sat, theory, &mut theory_levels);

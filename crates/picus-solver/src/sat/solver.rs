@@ -13,6 +13,19 @@
 use super::clause::{Clause, ClauseArena, ClauseRef};
 use super::lit::{LBool, Lit, Var};
 
+/// Outcome of [`Solver::handle_conflict`].
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub(crate) enum ConflictOutcome {
+    /// Conflict at decision level 0: the formula is UNSAT.
+    RootUnsat,
+    /// Learned an asserting clause (backjumped; restart applied when
+    /// due). `trail_pre` is the trail length right before the asserting
+    /// literal was enqueued.
+    Learned { trail_pre: usize },
+    /// 1-UIP resolution bailed; only Unknown is sound.
+    GiveUp,
+}
+
 /// Outcome of a top-level `solve` call.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 #[cfg(test)]
@@ -749,8 +762,38 @@ impl Solver {
     /// a value, `Unsat` on a root-level conflict, or `Unknown` if an
     /// external limit (none defined in this module) cuts the search.
     ///
-    /// Decision strategy: lowest-index Undef variable, positive
-    /// polarity. Replace [`Self::pick_decision`] for a richer heuristic.
+    /// One CDCL conflict step, shared by the production CDCL(T) driver
+    /// (`cdclt::orchestrator::cdclt_loop`) and the standalone
+    /// [`Self::solve`]: 1-UIP analysis, backjump, learn, restart when
+    /// due. Both drivers propagate before their next decision, so a
+    /// root conflict exposed by a restart surfaces as `RootUnsat` on
+    /// their next `propagate()` call — the post-restart drain is part
+    /// of the driver loop shape, not of this step.
+    pub(crate) fn handle_conflict(&mut self, conflict: ClauseRef) -> ConflictOutcome {
+        if self.decision_level() == 0 {
+            return ConflictOutcome::RootUnsat;
+        }
+        let (learnt, bt) = match self.analyze(conflict) {
+            Some(lb) => lb,
+            None => return ConflictOutcome::GiveUp,
+        };
+        self.backtrack_to(bt);
+        // Trail length right before the asserting literal is enqueued:
+        // theory clients resume their notify pass from here.
+        let trail_pre = self.trail.len();
+        self.learn_clause(learnt);
+        if self.should_restart() {
+            self.perform_restart();
+        }
+        ConflictOutcome::Learned { trail_pre }
+    }
+
+    /// Run CDCL to completion. Returns `Sat` once every variable has
+    /// a value, `Unsat` on a root-level conflict, or `Unknown` if
+    /// conflict analysis bails. Test-only standalone driver, built on
+    /// the same [`Self::handle_conflict`] step production runs.
+    ///
+    /// Decision strategy: [`Self::pick_decision`] (VSIDS + saved phase).
     #[cfg(test)]
     pub(crate) fn solve(&mut self) -> SolveResult {
         if self.unsat {
@@ -772,34 +815,17 @@ impl Solver {
             debug_assert!(ok, "picked literal must be Undef");
             // Inner conflict loop: keep propagating + learning until
             // either propagation is quiet (back to decision picking) or
-            // a root-level conflict is detected (UNSAT).
+            // a root-level conflict is detected (UNSAT). The next
+            // `propagate()` call also drains anything a restart exposed
+            // (a root conflict there lands in `RootUnsat`).
             loop {
                 match self.propagate() {
                     None => break,
-                    Some(conflict) => {
-                        if self.decision_level() == 0 {
-                            return SolveResult::Unsat;
-                        }
-                        let (learnt, bt) = match self.analyze(conflict) {
-                            Some(lb) => lb,
-                            None => return SolveResult::Unknown,
-                        };
-                        self.backtrack_to(bt);
-                        self.learn_clause(learnt);
-                        if self.should_restart() {
-                            self.perform_restart();
-                            // Drain the root-level propagation the restart
-                            // exposed (the just-learned unit, and anything it
-                            // forces) before the next decision raises the
-                            // level — otherwise a root conflict would be
-                            // analyzed at level 1 instead of ending in UNSAT.
-                            // Mirrors the pre-loop drain at the top of solve().
-                            if self.propagate().is_some() {
-                                return SolveResult::Unsat;
-                            }
-                            break;
-                        }
-                    }
+                    Some(conflict) => match self.handle_conflict(conflict) {
+                        ConflictOutcome::RootUnsat => return SolveResult::Unsat,
+                        ConflictOutcome::GiveUp => return SolveResult::Unknown,
+                        ConflictOutcome::Learned { .. } => {}
+                    },
                 }
             }
         }

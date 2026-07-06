@@ -470,11 +470,7 @@ impl BuchbergerState {
                     ),
                 }
             };
-            for (slot, &basis_i) in active_idxs.iter().enumerate() {
-                self.basis[basis_i].use_count = self.basis[basis_i]
-                    .use_count
-                    .saturating_add(use_counts[slot]);
-            }
+            self.bump_use_counts(&active_idxs, &use_counts);
             if let Some(c) = &self.cfg.cancel_token {
                 if c.is_cancelled() {
                     return Err(EngineError::Timeout);
@@ -482,43 +478,60 @@ impl BuchbergerState {
             }
             if g_red.is_zero() { continue; }
             g_red = g_red.make_monic(&self.ring);
-            if g_red.is_constant() {
-                // We've found a unit — the ideal is the whole ring.
-                self.trivial = true;
-                let idx = self.basis.len();
-                let lt = g_red.leading_monomial(&self.ring).unwrap();
-                let lt_divmask = self.ring.divmask.compute(&lt);
-                let sugar = lt.total_degree();
-                observer.on_initial_reducers(&active_idxs);
-                observer.on_initial_basis(idx, &g_red);
-                self.basis.push(BasisElement {
-                    poly: g_red,
-                    lt,
-                    lt_divmask,
-                    active: true,
-                    sugar,
-                    use_count: 0,
-                });
-                if self.cfg.abort_on_trivial {
-                    return Ok(());
-                }
-                continue;
-            }
             let idx = self.basis.len();
             let lt = g_red.leading_monomial(&self.ring).unwrap();
             let lt_divmask = self.ring.divmask.compute(&lt);
             let sugar = lt.total_degree();
             observer.on_initial_reducers(&active_idxs);
             observer.on_initial_basis(idx, &g_red);
-            // Generate S-pairs against all earlier ACTIVE elements BEFORE
-            // deactivation, so we don't lose pairs that involve elements about
-            // to become inactive (non-strict deactivation).
-            self.generate_pairs_against(idx, &lt, sugar);
-            // Non-strict deactivation: deactivate older elements whose LT is divisible by lt.
-            self.deactivate_superseded(idx, &lt);
-            self.basis.push(BasisElement { poly: g_red, lt, lt_divmask, active: true, sugar, use_count: 0 });
+            if self.integrate_new_element(g_red, lt, lt_divmask, sugar) {
+                if self.cfg.abort_on_trivial {
+                    return Ok(());
+                }
+                continue;
+            }
         }
         Ok(())
+    }
+
+    /// Credit divisor usage back to the basis after a counted reduction.
+    fn bump_use_counts(&mut self, active_idxs: &[usize], use_counts: &[u64]) {
+        for (slot, &basis_i) in active_idxs.iter().enumerate() {
+            self.basis[basis_i].use_count = self.basis[basis_i]
+                .use_count
+                .saturating_add(use_counts[slot]);
+        }
+    }
+
+    /// Integrate a monic normal form as basis element `self.basis.len()`,
+    /// after the caller has fired its observer callbacks for that index.
+    /// Owns the invariant every integration site must uphold: S-pairs
+    /// are generated against earlier ACTIVE elements BEFORE non-strict
+    /// deactivation (deactivating first would lose pairs against
+    /// elements the newcomer supersedes), and a unit sets `trivial`
+    /// WITHOUT generating pairs. Returns `true` iff the element was a
+    /// unit — the caller applies its own `abort_on_trivial` control flow.
+    fn integrate_new_element(
+        &mut self,
+        nf: DensePoly,
+        lt: Monomial,
+        lt_divmask: DivMask,
+        sugar: u32,
+    ) -> bool {
+        let new_idx = self.basis.len();
+        if nf.is_constant() {
+            self.trivial = true;
+            self.basis.push(BasisElement {
+                poly: nf, lt, lt_divmask, active: true, sugar, use_count: 0,
+            });
+            return true;
+        }
+        self.generate_pairs_against(new_idx, &lt, sugar);
+        self.deactivate_superseded(new_idx, &lt);
+        self.basis.push(BasisElement {
+            poly: nf, lt, lt_divmask, active: true, sugar, use_count: 0,
+        });
+        false
     }
 
     fn generate_pairs_against(&mut self, new_idx: usize, new_lt: &Monomial, new_sugar: u32) {
@@ -890,11 +903,7 @@ impl BuchbergerState {
                 metric::timer_local!(t_reduce_ns);
                 let (nf_reduced, active_idxs, use_counts) =
                     self.reduce_spoly_against_active(&s_poly);
-                for (slot, &basis_i) in active_idxs.iter().enumerate() {
-                    self.basis[basis_i].use_count = self.basis[basis_i]
-                        .use_count
-                        .saturating_add(use_counts[slot]);
-                }
+                self.bump_use_counts(&active_idxs, &use_counts);
                 (nf_reduced, active_idxs, use_counts)
             };
             if let Some(c) = &self.cfg.cancel_token {
@@ -956,23 +965,14 @@ impl BuchbergerState {
             observer.on_pair_reducers(&pair_reducers);
             observer.on_new_poly(new_idx, &nf, (pair.i, pair.j));
 
-            // Trivial-ideal short-circuit.
-            if nf.is_constant() {
-                self.trivial = true;
-                self.basis.push(BasisElement { poly: nf, lt, lt_divmask, active: true, sugar, use_count: 0 });
+            let is_unit = {
+                metric::timer_local!(t_genpairs_ns);
+                self.integrate_new_element(nf, lt, lt_divmask, sugar)
+            };
+            if is_unit {
                 if self.cfg.abort_on_trivial { return Ok(()); }
                 continue;
             }
-
-            // Non-strict deactivation.
-            // Generate new pairs FIRST, so we don't drop pairs against
-            // elements about to be deactivated.
-            {
-                metric::timer_local!(t_genpairs_ns);
-                self.generate_pairs_against(new_idx, &lt, sugar);
-            }
-            self.deactivate_superseded(new_idx, &lt);
-            self.basis.push(BasisElement { poly: nf, lt, lt_divmask, active: true, sugar, use_count: 0 });
             // Periodic in-loop tail-reduction. Tail-reduction preserves
             // the gradedness invariant exactly for homogeneous input;
             // for non-homogeneous input it can perturb sugar-degree
@@ -1041,38 +1041,12 @@ impl BuchbergerState {
         observer: &mut O,
     ) -> Result<(), EngineError> {
         let s_poly = self.build_spoly(&pair);
-        let mut active_idxs: Vec<usize> = (0..self.basis.len())
-            .filter(|&i| self.basis[i].active)
-            .collect();
-        if active_idxs.len() >= USE_COUNT_SORT_THRESHOLD {
-            active_idxs.sort_by(|&a, &b| {
-                self.basis[b].use_count.cmp(&self.basis[a].use_count)
-            });
-        }
-        let mut use_counts = vec![0u64; active_idxs.len()];
-        let mut nf = {
-            let active_refs: Vec<&DensePoly> = active_idxs
-                .iter()
-                .map(|&i| &self.basis[i].poly)
-                .collect();
-            let active_dms: Vec<_> = active_idxs
-                .iter()
-                .map(|&i| self.basis[i].lt_divmask)
-                .collect();
-            match &self.cfg.cancel_token {
-                Some(c) => s_poly.reduce_by_refs_counted_cancel_dms(
-                    &active_refs, &self.ring, c, &mut use_counts, &active_dms,
-                ),
-                None => s_poly.reduce_by_refs_counted_dms(
-                    &active_refs, &self.ring, &mut use_counts, &active_dms,
-                ),
-            }
-        };
-        for (slot, &basis_i) in active_idxs.iter().enumerate() {
-            self.basis[basis_i].use_count = self.basis[basis_i]
-                .use_count
-                .saturating_add(use_counts[slot]);
-        }
+        // Shared with `run()`: with `reducer_index_cache` on, this reuses
+        // the cached divisor index across reductions whose active set is
+        // unchanged — the F4 small-batch fallback no longer silently
+        // bypasses the cache.
+        let (mut nf, active_idxs, use_counts) = self.reduce_spoly_against_active(&s_poly);
+        self.bump_use_counts(&active_idxs, &use_counts);
         if let Some(c) = &self.cfg.cancel_token {
             if c.is_cancelled() {
                 return Err(EngineError::Timeout);
@@ -1110,16 +1084,7 @@ impl BuchbergerState {
         observer.on_pair_reducers(&pair_reducers);
         observer.on_new_poly(new_idx, &nf, (pair.i, pair.j));
 
-        if nf.is_constant() {
-            self.trivial = true;
-            self.basis.push(BasisElement { poly: nf, lt, lt_divmask, active: true, sugar, use_count: 0 });
-            if self.cfg.abort_on_trivial { return Ok(()); }
-            return Ok(());
-        }
-
-        self.generate_pairs_against(new_idx, &lt, sugar);
-        self.deactivate_superseded(new_idx, &lt);
-        self.basis.push(BasisElement { poly: nf, lt, lt_divmask, active: true, sugar, use_count: 0 });
+        let _ = self.integrate_new_element(nf, lt, lt_divmask, sugar);
         Ok(())
     }
 
@@ -1394,32 +1359,14 @@ impl BuchbergerState {
                 observer.on_pair_reducers(&reducer_deps);
                 observer.on_new_poly(new_idx, &poly, from_pair);
 
-                if poly.is_constant() {
-                    self.trivial = true;
-                    self.basis.push(BasisElement {
-                        poly,
-                        lt,
-                        lt_divmask,
-                        active: true,
-                        sugar,
-                        use_count: 0,
-                    });
+                // F4 outputs are pre-monic (matrix echelon normalises),
+                // so integration needs no make_monic here.
+                if self.integrate_new_element(poly, lt, lt_divmask, sugar) {
                     if self.cfg.abort_on_trivial {
                         return Ok(());
                     }
                     continue;
                 }
-
-                self.generate_pairs_against(new_idx, &lt, sugar);
-                self.deactivate_superseded(new_idx, &lt);
-                self.basis.push(BasisElement {
-                    poly,
-                    lt,
-                    lt_divmask,
-                    active: true,
-                    sugar,
-                    use_count: 0,
-                });
             }
         }
 

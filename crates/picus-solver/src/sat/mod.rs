@@ -10,4 +10,4 @@ pub(crate) mod lit;
 pub(crate) mod solver;
 
 pub(crate) use lit::{LBool, Lit, Var};
-pub(crate) use solver::Solver;
+pub(crate) use solver::{ConflictOutcome, Solver};
