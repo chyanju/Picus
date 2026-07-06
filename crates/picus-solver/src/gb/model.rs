@@ -14,7 +14,6 @@ use num_bigint::BigUint;
 
 use crate::gb::brancher::{univariate_coeffs, Brancher};
 use crate::ff::field::{PrimeField, FieldElem};
-use crate::ff::monomial::MonomialOrder as FfOrder;
 use crate::gb::fglm::fglm_to_lex_cancel;
 use crate::gb::ideal::{compute_gb_incremental_with_order, GbOutcome, Ideal};
 use crate::poly::{FfPolyRing, Poly};
@@ -153,7 +152,7 @@ pub(crate) fn find_zero_cancel(
                     prev_basis,
                     vec![assign_poly],
                     cancel,
-                    FfOrder::DegRevLex,
+                    crate::gb::ideal::solve_order(poly_ring),
                 ) {
                     GbOutcome::Basis(b) => b,
                     GbOutcome::Cancelled => return FindZeroOutcome::Unknown,

@@ -65,7 +65,7 @@ impl<'r> Ideal<'r> {
         // generators): downstream reads that as "no constraints", never
         // as a trusted GB. The post-call `is_cancelled` checks lift a
         // cancellation into `Err(Cancelled)`.
-        let basis = match compute_gb_with_order(poly_ring, generators, cancel, FfOrder::DegRevLex) {
+        let basis = match compute_gb_with_order(poly_ring, generators, cancel, solve_order(poly_ring)) {
             GbOutcome::Basis(b) => b,
             GbOutcome::Cancelled => return Err(Cancelled),
             // Undetermined ideal: an empty basis reads as "no
@@ -118,7 +118,7 @@ impl<'r> Ideal<'r> {
         }
         let Ideal { poly_ring, basis: known_gb } = self;
         let basis = match compute_gb_incremental_with_order(
-            poly_ring, known_gb, surviving, cancel, FfOrder::DegRevLex,
+            poly_ring, known_gb, surviving, cancel, solve_order(poly_ring),
         ) {
             GbOutcome::Basis(b) => b,
             GbOutcome::Cancelled => return Err(Cancelled),
@@ -154,7 +154,7 @@ impl<'r> Ideal<'r> {
         }
         let Ideal { poly_ring, basis: known_gb } = self;
         let basis = match compute_gb_incremental_with_order_traced(
-            poly_ring, known_gb, new_polys, cancel, FfOrder::DegRevLex, tracer,
+            poly_ring, known_gb, new_polys, cancel, solve_order(poly_ring), tracer,
         ) {
             GbOutcome::Basis(b) => b,
             GbOutcome::Cancelled => return Err(Cancelled),

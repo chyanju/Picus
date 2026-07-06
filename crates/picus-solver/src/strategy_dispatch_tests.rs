@@ -78,13 +78,13 @@ fn by_homog_falls_back_to_direct_for_lex() {
     let (pr, gens) = gens_xy_minus_1();
     let _ = compute_gb_with_order(&pr, gens, &CancelToken::none(), MonomialOrder::Lex).expect_basis("gb");
     // ByHomog only handles DegRevLex; its `compute` delegates to
-    // Direct for other orders. The dispatch records ByHomog as the
-    // chosen algorithm; the fallback happens *inside* that impl.
+    // Direct for other orders, and the label records the route actually
+    // executed (each impl records inside `compute`, so a fallback is
+    // visible in telemetry rather than hidden behind the chosen name).
     assert_eq!(
         last_dispatched_algorithm(),
-        Some("buchberger-by-homog"),
-        "ByHomog should still be the chosen algorithm; Lex fallback \
-         happens internally"
+        Some("buchberger-direct"),
+        "Lex under ByHomog executes (and records) the Direct route"
     );
 }
 

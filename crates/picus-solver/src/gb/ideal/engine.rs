@@ -26,20 +26,22 @@ use crate::EngineError;
 /// Scope: this trait dispatches the *algorithm strategy* — currently the
 /// homogenisation choice ([`BuchbergerDirect`] vs [`BuchbergerByHomog`]),
 /// and the extension point for a different algorithm such as a
-/// signature-based F5. It does **not** select the polynomial
-/// representation (dense vs sparse — chosen inside `compute` from
-/// `config.poly_repr`) nor the F4 matrix batch path (chosen via
-/// `BuchbergerConfig.use_f4`): those are orthogonal implementation
-/// choices made within a strategy's `compute`, not separate
-/// `GbAlgorithm`s. A CoCoA-style F4 improvement lands in the
-/// Buchberger/F4 engine, not as a new trait impl.
+/// signature-based F5. The polynomial representation (dense vs sparse,
+/// from the ring's recorded repr) and the F4 matrix batch path
+/// (`BuchbergerConfig.use_f4`) are orthogonal implementation choices
+/// each strategy's `compute` makes internally — an impl records the
+/// refined label (`record_dispatched`) for the route it actually took.
+/// A CoCoA-style F4 improvement lands in the Buchberger/F4 engine, not
+/// as a new trait impl.
 ///
-/// Two execution modes are supported. `compute` is the basic call;
-/// `compute_traced` feeds a `GbTracer` observer for UNSAT-core
-/// extraction. Algorithms that don't support tracing leave
-/// `supports_tracing` at its default `false`; dispatch then falls back
-/// to [`BuchbergerDirect`] for traced requests so UNSAT-core extraction
-/// keeps working regardless of the configured strategy.
+/// Execution modes: `compute` is the basic call; `compute_traced`
+/// feeds a `GbTracer` observer for UNSAT-core extraction (algorithms
+/// without tracing leave `supports_tracing` false and dispatch falls
+/// back to [`BuchbergerDirect`] for traced requests); an engine that
+/// maintains its own incremental state opts into
+/// [`Self::extend_incremental`] via `supports_incremental` — both
+/// built-in strategies leave the default, so the seeded Buchberger
+/// extension machinery runs for them unchanged.
 pub trait GbAlgorithm {
     /// Stable name for logs / telemetry.
     fn name(&self) -> &'static str;
@@ -76,6 +78,32 @@ pub trait GbAlgorithm {
             self.name()
         )
     }
+
+    /// Whether this algorithm implements [`Self::extend_incremental`].
+    /// Default `false`: the incremental entry points then run the
+    /// built-in seeded-Buchberger extension, which has never consulted
+    /// the strategy for the extension itself.
+    fn supports_incremental(&self) -> bool {
+        false
+    }
+
+    /// Incremental extension: GB of `<known_gb ∪ new_polys>` with
+    /// `known_gb` a trusted reduced GB. Only called when
+    /// `supports_incremental()` is `true`.
+    fn extend_incremental(
+        &self,
+        _pr: &FfPolyRing,
+        _known_gb: Vec<Poly>,
+        _new_polys: Vec<Poly>,
+        _cancel: &CancelToken,
+        _order: FfOrder,
+    ) -> Result<Vec<Poly>, EngineError> {
+        unreachable!(
+            "GbAlgorithm {:?}: supports_incremental() returned true but \
+             extend_incremental is the default panicking impl",
+            self.name()
+        )
+    }
 }
 
 /// Plain Buchberger on `P` in the requested order. The default.
@@ -93,7 +121,17 @@ impl GbAlgorithm for BuchbergerDirect {
         cancel: &CancelToken,
         order: FfOrder,
     ) -> Result<Vec<Poly>, EngineError> {
-        compute_gb_buchberger(pr, gens, cancel, order)
+        // Representation routing lives inside the strategy so every GB
+        // entry point reaches it through dispatch — a new engine is one
+        // impl plus one match arm, not a second routing site to keep in
+        // sync.
+        if use_sparse_gb(pr) {
+            record_dispatched("sparse-buchberger");
+            sparse_gb_route(pr, gens, order, cancel)
+        } else {
+            record_dispatched("buchberger-direct");
+            compute_gb_buchberger(pr, gens, cancel, order)
+        }
     }
 
     fn supports_tracing(&self) -> bool {
@@ -108,6 +146,9 @@ impl GbAlgorithm for BuchbergerDirect {
         order: FfOrder,
         tracer: &mut GbTracer,
     ) -> Result<Vec<Poly>, EngineError> {
+        // The traced route is dense-only by design (the sparse traced
+        // core is a consciously deferred item), so no repr branch here.
+        record_dispatched("buchberger-direct");
         compute_gb_buchberger_traced(pr, gens, cancel, order, tracer)
     }
 }
@@ -133,6 +174,14 @@ impl GbAlgorithm for BuchbergerByHomog {
         order: FfOrder,
     ) -> Result<Vec<Poly>, EngineError> {
         if order == FfOrder::DegRevLex {
+            // The pipeline itself is repr-aware (its inner GB step
+            // routes sparse or dense via `compute_gb_direct`); only the
+            // telemetry label distinguishes the two routes.
+            record_dispatched(if use_sparse_gb(pr) {
+                "sparse-by-homog"
+            } else {
+                "buchberger-by-homog"
+            });
             match crate::gb::homog::compute_gb_by_homog(pr, gens, cancel) {
                 GbOutcome::Basis(b) => Ok(b),
                 GbOutcome::Cancelled => Err(EngineError::Timeout),
@@ -170,11 +219,9 @@ fn resolve_auto(pr: &FfPolyRing, gens: &[Poly]) -> GbStrategy {
 }
 
 /// Resolve the configured GB strategy, expanding `Auto` to a concrete
-/// choice via [`resolve_auto`]. Both GB dispatch paths select a strategy
-/// here: the dense path routes the result through the [`GbAlgorithm`]
-/// trait in [`compute_gb_dispatch`]; the sparse path branches on it inline
-/// in [`compute_gb_with_order`]. A new `GbStrategy` variant must be handled
-/// in both of those dispatch sites.
+/// choice via [`resolve_auto`]. [`compute_gb_dispatch`] is the single
+/// dispatch site (each strategy routes representation internally), so a
+/// new `GbStrategy` variant is handled once, in its match.
 fn resolve_strategy(pr: &FfPolyRing, gens: &[Poly]) -> GbStrategy {
     match crate::config::with(|c| c.gb_strategy) {
         GbStrategy::Auto => resolve_auto(pr, gens),
@@ -225,13 +272,9 @@ fn compute_gb_dispatch(
         GbStrategy::Auto => unreachable!("Auto resolved above"),
     };
     match tracer {
-        None => {
-            record_dispatched(chosen.name());
-            chosen.compute(pr, gens, cancel, order)
-        }
+        None => chosen.compute(pr, gens, cancel, order),
         Some(t) => {
             if chosen.supports_tracing() {
-                record_dispatched(chosen.name());
                 chosen.compute_traced(pr, gens, cancel, order, t)
             } else {
                 // Drop down to Direct to preserve UNSAT-core extraction.
@@ -241,7 +284,6 @@ fn compute_gb_dispatch(
                         chosen.name(), direct.name()
                     );
                 }
-                record_dispatched(direct.name());
                 direct.compute_traced(pr, gens, cancel, order, t)
             }
         }
@@ -249,6 +291,21 @@ fn compute_gb_dispatch(
 }
 
 // ──────────────────── compute_gb_with_order family ────────────────────────
+
+/// The term order the GB core computes under: the single owner of the
+/// request every GB entry used to hard-code as a literal. Today this is
+/// unconditionally DegRevLex — even when the encoder pinned an
+/// elimination order on the ring (`dynamic_order` / `matrix_elim_order`),
+/// the ring-carried order shapes only the surrounding stages
+/// (pre-reduction, interreduction, fast-paths, model search) while
+/// `ring_for_order` rebuilds a DegRevLex compute ring. Computing under
+/// the ring's order instead would redefine what those two knobs measure
+/// on the circuits they were tuned on, so the unification is gated on an
+/// EdDSA-class benchmark A/B; when that lands, this function is the one
+/// edit.
+pub(crate) fn solve_order(_poly_ring: &FfPolyRing) -> FfOrder {
+    FfOrder::DegRevLex
+}
 
 /// Build a per-call `PolyRing` whose monomial order matches `order`.
 /// Cheap (an `Arc<PolyRing>` with the same field/var-name data).
@@ -259,8 +316,18 @@ pub(crate) fn ring_for_order(poly_ring: &FfPolyRing, order: FfOrder) -> std::syn
         // the existing ring instead of rebuilding it per GB call.
         return ctx.clone();
     }
-    // Rebuild under the requested order, carrying the source ring's
-    // representation (never the ambient config's).
+    // Divergence marker for the two term-order channels: the compute
+    // ring's order differs from the encoder-pinned ring order, so the
+    // handoff carries term lists sorted under the source order (see
+    // `solve_order`). Rebuild under the requested order, carrying the
+    // source ring's representation (never the ambient config's).
+    log::debug!(
+        target: "picus::gb_stats",
+        "GB compute order {:?} diverges from ring order {:?} (elim-order ring); \
+         term-order unification pending its benchmark gate",
+        order,
+        ctx.order
+    );
     crate::ff::polynomial::PolyRing::new_with_repr(
         poly_ring.field().clone(),
         poly_ring.var_names().to_vec(),
@@ -480,22 +547,11 @@ pub fn compute_gb_with_order(
     if generators.is_empty() {
         return GbOutcome::Basis(Vec::new());
     }
-    if use_sparse_gb(poly_ring) {
-        // Honour the configured strategy on the sparse path too: ByHomog
-        // (DegRevLex only, mirroring BuchbergerByHomog) runs the
-        // homogenize → GB → dehomogenize pipeline with a sparse inner GB;
-        // everything else is plain sparse Buchberger.
-        let strat = resolve_strategy(poly_ring, &generators);
-        if strat == GbStrategy::ByHomog && order == FfOrder::DegRevLex {
-            record_dispatched("sparse-by-homog");
-            return crate::gb::homog::compute_gb_by_homog(poly_ring, generators, cancel);
-        }
-        record_dispatched("sparse-buchberger");
-        let result = sparse_gb_route(poly_ring, generators, order, cancel);
-        return finish_gb(result, cancel, "sparse GB");
-    }
     let n_gens = generators.len();
     let n_vars = poly_ring.n_vars();
+    // Single choke point: dispatch selects the strategy, and the
+    // strategy routes representation internally, so this entry has no
+    // second (sparse) routing branch to keep in sync.
     let result = compute_gb_dispatch(poly_ring, generators, cancel, order, None);
     let out = finish_gb(result, cancel, "GB dispatch");
     if let GbOutcome::Basis(basis) = &out {
@@ -575,6 +631,26 @@ pub fn compute_gb_incremental_with_order(
     }
     if known_gb.is_empty() {
         return compute_gb_with_order(poly_ring, new_polys, cancel, order);
+    }
+    // Strategy opt-in seam: an engine that maintains its own
+    // incremental state (a future signature-based algorithm) routes
+    // here. Both built-in strategies leave `supports_incremental` at
+    // the default `false`, so the seeded-Buchberger machinery below
+    // runs for them unchanged — the extension itself has never
+    // consulted `gb_strategy`.
+    {
+        let strat = resolve_strategy(poly_ring, &new_polys);
+        let direct = BuchbergerDirect;
+        let by_homog = BuchbergerByHomog;
+        let chosen: &dyn GbAlgorithm = match strat {
+            GbStrategy::Direct => &direct,
+            GbStrategy::ByHomog => &by_homog,
+            GbStrategy::Auto => unreachable!("Auto resolved by resolve_strategy"),
+        };
+        if chosen.supports_incremental() {
+            let result = chosen.extend_incremental(poly_ring, known_gb, new_polys, cancel, order);
+            return finish_gb(result, cancel, "incremental GB dispatch");
+        }
     }
     if use_sparse_gb(poly_ring) {
         // Incremental seeding: trust `known_gb` as a reduced GB (the same

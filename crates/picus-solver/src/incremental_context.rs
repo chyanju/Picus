@@ -19,7 +19,6 @@ use crate::frontend::encoder::{
     encode, encode_constraint_side, ConstraintSystem,
 };
 use crate::gb::ideal::{incremental_engine, IncrementalGB};
-use crate::ff::monomial::MonomialOrder;
 use crate::gb::ideal::{interreduce_basis, ring_for_order, unwrap_dense_vec, wrap_dense_vec, Ideal};
 use crate::gb::model;
 use crate::metric;
@@ -283,7 +282,8 @@ impl IncrementalSolverContext {
                 // work from this attempt is lost (the IGBs inside
                 // `split_gb_cancel` are dropped); subsequent resume
                 // calls accumulate progress.
-                let ring = ring_for_order(&encoded.poly_ring, MonomialOrder::DegRevLex);
+                let ring =
+                    ring_for_order(&encoded.poly_ring, crate::gb::ideal::solve_order(&encoded.poly_ring));
                 // The front-door constructor pins the incremental policy
                 // (use_f4 off): a resumed build must not run a different
                 // inner engine than the same build uncancelled. The token
