@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Older entries (v1.8.22 and earlier) are archived in [docs/changelogs/CHANGELOG-1.8.22-and-earlier.md](docs/changelogs/CHANGELOG-1.8.22-and-earlier.md).
 
+## [1.8.30] - 2026-07-07
+
+Native uninterpreted functions (UF) + finite-field theory combination. UF-free behavior is bit-identical (pinned digest + `cdclt_iter_cap` boundary tests); all `uf_*` knobs are read only when a query carries applications.
+
+### Added
+- Constraint language carries UF applications `r = f(args)` (congruence-only semantics): `UfApp`/`UfSymbolId`, builder `uf_symbol`/`add_uf_app` with first-use arity checking, `EncodedSystem`/`PolySystem` UF sections.
+- Routing: UF-bearing queries take the Boolean/CDCL(T) path (native seam and the direct facade entries via `boolean_query_from_constraint_system`); the GB and cache paths never see UF; cvc5/z3 preflight refuses UF queries.
+- Lazy congruence closure (default, `uf_mode = lazy`): a backtrackable term-level congruence-closure e-graph (`cdclt/egraph.rs`, Nieuwenhuis–Oliveras explanation forest, union by rank, exactly-undoable trail, same-class disequality conflict, constant-clash detection, positive and disequality-driven propagation) driven by `cdclt/uf_theory.rs::UfCombinedTheory` wrapped outermost around the FF theory; care-atom interning per application pair, ingestion of pre-existing equality atoms (`AtomKey::as_var_pair_eq`), and level-0 closure with pre-loop unit assertion (root Unsat by BCP, no GB work).
+- Eager Ackermann (`uf_mode = ackermann`, and the DNF route always): `frontend/uf.rs::ackermannize` bounds expansion by `uf_pair_cap`, continuing on a deterministic prefix on overflow (Unsat sound; Sat requires certification).
+- Congruence certification on every Sat exit (GB, cached, CDCL(T) incl. the `Constant(true)` shortcut): `build_uf_table` / `verify_uf_congruence`, model completion (valued-member donation, injective fresh values, tiny-p 0-fill fallback), single-application symbols skipped.
+- Cached-path UNSAT-only closure probe `IncrementalSolverContext::probe_unsat_uf` (knob `uf_closure`): congruence-derives `r_i − r_j` polynomials against the cached basis (round-capped fixpoint, cancel/failure rollback, own cache slots) and answers per-wire probes by one membership reduction.
+- `polysystem_to_uniqueness_query` doubles applications under one shared symbol table (cross-copy congruence); abstract-Sat verdict contract documented at the `SolverBackend::solve` seam.
+- smt2: `(declare-fun f (F F) F)` registers a UF signature (Bool-sorted or Bool-argument UF is malformed); application terms lower via `__uf_arg_N`/`__uf_app_N` variables; `SmtSession` push/pop/reset truncates the UF section; `check_sat` routes through the UF entry.
+- Facade `cdclt::solve_formula_with_ufs` + `UfSection`; `push_pop::assert_uf_app`; `dump_smt` emits `; uf:` lines; `bin/cvc5_compare` native leg carries applications.
+- Knobs `uf_enabled`, `uf_pair_cap`, `uf_closure`, `uf_mode` (CLI `--uf-enabled`/`--uf-pair-cap`/`--uf-closure`/`--uf-mode`); `UnknownCause::{UfCap, UfIncomplete, UfUnsupported}`; empty-guarded UF section in the constraint-side digest; `gb_stats`-gated UF counters.
+
+### Fixed
+- E-graph explanation walks fail closed at the recursion depth cap: no partial conflict core or propagation reason is emitted (a truncated core could learn an invalid lemma — a wrong-UNSAT channel); a sticky overflow flag routes later certification failures to Unknown.
+- Hub propagation explanations are cleared per round and on pop (a stale reason could shadow a fresh inner-theory explanation after backtracking).
+- Lazy pipeline interns chained result care atoms for nullary symbols; `ackermannize`'s nullary chain skips mixed-arity applications.
+- Closure probe respects the `uf_enabled` kill switch and `uf_pair_cap`, uses separate cache slots, and rolls back a silently-failed GB extend (empty-after-non-empty basis) instead of persisting it.
+- smt2: `__uf_*` variables skip user-declared names of the same spelling; failed `(assert)` and `(reset-assertions)` roll back applications; different-arity redeclaration is rejected; `check_sat` and `cvc5_compare` refuse an ill-formed UF section.
+
+### Tests
+- Soundness: brute-force oracle differential over GF(3/5/7) (CDCL(T), DNF, and eager legs), congruence/pigeonhole/cross-copy/degraded-continue/arity cases; cvc5 QF_UFFF differential (`declare_fun` + `ApplyUf`, `set_logic("QF_UFFF")`, verdict-only).
+- Bit-identity: golden pinned digest and `cdclt_iter_cap` boundary pins across the full `uf_*` knob grid on a UF-free corpus.
+- E-graph: randomized op/undo sequences vs a from-scratch closure oracle, congruence/transitivity explanations, conflict rules, 600-deep chain fail-closed.
+- Hub and pipeline: early-Sat downgrade, conflict cores, pop/re-notify, model completion and tiny-p legs; knob-grid parity (lazy × {incremental theory, equality engine, router, cache off, linear elim, small cap} + eager×DNF) with anti-vacuity floors; lazy-vs-eager agreement modulo Unknown; metric-asserted zero-GB cross-copy refutations.
+- Upstream doubling contract + end-to-end uniqueness (shared-input UNSAT, free-input SAT); probe soundness, closure reuse, cancel/failure rollback; smt2 UF frontend and session hygiene.
+- Review-round regressions: 600-deep congruence chain fails closed (no partial core; sticky overflow), undo-oracle explanation-liveness vs surviving levels, session reset/failed-assert/redeclaration legs, skolem-capture leg.
+
 ## [1.8.29] - 2026-07-06
 
 picus-solver second architecture pass. Verdict-preserving; native + cvc5/z3 suites green.
