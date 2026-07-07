@@ -801,3 +801,127 @@ fn prop_double_equals_zero_has_unique_solution_in_odd_prime() {
     }
 }
 
+
+// ─────────────── Uninterpreted functions (session) ───────────────
+
+#[test]
+fn session_uf_check_sat_uses_congruence() {
+    let out = run(r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+        (declare-fun x () F)
+        (declare-fun y () F)
+        (declare-fun r1 () F)
+        (declare-fun r2 () F)
+        (assert (= x y))
+        (assert (= r1 (f x)))
+        (assert (= r2 (f y)))
+        (assert (not (= r1 r2)))
+        (check-sat)
+    "#);
+    assert_eq!(last_verdict(&out), Some(SessionVerdict::Unsat));
+}
+
+#[test]
+fn session_pop_truncates_uf_apps_and_declarations() {
+    let mut s = SmtSession::new();
+    let out = run_with(&mut s, r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+        (declare-fun x () F)
+        (declare-fun y () F)
+        (declare-fun r1 () F)
+        (declare-fun r2 () F)
+        (assert (= x y))
+        (push)
+        (assert (= r1 (f x)))
+        (assert (= r2 (f y)))
+        (assert (not (= r1 r2)))
+        (check-sat)
+    "#);
+    assert_eq!(last_verdict(&out), Some(SessionVerdict::Unsat));
+    // Popping removes the applications and the target; the base level
+    // is satisfiable again.
+    let out = run_with(&mut s, "(pop)\n(check-sat)");
+    assert_eq!(last_verdict(&out), Some(SessionVerdict::Sat));
+    assert_eq!(s.builder.uf_apps().len(), 0, "apps truncated by (pop)");
+    // The declaration itself was made below the push and survives:
+    // re-asserting applications works without redeclaring.
+    let out = run_with(&mut s, r#"
+        (declare-fun r3 () F)
+        (declare-fun r4 () F)
+        (assert (= r3 (f x)))
+        (assert (= r4 (f y)))
+        (assert (not (= r3 r4)))
+        (check-sat)
+    "#);
+    assert_eq!(last_verdict(&out), Some(SessionVerdict::Unsat));
+}
+
+#[test]
+fn session_pop_removes_uf_declarations_made_above_the_push() {
+    let mut s = SmtSession::new();
+    run_with(&mut s, r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun x () F)
+        (push)
+        (declare-fun g (F) F)
+    "#);
+    assert!(s.ufs.contains_key("g"));
+    run_with(&mut s, "(pop)");
+    assert!(!s.ufs.contains_key("g"), "(pop) forgets the declaration");
+}
+
+#[test]
+fn reset_assertions_clears_uf_applications_but_keeps_declarations() {
+    let mut s = SmtSession::new();
+    run_with(&mut s, r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+        (declare-fun x () F)
+        (declare-fun r () F)
+        (assert (= r (f x)))
+        (reset-assertions)
+    "#);
+    assert_eq!(s.builder.uf_apps().len(), 0, "assertion-derived apps cleared");
+    assert!(s.ufs.contains_key("f"), "declarations survive");
+    // The symbol is still usable afterwards.
+    let out = run_with(&mut s, r#"
+        (declare-fun y () F)
+        (declare-fun r2 () F)
+        (declare-fun r3 () F)
+        (assert (= x y))
+        (assert (= r2 (f x)))
+        (assert (= r3 (f y)))
+        (assert (not (= r2 r3)))
+        (check-sat)
+    "#);
+    assert_eq!(last_verdict(&out), Some(SessionVerdict::Unsat));
+}
+
+#[test]
+fn failed_assert_leaves_no_partial_uf_applications() {
+    let mut s = SmtSession::new();
+    run_with(&mut s, r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+        (declare-fun x () F)
+    "#);
+    // The application parses, then the enclosing term fails (unknown
+    // operator): the partially-recorded app must not survive.
+    let err = s.eval_script("(assert (= (f x) (bogus-op x)))");
+    assert!(err.is_err());
+    assert_eq!(s.builder.uf_apps().len(), 0, "partial apps rolled back");
+}
+
+#[test]
+fn uf_redeclaration_with_different_arity_is_rejected() {
+    let mut s = SmtSession::new();
+    run_with(&mut s, r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+    "#);
+    assert!(s.eval_script("(declare-fun f (F F) F)").is_err());
+    // Same-arity redeclaration stays a no-op.
+    assert!(s.eval_script("(declare-fun f (F) F)").is_ok());
+}

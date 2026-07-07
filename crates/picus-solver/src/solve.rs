@@ -51,6 +51,18 @@ pub enum UnknownCause {
     /// A produced model failed re-verification (an engine defect; the
     /// fail-closed gate held).
     ModelValidation,
+    /// A UF budget was exhausted: the `uf_pair_cap` precheck refused
+    /// (cap 0), or a degraded-prefix expansion's Sat candidate failed
+    /// table certification. Retrying with the same budget is pointless.
+    UfCap,
+    /// The UF completeness envelope was exceeded on a path that cannot
+    /// split: a congruence-gate rejection under a COMPLETE expansion
+    /// (defect class — the fail-closed gate held).
+    UfIncomplete,
+    /// Policy refusal for a UF-bearing query: `uf_enabled = false`, or
+    /// an entry that does not support UF refused instead of silently
+    /// dropping the applications.
+    UfUnsupported,
 }
 
 impl std::fmt::Display for UnknownCause {
@@ -64,6 +76,9 @@ impl std::fmt::Display for UnknownCause {
             UnknownCause::EngineFailure => "engine failure",
             UnknownCause::EncodingFailure => "encoding failure",
             UnknownCause::ModelValidation => "model validation failure",
+            UnknownCause::UfCap => "uf pair cap",
+            UnknownCause::UfIncomplete => "uf congruence certification failure",
+            UnknownCause::UfUnsupported => "uf unsupported on this path",
         };
         f.write_str(s)
     }
@@ -141,11 +156,33 @@ pub fn solve_encoded(encoded: &EncodedSystem) -> SolveOutcome {
 /// Solve an `EncodedSystem` with cooperative timeout.
 ///
 /// Returns `SolveOutcome::Unknown` if the cancel token fires.
+///
+/// When the system carries UF applications, a Sat outcome is
+/// additionally certified against them (congruence over the model's
+/// values) before it may surface — GB paths return full ring points,
+/// so no model completion is needed here. Unsat needs no check: the
+/// polynomial fragment alone refuting the query refutes the stronger
+/// UF-bearing system too.
 pub fn solve_encoded_with_cancel(
     encoded: &EncodedSystem,
     cancel: &CancelToken,
 ) -> SolveOutcome {
-    solve_split_gb_cancel(&encoded.poly_ring, &encoded.polynomials, &encoded.bitsum_polys, cancel)
+    let outcome =
+        solve_split_gb_cancel(&encoded.poly_ring, &encoded.polynomials, &encoded.bitsum_polys, cancel);
+    if encoded.uf_apps.is_empty() {
+        return outcome;
+    }
+    match outcome {
+        SolveOutcome::Sat(model) => crate::frontend::uf::certify_uf_sat(
+            model,
+            &encoded.uf_apps,
+            &encoded.uf_symbols,
+            encoded.poly_ring.var_names(),
+            encoded.uf_care_complete,
+            false,
+        ),
+        other => other,
+    }
 }
 
 /// Solve with cooperative cancellation.

@@ -820,6 +820,9 @@ fn solve_with_cached_sat_verifies_bitsum_polys() {
         bit_prop_state: BitProp::new(&pr).to_state(),
         digest: 0,
         knobs: BasisKnobs::current(),
+        uf_apps: Vec::new(),
+        uf_derived: Vec::new(),
+        closure_done: false,
     };
     let cs = ConstraintSystemBuilder::new(BigUint::from(7u32)).build();
     let out = solve_with_cached(&cached, &cs, &CancelToken::none());
@@ -909,6 +912,9 @@ fn solve_with_cached_sat_rejected_by_bitsum_returns_unknown() {
         bit_prop_state: BitProp::new(&pr).to_state(),
         digest: 0,
         knobs: BasisKnobs::current(),
+        uf_apps: Vec::new(),
+        uf_derived: Vec::new(),
+        closure_done: false,
     };
     let cs = ConstraintSystemBuilder::new(BigUint::from(7u32)).build();
     let out = solve_with_cached(&cached, &cs, &CancelToken::none());
@@ -940,6 +946,10 @@ fn out_of_range_eq_sys() -> ConstraintSystem {
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
+        uf_care_complete: true,
+        uf_poisoned: None,
     }
 }
 
@@ -1210,6 +1220,9 @@ fn solve_with_cached_k1_fallback_places_query_in_partition_zero() {
         bit_prop_state: BitProp::new(&pr).to_state(),
         digest: 0,
         knobs: BasisKnobs::current(),
+        uf_apps: Vec::new(),
+        uf_derived: Vec::new(),
+        closure_done: false,
     };
     // Query: vars x, y; disequality (x, y); no equalities.
     let mut qb = ConstraintSystemBuilder::new(BigUint::from(7u32));
@@ -1377,4 +1390,63 @@ fn cached_path_bitprop_sees_bitsum_polys() {
         stateless,
         cached
     );
+}
+
+// ─── UF closure probe internals ─────────────────────────────────────
+
+/// Doubled-shape UF system over GF(7): f(a1)=r1, f(a2)=r2, a1 = a2,
+/// target r1 != r2.
+fn uf_probe_system() -> ConstraintSystem {
+    let mut b = crate::frontend::encoder::ConstraintSystemBuilder::new(BigUint::from(7u32));
+    let a1 = b.var("a1");
+    let a2 = b.var("a2");
+    let r1 = b.var("r1");
+    let r2 = b.var("r2");
+    let f = b.uf_symbol("f");
+    b.add_uf_app(f, vec![a1], r1);
+    b.add_uf_app(f, vec![a2], r2);
+    b.add_disequality(r1, r2);
+    b.add_equality(vec![
+        crate::frontend::encoder::PolyTerm {
+            coeff: BigUint::from(1u32),
+            vars: vec![(a1, 1)],
+        },
+        crate::frontend::encoder::PolyTerm {
+            coeff: BigUint::from(6u32),
+            vars: vec![(a2, 1)],
+        },
+    ]);
+    b.set_add_field_polys(true);
+    b.build()
+}
+
+#[test]
+fn uf_closure_cancel_rolls_back_all_partial_work() {
+    let cs = uf_probe_system();
+    let cancel = CancelToken::none();
+    let mut ctx = IncrementalSolverContext::new();
+    // Build the cached base through the probe (second consecutive
+    // digest), then reset its closure so we can drive the pass by hand.
+    assert!(ctx.probe_unsat_uf(&cs, &cancel).is_none());
+    assert!(matches!(ctx.probe_unsat_uf(&cs, &cancel), Some(SolveOutcome::Unsat(_))));
+    let cached = ctx.uf_cached_base.as_mut().expect("probe built the base");
+    assert!(cached.closure_done);
+    assert!(!cached.uf_derived.is_empty(), "closure derived r1 - r2");
+
+    // Reset and re-run with a pre-cancelled token: everything partial
+    // must roll back so the retry is deterministic.
+    cached.closure_done = false;
+    cached.uf_derived.clear();
+    let basis_before: Vec<usize> = cached.split_gb_owned.iter().map(|p| p.len()).collect();
+    let cancelled = CancelToken::cancelled();
+    assert!(!run_uf_closure(cached, &cancelled), "cancelled closure reports failure");
+    assert!(!cached.closure_done);
+    assert!(cached.uf_derived.is_empty(), "derived polys discarded on cancel");
+    let basis_after: Vec<usize> = cached.split_gb_owned.iter().map(|p| p.len()).collect();
+    assert_eq!(basis_before, basis_after, "bases restored on cancel");
+
+    // A live retry completes deterministically.
+    assert!(run_uf_closure(cached, &cancel));
+    assert!(cached.closure_done);
+    assert!(!cached.uf_derived.is_empty());
 }

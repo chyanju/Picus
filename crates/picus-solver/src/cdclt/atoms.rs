@@ -166,6 +166,33 @@ impl AtomKey {
         Some((var_term.1[0].clone(), value))
     }
 
+    /// If this atom canonically equates two distinct degree-1
+    /// variables (`a·x − a·y = 0` with `a ≠ 0`), return their names.
+    /// Sibling of [`Self::as_single_var_eq`]; the FF→hub ingestion
+    /// channel that lets the UF equality hub register pre-existing
+    /// equality atoms (e.g. known-wire equalities `x_w − y_w = 0`) as
+    /// congruence triggers.
+    pub(crate) fn as_var_pair_eq(&self, prime: &BigUint) -> Option<(String, String)> {
+        if self.terms.len() != 2 {
+            return None;
+        }
+        let (t0, t1) = (&self.terms[0], &self.terms[1]);
+        if t0.1.len() != 1 || t1.1.len() != 1 {
+            return None;
+        }
+        if t0.0.is_zero() || t1.0.is_zero() {
+            return None;
+        }
+        // Coefficients must be exact negatives: a·x + (p−a)·y ⇒ x = y.
+        if (&t0.0 + &t1.0) % prime != BigUint::zero() {
+            return None;
+        }
+        if t0.1[0] == t1.1[0] {
+            return None;
+        }
+        Some((t0.1[0].clone(), t1.1[0].clone()))
+    }
+
     /// Intern this atom's canonical polynomial into `builder`,
     /// returning the index-keyed `Vec<PolyTerm>` ready to feed to
     /// `builder.add_equality`. Within-term repeated names

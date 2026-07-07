@@ -256,6 +256,35 @@ pub(crate) enum Commands {
         /// bound, typical for large primes, degrade to Unknown): on | off.
         #[arg(long, value_parser = ["on", "off"])]
         cdclt_incremental_theory: Option<String>,
+
+        /// Uninterpreted-function (UF) support (native FF backend only):
+        /// on | off. Consulted only when a query carries UF
+        /// applications; `off` refuses such queries with a typed
+        /// Unknown instead of silently dropping the congruence
+        /// constraints. Omit to use the built-in default (on).
+        #[arg(long, value_parser = ["on", "off"])]
+        uf_enabled: Option<String>,
+
+        /// Max same-symbol UF application pairs expanded per solve
+        /// (native FF backend only). `0` = immediate Unknown (test
+        /// helper); overflow of a nonzero cap continues degraded (Unsat
+        /// sound; Sat requires function-table certification).
+        /// [default: 4096]
+        #[arg(long)]
+        uf_pair_cap: Option<u64>,
+
+        /// Cached-path UNSAT-only congruence-closure probe for
+        /// UF-bearing queries (native FF backend only): on | off.
+        /// Never produces Sat. Omit to use the built-in default (on).
+        #[arg(long, value_parser = ["on", "off"])]
+        uf_closure: Option<String>,
+
+        /// Decision procedure on the CDCL(T) route for UF-bearing
+        /// queries (native FF backend only): lazy (congruence-closure
+        /// equality hub) | ackermann (eager expansion; fallback).
+        /// [default: lazy]
+        #[arg(long, value_parser = ["lazy", "ackermann"])]
+        uf_mode: Option<String>,
     },
 
     /// Print R1CS circuit information

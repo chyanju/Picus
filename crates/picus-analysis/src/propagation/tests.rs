@@ -107,6 +107,8 @@ fn make_tiny_ir(prime: u64, n_wires: usize, equalities_builder: impl FnOnce(&Arc
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
     };
     UniquenessQuery {
         n_wires,

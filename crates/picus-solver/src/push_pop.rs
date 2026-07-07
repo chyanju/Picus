@@ -40,6 +40,13 @@ pub enum Constraint {
     Disequality(String, String),
     /// A direct variable assignment: var == value.
     Assignment(String, BigUint),
+    /// A UF application: result == sym(args...). Congruence-only
+    /// semantics; see `frontend::encoder::UfApp`.
+    UfApp {
+        sym: String,
+        args: Vec<String>,
+        result: String,
+    },
 }
 
 /// Incremental solver state.
@@ -99,6 +106,17 @@ impl RebuildOnCheckSolver {
         self.facts.push(Constraint::Assignment(var.into(), value));
     }
 
+    /// Assert the UF application `result = sym(args...)`. Participates
+    /// in push/pop truncation like every other fact; each check
+    /// re-interns it into the fresh builder.
+    pub fn assert_uf_app(&mut self, result: &str, sym: &str, args: &[&str]) {
+        self.facts.push(Constraint::UfApp {
+            sym: sym.to_string(),
+            args: args.iter().map(|a| a.to_string()).collect(),
+            result: result.to_string(),
+        });
+    }
+
     /// Solve the current fact set. Encodes from scratch and dispatches to
     /// the Split GB engine.
     pub fn check(&self) -> SolveOutcome {
@@ -137,9 +155,22 @@ impl RebuildOnCheckSolver {
                     let vi = builder.var(v);
                     builder.add_assignment(vi, val.clone());
                 }
+                Constraint::UfApp { sym, args, result } => {
+                    let sym_id = builder.uf_symbol(sym);
+                    let arg_idxs: Vec<VarIdx> = args.iter().map(|a| builder.var(a)).collect();
+                    let result_idx = builder.var(result);
+                    builder.add_uf_app(sym_id, arg_idxs, result_idx);
+                }
             }
         }
         let sys = builder.build();
+        // The direct GB path cannot host UF congruence; route
+        // UF-bearing fact sets through the Boolean/CDCL(T) entry.
+        if sys.has_uf() {
+            let query =
+                crate::frontend::formula::boolean_query_from_constraint_system(&sys);
+            return crate::boolean::solve_boolean_query(&query, cancel);
+        }
         let encoded = match encode(&sys) {
             Ok(e) => e,
             Err(e) => {

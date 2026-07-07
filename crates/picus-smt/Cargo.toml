@@ -39,3 +39,10 @@ picus-r1cs = { path = "../picus-r1cs", features = ["testkit"] }
 # live in `picus-analysis/tests/` (which depends on picus-smt downward), so
 # picus-smt has no back-edge and the crate layering stays acyclic. The lib's
 # own unit tests lower locally via `src/test_lowering.rs`.
+
+# The QF_UFFF differential harness drives cvc5 through the cvc5-ff bindings;
+# it only builds (and runs) with the cvc5 feature, keeping the default gate
+# free of the vendored cvc5 build.
+[[test]]
+name = "uf_cvc5_differential"
+required-features = ["cvc5"]

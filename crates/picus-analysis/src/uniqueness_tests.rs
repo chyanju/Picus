@@ -35,6 +35,8 @@ fn query(n_wires: usize, inputs: &[usize]) -> UniquenessQuery {
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
     };
     UniquenessQuery {
         n_wires,
@@ -376,4 +378,77 @@ fn doubler_rejects_out_of_range_input() {
             ..
         })
     ));
+}
+
+// ─── UF application doubling ───────────────────────────────────────
+
+/// Single-copy system over GF(7) with wires `v0..v{n-1}` and one UF
+/// application `v_result = f(v_arg)`.
+fn single_with_app(n_wires: usize, arg: usize, result: usize) -> PolySystem {
+    let field = PrimeField::new(BigUint::from(7u32));
+    let names: Vec<String> = (0..n_wires).map(|i| format!("v{}", i)).collect();
+    let ring = Arc::new(FfPolyRing::new(field, names));
+    let mut ir = PolySystem::new(ring);
+    let f = ir.uf_symbol("f");
+    ir.add_uf_app(f, vec![arg], result);
+    ir
+}
+
+#[test]
+fn doubling_shares_symbol_ids_and_collapses_shared_input_args() {
+    let single = single_with_app(2, 0, 1);
+    let inputs: HashSet<usize> = [0].into_iter().collect();
+    let q = polysystem_to_uniqueness_query(&single, &inputs, &HashSet::new()).unwrap();
+    // One symbol table entry — never duplicated per copy: one name,
+    // one function, which is what cross-copy congruence rests on.
+    assert_eq!(q.ir.uf_symbols, vec!["f".to_string()]);
+    assert_eq!(q.ir.uf_apps.len(), 2, "each app doubles");
+    assert_eq!(q.ir.uf_apps[0].symbol, q.ir.uf_apps[1].symbol);
+    // Shared input wire: both copies reference the SAME x-index.
+    assert_eq!(q.ir.uf_apps[0].args, vec![0]);
+    assert_eq!(q.ir.uf_apps[1].args, vec![0]);
+    // Results live in their own copies.
+    assert_eq!(q.ir.uf_apps[0].result, 1);
+    assert_eq!(q.ir.uf_apps[1].result, 2 + 1);
+}
+
+#[test]
+fn doubling_shifts_non_input_args_to_the_alt_copy() {
+    let single = single_with_app(2, 0, 1);
+    let q = polysystem_to_uniqueness_query(&single, &HashSet::new(), &HashSet::new()).unwrap();
+    assert_eq!(q.ir.uf_apps[0].args, vec![0]);
+    assert_eq!(q.ir.uf_apps[1].args, vec![2], "non-input arg shifts by n_wires");
+}
+
+#[test]
+fn end_to_end_shared_input_uf_wire_is_unique() {
+    // r = f(in) with `in` a shared input: the doubled system must be
+    // UNSAT on the target r (same input, one function ⇒ same output) —
+    // driven through `polysystem_to_uniqueness_query` itself and the
+    // real native backend, not a hand-doubled system.
+    use picus_core::timeout::CancelToken;
+    use picus_smt::backends::{create_backend_by_name, SolverResult};
+
+    let single = single_with_app(2, 0, 1);
+    let inputs: HashSet<usize> = [0].into_iter().collect();
+    let mut q = polysystem_to_uniqueness_query(&single, &inputs, &HashSet::new()).unwrap();
+    q.set_target(1);
+    let mut backend = create_backend_by_name("native", picus_smt::Theory::Ff).unwrap();
+    let res = backend.solve(&q.ir, 5000, &CancelToken::none()).unwrap();
+    assert!(matches!(res, SolverResult::Unsat), "got {:?}", res);
+}
+
+#[test]
+fn end_to_end_free_input_uf_wire_is_not_unique() {
+    // Negative control: `in` not shared — the two copies may disagree
+    // on it, so f may map them differently and r is not unique.
+    use picus_core::timeout::CancelToken;
+    use picus_smt::backends::{create_backend_by_name, SolverResult};
+
+    let single = single_with_app(2, 0, 1);
+    let mut q = polysystem_to_uniqueness_query(&single, &HashSet::new(), &HashSet::new()).unwrap();
+    q.set_target(1);
+    let mut backend = create_backend_by_name("native", picus_smt::Theory::Ff).unwrap();
+    let res = backend.solve(&q.ir, 5000, &CancelToken::none()).unwrap();
+    assert!(matches!(res, SolverResult::Sat(_)), "got {:?}", res);
 }

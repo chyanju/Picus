@@ -254,6 +254,59 @@ impl BooleanQuery {
     }
 }
 
+/// Lift a conjunctive [`ConstraintSystem`] into a [`BooleanQuery`]
+/// whose builder carries the full system (variable frame, bitsums,
+/// `add_field_polys`, UF section): equalities and assignments become
+/// `Eq` literals, disequalities become `Neq` literals. Used by the
+/// direct-facade entries (`IncrementalSolverContext`, `push_pop`)
+/// whose GB path cannot host UF applications — routing to the
+/// Boolean/CDCL(T) entry preserves full capability instead of
+/// refusing.
+pub fn boolean_query_from_constraint_system(cs: &ConstraintSystem) -> BooleanQuery {
+    let mut builder = ConstraintSystemBuilder::new(cs.prime.clone());
+    for name in &cs.var_names {
+        builder.var(name);
+    }
+    for chain in &cs.bitsums {
+        builder.add_bitsum(chain.clone());
+    }
+    builder.set_add_field_polys(cs.add_field_polys);
+    // Re-interning the symbol names in table order reproduces the ids,
+    // so apps carry over index-stable; an arity mismatch in the source
+    // re-poisons the builder (the refusal survives the round trip).
+    for app in &cs.uf_apps {
+        let name = cs
+            .uf_symbols
+            .get(app.symbol as usize)
+            .map(String::as_str)
+            .unwrap_or("<uf>");
+        let sym = builder.uf_symbol(name);
+        builder.add_uf_app(sym, app.args.clone(), app.result);
+    }
+    builder.set_uf_care_complete(cs.uf_care_complete);
+
+    let mut conj: Vec<Formula> = Vec::new();
+    for eq in &cs.equalities {
+        if !eq.is_empty() {
+            conj.push(Formula::Lit(Literal::Eq(eq.clone(), Vec::new())));
+        }
+    }
+    for (v, val) in &cs.assignments {
+        conj.push(Formula::Lit(Literal::Eq(
+            vec![PolyTerm { coeff: BigUint::from(1u32), vars: vec![(*v, 1)] }],
+            vec![PolyTerm { coeff: val.clone(), vars: Vec::new() }],
+        )));
+    }
+    for &(a, b) in &cs.disequalities {
+        conj.push(Formula::Lit(Literal::Neq(
+            vec![PolyTerm { coeff: BigUint::from(1u32), vars: vec![(a, 1)] }],
+            vec![PolyTerm { coeff: BigUint::from(1u32), vars: vec![(b, 1)] }],
+        )));
+    }
+    let formula = if conj.is_empty() { Formula::True } else { Formula::And(conj) };
+    BooleanQuery::from_builder_and_formula(builder, formula)
+}
+
 /// `Eq(a, b)` → normalized form of `a - b`. Returns `None` for
 /// disequalities. The result is a `Vec<PolyTerm>` in the same
 /// variable frame as `lit`.

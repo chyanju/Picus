@@ -139,6 +139,26 @@ cdclt_multi_prime_router = false
 cdclt_incremental_theory = false
 cdclt_equality_engine = false
 
+# Uninterpreted-function (UF) support. Both knobs are consulted only when a
+# query actually carries UF applications; UF-free workloads never read them.
+# uf_enabled = false refuses UF-bearing queries with a typed Unknown (never a
+# silent drop of the congruence constraints). uf_pair_cap bounds the
+# same-symbol application pairs expanded per solve: 0 = immediate Unknown
+# (test convention); overflow of a nonzero cap continues degraded — Unsat
+# stays sound, Sat requires function-table certification.
+# CLI: --uf-enabled on|off / --uf-pair-cap N.
+uf_enabled = true
+uf_pair_cap = 4096
+# Cached-path UNSAT-only closure probe (congruence-derived polys against the
+# cached basis; answers per-wire probes by one membership reduction). Never
+# produces Sat. CLI: --uf-closure on|off.
+uf_closure = true
+# Decision procedure on the CDCL(T) route for UF-bearing queries: "lazy"
+# (congruence-closure equality hub combined with the FF theory) | "ackermann"
+# (eager expansion; differential/incident fallback). The DNF route always
+# Ackermannizes. CLI: --uf-mode lazy|ackermann.
+uf_mode = "lazy"
+
 # --- IR / lemma layer (also affects the cvc5 path) ---
 # Polynomial representation: "sparse" (scales on wide rings) | "dense"
 # (faster on narrow rings; the differential-test oracle). Sets the IR

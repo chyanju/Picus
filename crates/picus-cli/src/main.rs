@@ -5,7 +5,7 @@ mod output;
 use clap::Parser;
 use picus::{
     dump_gb_stats, dump_profile, resolve_config, AnalysisOverlay, EngineOverlay, GbStrategy,
-    PicusConfigOverlay, ReprKind,
+    PicusConfigOverlay, ReprKind, UfMode,
 };
 
 use args::{Cli, Commands};
@@ -63,6 +63,10 @@ fn main() {
             f4_hilbert_select,
             f4_sparse_reducer_cache,
             cdclt_incremental_theory,
+            uf_enabled,
+            uf_pair_cap,
+            uf_closure,
+            uf_mode,
         } => {
             // CLI overlay — the highest-precedence config layer. Only the
             // flags actually passed on the command line become `Some`;
@@ -122,6 +126,12 @@ fn main() {
                     f4_hilbert_select: on_off(&f4_hilbert_select),
                     f4_sparse_reducer_cache: on_off(&f4_sparse_reducer_cache),
                     cdclt_incremental_theory: on_off(&cdclt_incremental_theory),
+                    uf_enabled: on_off(&uf_enabled),
+                    uf_pair_cap,
+                    uf_closure: on_off(&uf_closure),
+                    uf_mode: uf_mode
+                        .as_deref()
+                        .map(|s| s.parse::<UfMode>().unwrap_or_else(|e| exit_error(&e))),
                 },
             };
             let resolved = resolve_config(config.as_deref(), &overlay)

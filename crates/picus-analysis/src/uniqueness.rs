@@ -264,6 +264,30 @@ pub fn polysystem_to_uniqueness_query(
         base_disequalities.push((alt(a), alt(b)));
     }
 
+    // UF applications double like every other constraint, under the
+    // same per-variable remaps and — critically — the SAME symbol
+    // table: one name, one function across both copies, which is what
+    // makes cross-copy congruence (`x_args = y_args ⇒ x_r = y_r`)
+    // hold. Filling these with `Vec::new()` instead would silently
+    // drop the congruence constraints from the doubled system (a
+    // weaker query ⇒ spurious SAT ⇒ a false counterexample).
+    let uf_symbols = single.uf_symbols.clone();
+    let mut uf_apps = Vec::with_capacity(2 * single.uf_apps.len());
+    for app in &single.uf_apps {
+        uf_apps.push(picus_smt::poly_system::PolyUfApp {
+            symbol: app.symbol,
+            args: app.args.iter().map(|&a| orig(a)).collect(),
+            result: orig(app.result),
+        });
+    }
+    for app in &single.uf_apps {
+        uf_apps.push(picus_smt::poly_system::PolyUfApp {
+            symbol: app.symbol,
+            args: app.args.iter().map(|&a| alt(a)).collect(),
+            result: alt(app.result),
+        });
+    }
+
     let ir = PolySystem {
         ring,
         equalities,
@@ -273,6 +297,8 @@ pub fn polysystem_to_uniqueness_query(
         assignments,
         bitsums,
         add_field_polys: single.add_field_polys,
+        uf_symbols,
+        uf_apps,
     };
 
     Ok(UniquenessQuery {

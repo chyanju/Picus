@@ -65,6 +65,15 @@ impl BasisKnobs {
 
 /// Cached state computed from the constraint side of one
 /// [`ConstraintSystem`] (everything except `disequalities`).
+///
+/// UF-bearing digests reach this cache only through
+/// [`IncrementalSolverContext::probe_unsat_uf`] (the `solve` entry
+/// routes them to the Boolean path), so the UF fields below are empty
+/// on every base a plain `solve` can consult. Once the closure pass
+/// has run, `split_gb_owned` is extended with congruence-derived
+/// polynomials — entailed by FF ∧ congruence, NOT by FF alone — which
+/// is sound precisely because only the Unsat-only probe reads such a
+/// base.
 pub(crate) struct CachedBase {
     pub poly_ring: Arc<FfPolyRing>,
     pub var_map: HashMap<String, usize>,
@@ -78,6 +87,16 @@ pub(crate) struct CachedBase {
     pub bit_prop_state: BitPropState,
     pub digest: u128,
     knobs: BasisKnobs,
+    /// UF applications in the cached ring frame (digest-covered).
+    pub uf_apps: Vec<crate::frontend::encoder::UfApp>,
+    /// Congruence-derived polys `r_i − r_j` appended by the closure
+    /// pass (bookkeeping; the polys also live in `split_gb_owned`
+    /// after the extend).
+    pub uf_derived: Vec<Poly>,
+    /// True once the closure fixpoint ran to completion (or its round
+    /// cap); a cancelled closure leaves this false and discards its
+    /// partial work so the retry is deterministic.
+    pub closure_done: bool,
 }
 
 /// Partial GB build state preserved across solve calls. Used when the
@@ -117,6 +136,12 @@ pub struct IncrementalSolverContext {
     /// In-flight partial GB build saved from a cancelled call. Resumed
     /// on the next call with the same digest.
     partial_build: Option<PartialBuild>,
+    /// The UF probe's own base + streak slots, fully separate from the
+    /// UF-free fields above: a UF-bearing probe must never evict a
+    /// UF-free base or perturb its build-on-second-sighting streak
+    /// (mixed workloads would otherwise lose UF-free caching).
+    uf_cached_base: Option<CachedBase>,
+    uf_last_digest: Option<u128>,
 }
 
 impl IncrementalSolverContext {
@@ -125,15 +150,27 @@ impl IncrementalSolverContext {
             cached_base: None,
             last_digest: None,
             partial_build: None,
+            uf_cached_base: None,
+            uf_last_digest: None,
         }
     }
 
     pub fn invalidate(&mut self) {
         self.cached_base = None;
         self.partial_build = None;
+        self.uf_cached_base = None;
     }
 
     pub fn solve(&mut self, cs: &ConstraintSystem, cancel: &CancelToken) -> SolveOutcome {
+        // The GB pipeline behind this cache cannot host UF congruence;
+        // route UF-bearing systems to the Boolean/CDCL(T) entry at full
+        // capability instead of refusing (near-dead under the native
+        // seam's own routing; kept as a fail-closed guard for direct
+        // facade callers).
+        if cs.has_uf() {
+            let query = crate::frontend::formula::boolean_query_from_constraint_system(cs);
+            return crate::boolean::solve_boolean_query(&query, cancel);
+        }
         let digest = digest_constraint_side(cs);
 
         // A digest hit only counts when the basis-shaping knobs still
@@ -207,6 +244,123 @@ impl IncrementalSolverContext {
         outcome
     }
 
+    /// UNSAT-only propagation-stage probe for UF-bearing systems:
+    /// returns `Some(Unsat(None))` or `None` — never Sat, never a
+    /// surfaced Unknown. Sound to consult under ANY disjunction state:
+    /// it reads only the conjunctive constraint side plus the query
+    /// disequalities, and UNSAT of a constraint subset implies UNSAT
+    /// of the whole.
+    ///
+    /// Mechanics: the same digest / build-on-second-consecutive-digest
+    /// policy as [`Self::solve`] (UF digests never collide with UF-free
+    /// ones — the digest covers the UF section); then a one-time
+    /// congruence-closure pass over the finalized base — every
+    /// same-symbol application pair whose argument differences all
+    /// reduce to zero against the cached bases contributes the derived
+    /// poly `r_i − r_j` (entailed by FF ∧ congruence), extended into
+    /// the split-GB and iterated to fixpoint. Query time is one
+    /// membership reduction per disequality. Gated by the `uf_closure`
+    /// knob (read only when applications are present; deliberately NOT
+    /// in `BasisKnobs` — the derived artifact is a deterministic
+    /// function of digest-covered input, so a flip cannot create
+    /// staleness and must not evict UF-free caches).
+    pub fn probe_unsat_uf(
+        &mut self,
+        cs: &ConstraintSystem,
+        cancel: &CancelToken,
+    ) -> Option<SolveOutcome> {
+        if !cs.has_uf() || cs.uf_poisoned.is_some() {
+            return None;
+        }
+        if !crate::config::with(|c| c.uf_enabled) {
+            // Kill switch: with UF support off no congruence-derived
+            // verdict may surface from any entry, this one included.
+            return None;
+        }
+        if !crate::config::with(|c| c.uf_closure) {
+            return None;
+        }
+        let digest = digest_constraint_side(cs);
+        let knobs = BasisKnobs::current();
+        let cache_matches =
+            matches!(&self.uf_cached_base, Some(c) if c.digest == digest && c.knobs == knobs);
+        if !cache_matches {
+            let prev_digest_matches = self.uf_last_digest == Some(digest);
+            self.uf_last_digest = Some(digest);
+            if !prev_digest_matches {
+                // First sighting of this constraint side: skip the
+                // build cost, exactly like `solve`.
+                return None;
+            }
+            let encoded = encode_constraint_side(cs).ok()?;
+            if cancel.is_cancelled() {
+                return None;
+            }
+            let (gens, _prov) = build_partitions(
+                &encoded.poly_ring,
+                &encoded.polynomials,
+                &encoded.bitsum_polys,
+            );
+            let mut bit_prop = BitProp::new(&encoded.poly_ring);
+            bit_prop.scan_polys(&encoded.polynomials);
+            bit_prop.scan_polys(&encoded.bitsum_polys);
+            match split_gb_cancel(&encoded.poly_ring, gens, &mut bit_prop, cancel) {
+                Ok(split_basis) => {
+                    let split_gb_owned: Vec<Vec<Poly>> = split_basis
+                        .into_iter()
+                        .map(|ideal| {
+                            ideal
+                                .basis
+                                .iter()
+                                .map(|p| encoded.poly_ring.ring.clone_el(p))
+                                .collect()
+                        })
+                        .collect();
+                    let bit_prop_state = bit_prop.to_state();
+                    self.uf_cached_base = Some(CachedBase {
+                        poly_ring: Arc::new(encoded.poly_ring),
+                        var_map: encoded.var_map,
+                        constraint_polys: encoded.polynomials,
+                        bitsum_polys: encoded.bitsum_polys,
+                        split_gb_owned,
+                        bit_prop_state,
+                        digest,
+                        knobs,
+                        uf_apps: encoded.uf_apps,
+                        uf_derived: Vec::new(),
+                        closure_done: false,
+                    });
+                }
+                // A cancelled probe build is simply not cached (no
+                // partial-build plumbing on this path); the retry is
+                // deterministic.
+                Err(_) => return None,
+            }
+        }
+        let cached = self.uf_cached_base.as_mut().expect("built or matched above");
+        if cached.closure_done {
+            metric::incr!(NATIVE_FF.uf_closure_reuses);
+        } else if !run_uf_closure(cached, cancel) {
+            return None;
+        }
+        // Whole-ring after the congruence extend: FF ∧ congruence is
+        // already unsatisfiable, before any disequality.
+        if cached
+            .split_gb_owned
+            .iter()
+            .flatten()
+            .any(|p| !p.is_zero() && p.is_constant())
+        {
+            metric::incr!(NATIVE_FF.uf_probe_fastpath_unsat);
+            return Some(SolveOutcome::Unsat(None));
+        }
+        let hit = membership_fastpath_unsat(cached, cs, cancel);
+        if hit.is_some() {
+            metric::incr!(NATIVE_FF.uf_probe_fastpath_unsat);
+        }
+        hit
+    }
+
     /// Build the cache via the fast path ([`split_gb_cancel`]). On
     /// cancellation, save a `PartialBuild` so the next solve call with
     /// matching digest can resume via [`continue_partial`].
@@ -271,6 +425,9 @@ impl IncrementalSolverContext {
                     bit_prop_state,
                     digest,
                     knobs: BasisKnobs::current(),
+                    uf_apps: encoded.uf_apps,
+                    uf_derived: Vec::new(),
+                    closure_done: false,
                 });
                 Ok(())
             }
@@ -313,6 +470,174 @@ impl IncrementalSolverContext {
             }
         }
     }
+}
+
+/// One-time congruence-closure pass over a finalized UF-bearing base
+/// (see [`IncrementalSolverContext::probe_unsat_uf`]). Returns `true`
+/// when the fixpoint completed (or hit its round cap — the closure is
+/// then merely incomplete, still sound); `false` when cancelled or the
+/// extend failed, in which case ALL partial work is rolled back
+/// (bases, derived list, bit-prop state) so the retry is
+/// deterministic.
+fn run_uf_closure(cached: &mut CachedBase, cancel: &CancelToken) -> bool {
+    // Same-symbol, same-arity application pairs, deterministic order.
+    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    for i in 0..cached.uf_apps.len() {
+        for j in (i + 1)..cached.uf_apps.len() {
+            let (ai, aj) = (&cached.uf_apps[i], &cached.uf_apps[j]);
+            if ai.symbol == aj.symbol && ai.args.len() == aj.args.len() {
+                pairs.push((i, j));
+            }
+        }
+    }
+    if pairs.is_empty() {
+        cached.closure_done = true;
+        return true;
+    }
+    // The same budget that bounds Ackermann expansion and care-atom
+    // interning bounds the closure's pair set (deterministic prefix;
+    // fewer pairs only means fewer derived polys — still sound).
+    let pair_cap = crate::config::with(|c| c.uf_pair_cap) as usize;
+    if pairs.len() > pair_cap {
+        pairs.truncate(pair_cap);
+    }
+    let rounds_cap = std::cmp::min(64, pairs.len());
+    let poly_ring = Arc::clone(&cached.poly_ring);
+    let ring = poly_ring.ctx();
+    // Snapshot for the cancel rollback.
+    let snapshot: Vec<Vec<Poly>> = cached
+        .split_gb_owned
+        .iter()
+        .map(|part| part.iter().map(|p| poly_ring.ring.clone_el(p)).collect())
+        .collect();
+    let bp_snapshot = cached.bit_prop_state.clone();
+    let mut bit_prop = BitProp::from_state(&poly_ring, cached.bit_prop_state.clone());
+    let mut derived_pairs: std::collections::HashSet<(usize, usize)> =
+        std::collections::HashSet::new();
+
+    let mut cancelled = false;
+    'rounds: for _round in 0..rounds_cap {
+        let mut new_polys: Vec<Poly> = Vec::new();
+        {
+            let mut divisors: Vec<&Poly> = Vec::new();
+            for part in &cached.split_gb_owned {
+                for p in part {
+                    divisors.push(p);
+                }
+            }
+            for p in &cached.bitsum_polys {
+                divisors.push(p);
+            }
+            for &(i, j) in &pairs {
+                if cancel.is_cancelled() {
+                    cancelled = true;
+                    break 'rounds;
+                }
+                if derived_pairs.contains(&(i, j)) {
+                    continue;
+                }
+                let (ai, aj) = (&cached.uf_apps[i], &cached.uf_apps[j]);
+                let mut all_zero = true;
+                for (&x, &y) in ai.args.iter().zip(aj.args.iter()) {
+                    if x == y {
+                        continue;
+                    }
+                    if divisors.is_empty() {
+                        all_zero = false;
+                        break;
+                    }
+                    let diff =
+                        poly_ring.sub(poly_ring.var(x as usize), poly_ring.var(y as usize));
+                    let rem = diff.reduce_by_refs_cancel(&divisors, ring, cancel);
+                    if cancel.is_cancelled() {
+                        cancelled = true;
+                        break 'rounds;
+                    }
+                    if !rem.is_zero() {
+                        all_zero = false;
+                        break;
+                    }
+                }
+                if !all_zero {
+                    continue;
+                }
+                derived_pairs.insert((i, j));
+                if ai.result == aj.result {
+                    continue;
+                }
+                // Entailed by FF ∧ congruence: equal argument tuples
+                // (proved by membership) force equal results.
+                let dp = poly_ring
+                    .sub(poly_ring.var(ai.result as usize), poly_ring.var(aj.result as usize));
+                new_polys.push(dp);
+            }
+        }
+        if new_polys.is_empty() {
+            break;
+        }
+        for p in &new_polys {
+            cached.uf_derived.push(poly_ring.ring.clone_el(p));
+        }
+        let starting: Vec<Ideal> = cached
+            .split_gb_owned
+            .iter()
+            .map(|polys| {
+                let cloned: Vec<Poly> =
+                    polys.iter().map(|p| poly_ring.ring.clone_el(p)).collect();
+                Ideal::from_gb(&poly_ring, cloned)
+            })
+            .collect();
+        let k = starting.len();
+        let routed = crate::split_gb::route_query_polys(&poly_ring, k, &new_polys);
+        match split_gb_extend_cancel(&poly_ring, starting, routed, &mut bit_prop, cancel) {
+            Ok(new_basis) => {
+                // A GB engine failure surfaces here as Ok with an
+                // EMPTY partition (`GbOutcome::Failed` maps to an
+                // empty basis inside the extend). Extending a
+                // non-empty partition can never legitimately empty it
+                // (reduced-to-zero inputs leave it unchanged; a
+                // whole-ring result contains a constant), so
+                // empty-after-non-empty is exactly the failure
+                // sentinel — roll back instead of persisting a gutted
+                // base that every later probe would trust.
+                let gutted = new_basis
+                    .iter()
+                    .zip(cached.split_gb_owned.iter())
+                    .any(|(ideal, before)| ideal.basis.is_empty() && !before.is_empty());
+                if gutted {
+                    log::warn!(
+                        "uf closure: extend emptied a non-empty partition (engine                          failure); rolling back the closure pass"
+                    );
+                    cancelled = true;
+                    break;
+                }
+                cached.split_gb_owned = new_basis
+                    .into_iter()
+                    .map(|ideal| {
+                        ideal
+                            .basis
+                            .iter()
+                            .map(|p| poly_ring.ring.clone_el(p))
+                            .collect()
+                    })
+                    .collect();
+            }
+            Err(_) => {
+                cancelled = true;
+                break;
+            }
+        }
+    }
+
+    if cancelled {
+        cached.split_gb_owned = snapshot;
+        cached.uf_derived.clear();
+        cached.bit_prop_state = bp_snapshot;
+        return false;
+    }
+    cached.bit_prop_state = bit_prop.to_state();
+    cached.closure_done = true;
+    true
 }
 
 enum ResumeOutcome {
@@ -546,6 +871,11 @@ fn finalize_partial(partial: PartialBuild) -> Option<CachedBase> {
         // config at finalization time — a flip mid-resume must
         // invalidate on the next digest check.
         knobs: partial.knobs,
+        // Partial builds exist only on the UF-free `solve` path (the
+        // probe never saves partials), so the UF section is empty.
+        uf_apps: Vec::new(),
+        uf_derived: Vec::new(),
+        closure_done: false,
     })
 }
 
@@ -754,7 +1084,24 @@ fn solve_with_cached(
                 full_polys.push(poly_ring.ring.clone_el(p));
             }
             if model::verify_model(poly_ring, &full_polys, &model_map) {
-                SolveOutcome::Sat(model_map)
+                // Unreachable under the entry routing (UF-bearing
+                // systems never reach the cached path), kept as a
+                // guard — no Sat that can observe UF apps may surface
+                // without congruence certification.
+                if cs.has_uf() {
+                    crate::frontend::uf::certify_uf_sat(
+                        model_map,
+                        &cs.uf_apps,
+                        &cs.uf_symbols,
+                        &cs.var_names,
+                        cs.uf_care_complete,
+                        // GB route: full ring points, no completion
+                        // (the G1/G2 contract).
+                        false,
+                    )
+                } else {
+                    SolveOutcome::Sat(model_map)
+                }
             } else {
                 // Same engine-defect signal as the stateless path's
                 // gate (solve.rs); the cached path names itself so a
@@ -784,6 +1131,12 @@ fn solve_with_cached(
 }
 
 fn stateless_solve(cs: &ConstraintSystem, cancel: &CancelToken) -> SolveOutcome {
+    // Same routing guard as `IncrementalSolverContext::solve`: the
+    // stateless GB path cannot host UF congruence.
+    if cs.has_uf() {
+        let query = crate::frontend::formula::boolean_query_from_constraint_system(cs);
+        return crate::boolean::solve_boolean_query(&query, cancel);
+    }
     match encode(cs) {
         Ok(encoded) => crate::solve::solve_encoded_with_cancel(&encoded, cancel),
         Err(e) => {
@@ -854,6 +1207,28 @@ fn hash_constraint_side(cs: &crate::frontend::encoder::ConstraintSystem, domain:
                 idx.hash(&mut h);
                 exp.hash(&mut h);
             }
+        }
+    }
+    // UF section, appended ONLY when apps are present: the empty guard
+    // keeps the UF-free byte stream exactly as before (bit-identical
+    // digests, hence identical cache build/hit timing); the domain tag
+    // plus length prefixes preclude extension ambiguity. Apps are
+    // constraint-side (only the target disequality varies per wire), so
+    // per-wire digest reuse is preserved.
+    if !cs.uf_apps.is_empty() {
+        0x5546_4150_5053u64.hash(&mut h); // "UFAPPS" domain tag
+        cs.uf_symbols.len().hash(&mut h);
+        for s in &cs.uf_symbols {
+            s.hash(&mut h);
+        }
+        cs.uf_apps.len().hash(&mut h);
+        for a in &cs.uf_apps {
+            a.symbol.hash(&mut h);
+            a.args.len().hash(&mut h);
+            for v in &a.args {
+                v.hash(&mut h);
+            }
+            a.result.hash(&mut h);
         }
     }
     h.finish()

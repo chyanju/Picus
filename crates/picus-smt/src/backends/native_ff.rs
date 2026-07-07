@@ -160,7 +160,32 @@ impl SolverBackend for NativeFfBackend {
                 *last_cs_digest = Some(d);
             }
             metric::timer!(NATIVE_FF.solve_inner_time_ns);
-            let outcome = if !ir.disjunctions.is_empty() {
+            // UF routing: the GB/cache paths below cannot host
+            // congruence reasoning, so UF-bearing queries go through
+            // the Boolean/CDCL(T) entry (a pure conjunction with UF is
+            // a fine CDCL(T) input — all unit clauses). The knob is
+            // consulted only inside this UF-present branch, so UF-free
+            // queries never read it and the routing predicate reduces
+            // to today's `!disjunctions.is_empty()`.
+            let has_uf = !ir.uf_apps.is_empty();
+            if has_uf && !picus_core::config::with(|c| c.uf_enabled) {
+                log::debug!("native-ff: uf_enabled = false; refusing a UF-bearing query");
+                return Ok(SolverResult::Unknown(UnknownReason::IncompleteTheory));
+            }
+            // UNSAT-only cached probe (congruence closure over the
+            // constraint side): sound under any disjunction state —
+            // UNSAT of the conjunctive subset implies UNSAT of the
+            // whole — so it runs before the Boolean path whenever the
+            // cache is on. A miss falls through with no verdict.
+            let probe_hit = if has_uf && cache_enabled {
+                cache.probe_unsat_uf(&indexed, &cancel)
+            } else {
+                None
+            };
+            let outcome = if let Some(unsat) = probe_hit {
+                log::debug!("native-ff: uf closure probe answered Unsat");
+                unsat
+            } else if !ir.disjunctions.is_empty() || has_uf {
                 // Disjunction-aware path: route the whole query
                 // (conjunctive constraints + `or` clauses + target
                 // diseq) through the in-tree CDCL(T) engine. Each theory
@@ -171,8 +196,9 @@ impl SolverBackend for NativeFfBackend {
                 // rather than panicking; the outer `catch_unwind` remains
                 // the ultimate never-panic guard.
                 log::debug!(
-                    "native-ff: {} disjunction(s) → CDCL(T) path",
-                    ir.disjunctions.len()
+                    "native-ff: {} disjunction(s), {} uf app(s) → CDCL(T) path",
+                    ir.disjunctions.len(),
+                    ir.uf_apps.len()
                 );
                 let query = ir.to_boolean_query();
                 picus_solver::solve_boolean_query(&query, &cancel)
@@ -209,6 +235,13 @@ impl SolverBackend for NativeFfBackend {
                         | UnknownCause::DnfCap
                         | UnknownCause::BoundedSearch
                         | UnknownCause::DegradedTheory => UnknownReason::IncompleteTheory,
+                        // UF causes: retrying the same budget/policy is
+                        // pointless, and none of them is a defect —
+                        // UfIncomplete's defect leg already logs at the
+                        // gate that raised it.
+                        UnknownCause::UfCap
+                        | UnknownCause::UfIncomplete
+                        | UnknownCause::UfUnsupported => UnknownReason::IncompleteTheory,
                         UnknownCause::EngineFailure
                         | UnknownCause::EncodingFailure
                         | UnknownCause::ModelValidation => {
@@ -263,6 +296,20 @@ impl SolverBackend for NativeFfBackend {
                 "; disequality: {} != {}\n",
                 resolve(a),
                 resolve(b)
+            ));
+        }
+        for app in &ics.uf_apps {
+            let sym = ics
+                .uf_symbols
+                .get(app.symbol as usize)
+                .map(String::as_str)
+                .unwrap_or("<uf>");
+            let args: Vec<&str> = app.args.iter().map(|&a| resolve(a)).collect();
+            out.push_str(&format!(
+                "; uf: {} = {}({})\n",
+                resolve(app.result),
+                sym,
+                args.join(", ")
             ));
         }
         for (i, eq) in ics.equalities.iter().enumerate() {

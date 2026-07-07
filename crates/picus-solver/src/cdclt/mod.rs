@@ -9,14 +9,16 @@
 pub(crate) mod atoms;
 pub(crate) mod cnf;
 pub(crate) mod ee_filtered;
+pub(crate) mod egraph;
 pub(crate) mod equality_engine;
 pub(crate) mod ff_theory;
 pub(crate) mod ff_theory_incremental;
 pub(crate) mod multi_prime;
 pub(crate) mod orchestrator;
 pub(crate) mod theory;
+pub(crate) mod uf_theory;
 
-pub use orchestrator::solve_formula;
+pub use orchestrator::{solve_formula, solve_formula_with_ufs, UfSection};
 
 use num_bigint::BigUint;
 use num_traits::Zero;

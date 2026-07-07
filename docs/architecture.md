@@ -524,3 +524,52 @@ and `poly_terms` / `poly_terms_idx`; SMT backends translate each
 `poly_to_smtlib_nia`, and the `native_ff` backend lowers each `Poly`
 into `picus_solver::frontend::encoder::ConstraintSystem` for the in-tree GB
 engine.
+
+## Uninterpreted Functions (UF)
+
+The constraint language optionally carries applications `r = f(a_1,
+..., a_k)` over field elements, with congruence as the only axiom
+(equal argument tuples imply equal results). A `PolySystem` records
+them via `uf_symbol` / `add_uf_app`; `polysystem_to_uniqueness_query`
+doubles applications under the per-copy variable remaps with ONE
+shared symbol table, which is what makes congruence fire across the
+two self-composition copies (same inputs ⇒ same outputs).
+
+Verdict semantics: UF applications over-approximate whatever concrete
+sub-circuit they abstract, so **Unsat is unconditional** (sound for
+every concrete refinement) while **Sat is abstract** — its witness
+realizes *some* congruence-consistent function and may be spurious for
+the concrete circuit. Consumers detect the regime via
+`PolySystem::has_uf()`; see `SolverBackend::solve`.
+
+Solver-side structure (all in `picus-solver`; the cvc5/z3 backends
+refuse UF-bearing queries at preflight):
+
+- **Routing** — the native seam sends UF-bearing queries to the
+  Boolean/CDCL(T) path; the GB/cache paths never see applications, and
+  every Sat exit passes a congruence-certification gate (`frontend/uf.rs`
+  table builder/verifier). Paths that cannot host UF refuse with a
+  typed `Unknown`, never a silent drop.
+- **Lazy pipeline** (`uf_mode = lazy`, default) — a backtrackable
+  congruence-closure e-graph (`cdclt/egraph.rs`, Nieuwenhuis–Oliveras
+  explanation forest) wrapped as `cdclt/uf_theory.rs::UfCombinedTheory`
+  OUTERMOST around the FF theory. Care atoms (argument/result equality
+  atoms per same-symbol application pair, bounded by `uf_pair_cap`)
+  give the SAT engine the equality-arrangement vocabulary; pre-existing
+  var=var / var=const atoms are ingested as triggers; setup-time
+  syntactic entailments are asserted as pre-loop unit clauses. The SAT
+  trail is the Nelson–Oppen bus: hub propagations reach the FF theory
+  as ordinary facts and vice versa.
+- **Eager fallback** (`uf_mode = ackermann`; always used on the DNF
+  route) — atom-level Ackermann expansion before the loop, complete up
+  to `uf_pair_cap` (overflow continues on a deterministic prefix;
+  Unsat stays sound, Sat requires table certification).
+- **Propagation-stage probe** (`uf_closure`) — on repeated
+  constraint sides the cache derives congruence-entailed `r_i − r_j`
+  polynomials against the cached basis and answers per-wire probes by
+  one membership reduction (UNSAT-only; never a verdict change).
+
+Knobs (`uf_enabled`, `uf_pair_cap`, `uf_closure`, `uf_mode`) are read
+only when a query actually carries applications: UF-free workloads
+never consult them, and their behavior is pinned bit-identical by the
+`uf_bit_identity` suite (golden digest + `cdclt_iter_cap` boundary).

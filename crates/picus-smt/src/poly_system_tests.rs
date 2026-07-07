@@ -30,6 +30,8 @@ fn empty_ir(p: BigUint, n_vars: usize) -> PolySystem {
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
     }
 }
 

@@ -75,6 +75,32 @@ impl std::str::FromStr for ReprKind {
     }
 }
 
+/// Decision procedure for UF-bearing queries on the CDCL(T) route.
+/// Set via [`RuntimeConfig::uf_mode`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum UfMode {
+    /// Lazy congruence closure: an equality-hub theory combined with
+    /// the FF theory (care-atom arrangement + congruence propagation).
+    /// Default.
+    Lazy,
+    /// Eager Ackermann expansion before the loop (the phase-1
+    /// mechanism; kept reachable as a differential/incident fallback).
+    Ackermann,
+}
+
+impl std::str::FromStr for UfMode {
+    type Err = String;
+    /// Parse the kebab-case name (matching the serde representation).
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "lazy" => Ok(UfMode::Lazy),
+            "ackermann" => Ok(UfMode::Ackermann),
+            other => Err(format!("unknown uf-mode '{other}'. Valid: lazy, ackermann")),
+        }
+    }
+}
+
 /// Declarative source of truth for the solver's runtime knobs. From one
 /// annotated `name: Type = default` field list this generates the
 /// [`RuntimeConfig`] struct (with per-field docs), its [`Default`] impl,
@@ -340,6 +366,47 @@ runtime_config! {
     /// decision needs more than the bounded round-robin search (typical
     /// for large primes such as BN254/BabyJubJub) degrade to Unknown.
     cdclt_incremental_theory: bool = false,
+    /// Master switch for uninterpreted-function (UF) support. Consulted
+    /// ONLY when a query actually carries UF applications (structural
+    /// gating: queries without apps never read this knob, so its value
+    /// cannot perturb the FF-only pipeline). `false` refuses UF-bearing
+    /// queries with a typed Unknown (`UfUnsupported`) — never a silent
+    /// drop of the congruence constraints, which would weaken the query
+    /// and admit spurious SAT. CLI `--uf-enabled on|off`.
+    uf_enabled: bool = true,
+    /// Maximum same-symbol UF application pairs expanded per solve
+    /// (eager Ackermann clauses today; care-atom interning once the
+    /// lazy congruence-closure pipeline lands). Prechecked BEFORE any
+    /// allocation; `0` = immediate `Unknown(UfCap)` (the
+    /// `cdclt_iter_cap = 0` test convention); overflow with a nonzero
+    /// cap emits a deterministic prefix and continues degraded — Unsat
+    /// stays sound (every emitted clause is entailed) and Sat is then
+    /// accepted only after function-table certification. Sizing: a
+    /// two-copy self-composition with s abstracted instances of one
+    /// symbol yields 2s applications, i.e. s(2s−1) pairs; s <= 32 needs
+    /// ~2000, and 4096 gives 2x headroom while keeping forced SAT
+    /// decisions well under `cdclt_iter_cap`. Consulted only when apps
+    /// are present. CLI `--uf-pair-cap N`.
+    uf_pair_cap: u64 = 4096,
+    /// Cached-path UNSAT-only closure probe for UF-bearing queries
+    /// (`IncrementalSolverContext::probe_unsat_uf`): congruence-derive
+    /// `r_i − r_j` polynomials against the cached constraint-side
+    /// basis and answer per-wire probes by one membership reduction.
+    /// Never produces Sat, so it cannot change a verdict — only how
+    /// fast Unsat is reached. Read only when applications are present;
+    /// deliberately NOT in the cache's `BasisKnobs` fingerprint (the
+    /// derived artifact is a deterministic function of digest-covered
+    /// input, so a flip cannot create staleness and must not evict
+    /// UF-free caches). CLI `--uf-closure on|off`.
+    uf_closure: bool = true,
+    /// Decision procedure on the CDCL(T) route for UF-bearing queries
+    /// ([`UfMode`]): `lazy` (congruence-closure equality hub combined
+    /// with the FF theory — default) or `ackermann` (eager expansion,
+    /// the differential/incident fallback). The DNF route always
+    /// Ackermannizes regardless (DNF cannot host a theory). The
+    /// off-switch is `uf_enabled`, not a mode. Consulted only when
+    /// applications are present. CLI `--uf-mode lazy|ackermann`.
+    uf_mode: UfMode = UfMode::Lazy,
 }
 
 thread_local! {

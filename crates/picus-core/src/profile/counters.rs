@@ -173,6 +173,26 @@ atomic_counters! {
         /// the GB engine boundary — model search, DFS, FGLM, …). Each
         /// one is an engine bug that degraded fail-closed to Unknown.
         pub backend_panics: AtomicU64,
+        /// UF probe (`probe_unsat_uf`) answered Unsat from the cached
+        /// congruence closure, skipping CDCL(T) entirely.
+        pub uf_probe_fastpath_unsat: AtomicU64,
+        /// UF probe served a query from an already-closed cached base
+        /// (closure work amortised across same-digest solves).
+        pub uf_closure_reuses: AtomicU64,
+        /// UF-bearing queries that entered the CDCL(T) pipeline.
+        pub uf_cdclt_entries: AtomicU64,
+        /// Sat candidates that failed congruence certification under a
+        /// COMPLETE care set (defect or propagation-skip artifact;
+        /// degraded fail-closed to Unknown). Kept apart from the
+        /// generic theory-degradation signal so skip-path noise never
+        /// masks real defects.
+        pub uf_g3_complete_care_failures: AtomicU64,
+        /// Lazy-pipeline hub conflicts surfaced through early_check
+        /// (congruence refutations that needed zero GB work).
+        pub uf_hub_early_conflicts: AtomicU64,
+        /// FF-theory post_check invocations (GB builds) — the
+        /// denominator for early-conflict effectiveness assertions.
+        pub cdclt_post_checks: AtomicU64,
     }
 }
 

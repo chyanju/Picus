@@ -59,6 +59,8 @@ pub use picus_core::config::GbStrategy;
 
 /// Polynomial storage representation for the native FF backend.
 pub use picus_core::config::ReprKind;
+/// Re-exported for CLI parsing of `--uf-mode`.
+pub use picus_core::config::UfMode;
 
 /// Analysis-layer config (solver, theory, lemmas, selector, …): the
 /// `analysis` half of [`PicusConfig`].

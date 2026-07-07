@@ -57,6 +57,11 @@ impl PolySystem {
             assignments: self.assignments.clone(),
             bitsums: self.bitsums.clone(),
             add_field_polys: self.add_field_polys,
+            // Carried verbatim: elimination retains pivot rows and never
+            // shrinks the ring, so every UF-referenced variable stays
+            // present and congruence modulo the same ideal is unaffected.
+            uf_symbols: self.uf_symbols.clone(),
+            uf_apps: self.uf_apps.clone(),
         })
     }
 
@@ -90,7 +95,26 @@ impl PolySystem {
             builder.add_bitsum(bits);
         }
         builder.set_add_field_polys(self.add_field_polys);
+        self.copy_ufs_into(&mut builder);
         builder.build()
+    }
+
+    /// Re-intern this system's UF section into `builder` (the
+    /// usize→u32 conversion seam between the neutral IR and the solver
+    /// types). Symbol names are interned in table order, so ids carry
+    /// over unchanged; builder indices match ring indices because the
+    /// callers intern `ring.var_names()` in order first.
+    fn copy_ufs_into(&self, builder: &mut ConstraintSystemBuilder) {
+        for app in &self.uf_apps {
+            let name = self
+                .uf_symbols
+                .get(app.symbol)
+                .map(String::as_str)
+                .unwrap_or("<uf>");
+            let sym = builder.uf_symbol(name);
+            let args: Vec<u32> = app.args.iter().map(|&a| a as u32).collect();
+            builder.add_uf_app(sym, args, app.result as u32);
+        }
     }
 
     /// `poly_terms_idx` collected into the `Vec<PolyTerm>` form that
@@ -119,6 +143,11 @@ impl PolySystem {
         for name in self.ring.var_names() {
             builder.var(name);
         }
+        // UF applications ride the query's builder explicitly (unlike
+        // bitsums, which the per-branch encode re-extracts): the
+        // CDCL(T)/DNF entries read them off the builder for the
+        // congruence expansion and the Sat gates.
+        self.copy_ufs_into(&mut builder);
 
         let mut conj: Vec<Formula> = Vec::new();
         for poly in &self.equalities {

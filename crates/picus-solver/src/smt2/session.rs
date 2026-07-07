@@ -69,6 +69,11 @@ pub struct SmtSession {
     pub(super) tlimit_per_ms: Option<u64>,
     pub(super) side_constraints: Vec<Formula>,
     pub(super) next_ite_skolem: usize,
+    /// Declared uninterpreted functions: name -> arity, plus the
+    /// insertion order for `(pop)` truncation.
+    pub(super) ufs: HashMap<String, usize>,
+    pub(super) uf_order: Vec<String>,
+    pub(super) next_uf_skolem: usize,
     pub(super) levels: Vec<SessionLevel>,
     pub(super) last_check: Option<SessionVerdict>,
     pub(super) last_model: Option<HashMap<String, BigUint>>,
@@ -91,6 +96,12 @@ pub(super) struct SessionLevel {
     formula_count: usize,
     side_constraint_count: usize,
     next_ite_skolem: usize,
+    uf_decl_count: usize,
+    /// Builder UF-section marks `(n_apps, n_symbols)`: `(pop)`
+    /// truncates the persistent builder's applications and symbol
+    /// table back to these.
+    uf_section_marks: (usize, usize),
+    next_uf_skolem: usize,
 }
 
 impl Default for SmtSession {
@@ -112,6 +123,9 @@ impl SmtSession {
             tlimit_per_ms: None,
             side_constraints: Vec::new(),
             next_ite_skolem: 0,
+            ufs: HashMap::new(),
+            uf_order: Vec::new(),
+            next_uf_skolem: 0,
             levels: Vec::new(),
             last_check: None,
             last_model: None,
@@ -199,13 +213,18 @@ impl SmtSession {
                         return Err(ParseError::MissingPrime);
                     }
                 }
+                let uf_marks = self.builder.uf_section_marks();
                 let mut ctx = self.borrow_ctx();
                 let formula = match assert_to_formula(inner, &mut ctx) {
                     Ok(f) => f,
                     Err(e) => {
                         // Reinstall builder even on failure to keep
-                        // the session usable.
+                        // the session usable — but drop any UF
+                        // applications the failed parse recorded, or
+                        // they would constrain later check-sats.
                         self.reinstall_ctx(ctx);
+                        let (n_apps, n_symbols) = uf_marks;
+                        self.builder.truncate_uf_section(n_apps, n_symbols);
                         return Err(e);
                     }
                 };
@@ -258,6 +277,12 @@ impl SmtSession {
                 self.assert_names.clear();
                 self.side_constraints.clear();
                 self.levels.clear();
+                // Applications are assertion-derived: clear them with
+                // the assertions (symbol declarations stay, like every
+                // other declaration).
+                let (_, n_symbols) = self.builder.uf_section_marks();
+                self.builder.truncate_uf_section(0, n_symbols);
+                self.next_uf_skolem = 0;
                 self.last_check = None;
                 self.last_model = None;
                 self.last_unsat_core_names.clear();
@@ -295,6 +320,8 @@ impl SmtSession {
             vars: self.vars.clone(),
             macros: self.macros.clone(),
             next_ite_skolem: self.next_ite_skolem,
+            ufs: self.ufs.clone(),
+            next_uf_skolem: self.next_uf_skolem,
             side_constraints: Vec::new(),
             builder,
             expansion_depth: 0,
@@ -307,6 +334,7 @@ impl SmtSession {
     fn reinstall_ctx(&mut self, ctx: ParseCtx) -> Vec<Formula> {
         self.builder = ctx.builder;
         self.next_ite_skolem = ctx.next_ite_skolem;
+        self.next_uf_skolem = ctx.next_uf_skolem;
         ctx.side_constraints
     }
 
@@ -317,6 +345,9 @@ impl SmtSession {
             formula_count: self.formulas.len(),
             side_constraint_count: self.side_constraints.len(),
             next_ite_skolem: self.next_ite_skolem,
+            uf_decl_count: self.uf_order.len(),
+            uf_section_marks: self.builder.uf_section_marks(),
+            next_uf_skolem: self.next_uf_skolem,
         });
         // Invalidate any cached check-sat — semantics changed.
         self.last_check = None;
@@ -339,6 +370,12 @@ impl SmtSession {
         self.assert_names.truncate(lvl.formula_count);
         self.side_constraints.truncate(lvl.side_constraint_count);
         self.next_ite_skolem = lvl.next_ite_skolem;
+        for name in self.uf_order.drain(lvl.uf_decl_count..) {
+            self.ufs.remove(&name);
+        }
+        let (n_apps, n_symbols) = lvl.uf_section_marks;
+        self.builder.truncate_uf_section(n_apps, n_symbols);
+        self.next_uf_skolem = lvl.next_uf_skolem;
         self.last_check = None;
         self.last_model = None;
         self.last_unsat_core_names.clear();
@@ -363,6 +400,16 @@ impl SmtSession {
         } else {
             Formula::And(all)
         };
+        // Mirror the encoder's poison refusal: an ill-formed UF
+        // section (arity mismatch) must not be solved as a different
+        // problem.
+        if let Some(msg) = self.builder.uf_poisoned() {
+            log::warn!("check-sat: refusing ill-formed uf section: {}", msg);
+            self.last_check = Some(SessionVerdict::Unknown);
+            self.last_model = None;
+            self.last_unsat_core_names.clear();
+            return SessionVerdict::Unknown;
+        }
         let prime = self.prime.clone().unwrap_or_else(|| BigUint::from(2u32));
         let cancel = match self.tlimit_per_ms {
             Some(ms) => crate::timeout::CancelToken::with_timeout(
@@ -370,7 +417,19 @@ impl SmtSession {
             ),
             None => crate::timeout::CancelToken::none(),
         };
-        let outcome = crate::cdclt::solve_formula(prime, self.builder.var_names(), &combined, &cancel);
+        // UF applications ride the persistent builder; hand them to
+        // the UF-aware entry (an empty section is exactly the plain
+        // pipeline).
+        let outcome = crate::cdclt::solve_formula_with_ufs(
+            prime,
+            self.builder.var_names(),
+            &combined,
+            crate::cdclt::UfSection {
+                apps: self.builder.uf_apps(),
+                symbols: self.builder.uf_symbols(),
+            },
+            &cancel,
+        );
         match outcome {
             crate::solve::SolveOutcome::Sat(model) => {
                 self.last_check = Some(SessionVerdict::Sat);
@@ -440,19 +499,45 @@ impl SmtSession {
     }
 
     fn eval_declare(&mut self, head: &str, list: &[Sexpr]) -> Result<(), ParseError> {
-        let Some((name, sort, inferred)) = classify_declare(head, list) else {
+        let Some(d) = classify_declare(head, list) else {
             return Ok(());
         };
         if self.prime.is_none() {
-            if let Some(n) = inferred {
+            if let Some(n) = d.inferred_prime {
                 self.builder.set_prime(n.clone());
                 self.prime = Some(n);
             }
         }
-        if !self.vars.contains_key(&name) {
-            self.var_order.push(name.clone());
+        if d.arity > 0 {
+            // Uninterpreted function: FF arguments and FF return only.
+            if matches!(d.sort, Some(VarSort::Bool)) || !d.args_all_ff {
+                return Err(ParseError::Malformed(format!(
+                    "uninterpreted function '{}' must have FF arguments and an FF return sort",
+                    d.name
+                )));
+            }
+            match self.ufs.get(&d.name) {
+                Some(&prev) if prev != d.arity => {
+                    // SMT-LIB forbids redeclaration; changing the
+                    // arity in place would also break `(pop)`'s
+                    // restoration (the outer arity would be lost).
+                    return Err(ParseError::Malformed(format!(
+                        "'{}' redeclared with arity {} (was {})",
+                        d.name, d.arity, prev
+                    )));
+                }
+                Some(_) => return Ok(()),
+                None => {
+                    self.uf_order.push(d.name.clone());
+                    self.ufs.insert(d.name, d.arity);
+                }
+            }
+            return Ok(());
         }
-        self.vars.insert(name, sort.unwrap_or(VarSort::Ff));
+        if !self.vars.contains_key(&d.name) {
+            self.var_order.push(d.name.clone());
+        }
+        self.vars.insert(d.name, d.sort.unwrap_or(VarSort::Ff));
         Ok(())
     }
 

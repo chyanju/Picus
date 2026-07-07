@@ -146,3 +146,23 @@ fn check_with_timeout_eventually_returns() {
     let outcome = solver.check_with_timeout(std::time::Duration::from_secs(5));
     assert!(matches!(outcome, SolveOutcome::Sat(_)));
 }
+
+#[test]
+fn uf_apps_participate_in_push_pop_and_route_to_the_uf_path() {
+    let mut s = RebuildOnCheckSolver::new(BigUint::from(7u32), true);
+    s.assert_uf_app("r1", "f", &["a"]);
+    s.assert_uf_app("r2", "f", &["b"]);
+    s.assert_disequality("r1", "r2");
+    // Distinct args: satisfiable (some function distinguishes them).
+    assert!(matches!(s.check(), SolveOutcome::Sat(_)));
+    // Push, then force the args equal: congruence refutes it.
+    s.push();
+    s.assert_equality(vec![
+        NamedTerm { coeff: BigUint::from(1u32), vars: vec!["a".to_string()] },
+        NamedTerm { coeff: BigUint::from(6u32), vars: vec!["b".to_string()] },
+    ]);
+    assert!(matches!(s.check(), SolveOutcome::Unsat(_)));
+    // Pop restores satisfiability.
+    s.pop();
+    assert!(matches!(s.check(), SolveOutcome::Sat(_)));
+}

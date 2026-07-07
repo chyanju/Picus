@@ -121,3 +121,57 @@ fn fresh_disequality_d_names_are_indexed_per_seq() {
     assert!(cs.var_names().contains(&"__diseq_d_5".to_string()));
     assert!(cs.var_names().contains(&"__diseq_d_6".to_string()));
 }
+
+#[test]
+fn uf_symbol_interning_dedups_by_name() {
+    let mut cs = b();
+    let f1 = cs.uf_symbol("f");
+    let g = cs.uf_symbol("g");
+    let f2 = cs.uf_symbol("f");
+    assert_eq!(f1, f2, "one name, one function");
+    assert_ne!(f1, g);
+    assert_eq!(cs.uf_symbols(), &["f".to_string(), "g".to_string()]);
+}
+
+#[test]
+fn uf_apps_ride_builder_clones() {
+    let mut cs = b();
+    let a = cs.var("a");
+    let r = cs.var("r");
+    let f = cs.uf_symbol("f");
+    cs.add_uf_app(f, vec![a], r);
+    let cloned = cs.clone();
+    assert!(cloned.has_uf());
+    let built = cloned.build();
+    assert_eq!(built.uf_apps.len(), 1, "apps are conjunctive facts and fan out per clone");
+    assert!(built.uf_care_complete);
+    assert!(built.uf_poisoned.is_none());
+}
+
+#[test]
+fn uf_arity_mismatch_poisons_the_builder() {
+    let mut cs = b();
+    let a = cs.var("a");
+    let c = cs.var("c");
+    let r = cs.var("r");
+    let f = cs.uf_symbol("f");
+    cs.add_uf_app(f, vec![a], r);
+    assert!(cs.uf_poisoned().is_none());
+    cs.add_uf_app(f, vec![a, c], r);
+    assert!(cs.uf_poisoned().is_some(), "first-use arity is binding");
+    let built = cs.build();
+    assert!(built.uf_poisoned.is_some());
+}
+
+#[test]
+fn uf_consistent_reuse_does_not_poison() {
+    let mut cs = b();
+    let a = cs.var("a");
+    let c = cs.var("c");
+    let r1 = cs.var("r1");
+    let r2 = cs.var("r2");
+    let f = cs.uf_symbol("f");
+    cs.add_uf_app(f, vec![a], r1);
+    cs.add_uf_app(f, vec![c], r2);
+    assert!(cs.uf_poisoned().is_none());
+}

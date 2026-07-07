@@ -115,19 +115,27 @@ pub(in crate::smt2) fn finite_field_prime_str(sort: &Sexpr) -> Option<&str> {
     None
 }
 
-/// Extract `(name, sort, inferred prime)` from a `declare-fun` /
-/// `declare-const` form: `name` is the declared symbol, `sort` its
-/// classified sort (`None` if unrecognised), and `inferred prime` the
-/// modulus parsed from an inline `(_ FiniteField p)` sort, if present.
-/// Returns `None` when the form is too short or the name is not an atom.
-/// Centralises the declaration scan shared by the Boolean parser and the
-/// incremental session; each caller applies its own policy to the result
-/// (reject Bool, default to `Ff`, thread the prime, track declaration
-/// order).
-pub(in crate::smt2) fn classify_declare(
-    head: &str,
-    list: &[Sexpr],
-) -> Option<(String, Option<VarSort>, Option<BigUint>)> {
+/// A classified `declare-fun` / `declare-const`: the symbol, its
+/// return sort, any prime inferred from an inline FF sort (return or
+/// argument position), and the declared arity. `arity > 0` makes the
+/// symbol an uninterpreted function, not a variable; `args_all_ff`
+/// reports whether every argument sort classified as FF (vacuously
+/// true at arity 0) so callers can reject Bool-argument functions.
+pub(in crate::smt2) struct DeclaredSymbol {
+    pub name: String,
+    pub sort: Option<VarSort>,
+    pub inferred_prime: Option<BigUint>,
+    pub arity: usize,
+    pub args_all_ff: bool,
+}
+
+/// Classify a `declare-fun` / `declare-const` form. Returns `None`
+/// when the form is too short or the name is not an atom. Centralises
+/// the declaration scan shared by the Boolean parser and the
+/// incremental session; each caller applies its own policy to the
+/// result (reject Bool, default to `Ff`, thread the prime, track
+/// declaration order, register UF signatures).
+pub(in crate::smt2) fn classify_declare(head: &str, list: &[Sexpr]) -> Option<DeclaredSymbol> {
     if list.len() < 2 {
         return None;
     }
@@ -135,16 +143,31 @@ pub(in crate::smt2) fn classify_declare(
         Sexpr::Atom(n) => n.clone(),
         _ => return None,
     };
-    let sort_sexpr = if head == "declare-fun" {
-        list.get(3)
+    let (args_sexpr, sort_sexpr) = if head == "declare-fun" {
+        (list.get(2), list.get(3))
     } else {
-        list.get(2)
+        (None, list.get(2))
     };
     let sort = classify_sort(sort_sexpr);
-    let inferred_prime = sort_sexpr
+    let mut inferred_prime = sort_sexpr
         .and_then(finite_field_prime_str)
         .and_then(|p| p.parse::<BigUint>().ok());
-    Some((name, sort, inferred_prime))
+    let mut arity = 0usize;
+    let mut args_all_ff = true;
+    if let Some(Sexpr::List(args)) = args_sexpr {
+        arity = args.len();
+        for a in args {
+            match classify_sort(Some(a)) {
+                Some(VarSort::Ff) => {}
+                _ => args_all_ff = false,
+            }
+            if inferred_prime.is_none() {
+                inferred_prime =
+                    finite_field_prime_str(a).and_then(|p| p.parse::<BigUint>().ok());
+            }
+        }
+    }
+    Some(DeclaredSymbol { name, sort, inferred_prime, arity, args_all_ff })
 }
 
 // ─────────────────────── Polynomial-expression builder ───────────────────
@@ -312,6 +335,12 @@ pub(in crate::smt2) struct ParseCtx {
     macros: HashMap<String, MacroDef>,
     /// Counter for `__ite_N` skolems introduced by term-level `ite`.
     next_ite_skolem: usize,
+    /// Declared uninterpreted functions: name -> arity. Applications
+    /// lower to `builder.add_uf_app` with fresh `__uf_arg_N` /
+    /// `__uf_app_N` skolems for compound arguments / the result.
+    ufs: HashMap<String, usize>,
+    /// Counter for the `__uf_arg_N` / `__uf_app_N` skolems.
+    next_uf_skolem: usize,
     /// Constraints generated as side effects (e.g. term-level `ite`).
     /// AND-conjoined into the final formula at the top of
     /// `parse_boolean`.
@@ -357,6 +386,21 @@ impl ParseCtx {
         self.next_ite_skolem += 1;
         self.vars.insert(name.clone(), VarSort::Ff);
         name
+    }
+
+    fn fresh_uf_var(&mut self, kind: &str) -> String {
+        // A user MAY have declared a variable literally named
+        // `__uf_app_0` (any identifier is legal SMT-LIB); interning is
+        // by name, so colliding with it would alias the skolem onto a
+        // user variable and over-constrain the query. Skip taken names.
+        loop {
+            let name = format!("__uf_{}_{}", kind, self.next_uf_skolem);
+            self.next_uf_skolem += 1;
+            if !self.vars.contains_key(&name) && !self.ufs.contains_key(&name) {
+                self.vars.insert(name.clone(), VarSort::Ff);
+                return name;
+            }
+        }
     }
 
     /// Resolve a macro call by alpha-substituting arguments into the body.
@@ -581,11 +625,64 @@ fn build_poly_with_ctx(s: &Sexpr, ctx: &mut ParseCtx) -> Result<Polynomial, Pars
                         ctx.exit_expansion();
                         return r;
                     }
+                    if let Some(&arity) = ctx.ufs.get(name) {
+                        return build_uf_application(name, arity, &elts[1..], ctx);
+                    }
                     Err(ParseError::UnknownOperator(name.into()))
                 }
             }
         }
     }
+}
+
+/// Lower the uninterpreted-function application `(f t_1 .. t_k)`: bare
+/// declared FF variables are used as arguments directly; every other
+/// argument term is bound to a fresh `__uf_arg_N` via a side
+/// constraint; the application's value is a fresh `__uf_app_N` result
+/// variable recorded with `builder.add_uf_app` (congruence-only
+/// semantics — the solver derives equal-args ⇒ equal-results and
+/// nothing else).
+fn build_uf_application(
+    name: &str,
+    arity: usize,
+    args: &[Sexpr],
+    ctx: &mut ParseCtx,
+) -> Result<Polynomial, ParseError> {
+    if args.len() != arity {
+        return Err(ParseError::Malformed(format!(
+            "'{}' expects {} argument(s), got {}",
+            name,
+            arity,
+            args.len()
+        )));
+    }
+    let mut arg_idxs: Vec<VarIdx> = Vec::with_capacity(arity);
+    for a in args {
+        if let Sexpr::Atom(sym) = a {
+            if matches!(ctx.vars.get(sym), Some(VarSort::Ff)) {
+                arg_idxs.push(ctx.builder.var(sym));
+                continue;
+            }
+        }
+        let p = build_poly_with_ctx(a, ctx)?;
+        let v_name = ctx.fresh_uf_var("arg");
+        let v_idx = ctx.builder.var(&v_name);
+        let v_poly: Polynomial = vec![PolyTerm {
+            coeff: BigUint::from(1u32),
+            vars: vec![(v_idx, 1)],
+        }];
+        ctx.side_constraints
+            .push(Formula::Lit(Literal::Eq(v_poly, p)));
+        arg_idxs.push(v_idx);
+    }
+    let r_name = ctx.fresh_uf_var("app");
+    let r_idx = ctx.builder.var(&r_name);
+    let sym = ctx.builder.uf_symbol(name);
+    ctx.builder.add_uf_app(sym, arg_idxs, r_idx);
+    Ok(vec![PolyTerm {
+        coeff: BigUint::from(1u32),
+        vars: vec![(r_idx, 1)],
+    }])
 }
 
 /// Build the iff of `bools` as `(¬b_i ∨ b_{i+1}) ∧ (b_i ∨ ¬b_{i+1})`
@@ -866,6 +963,7 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
 
     let mut prime: Option<BigUint> = None;
     let mut vars: HashMap<String, VarSort> = HashMap::new();
+    let mut ufs: HashMap<String, usize> = HashMap::new();
     let mut macros: HashMap<String, MacroDef> = HashMap::new();
     let mut formulas: Vec<Formula> = Vec::new();
 
@@ -897,10 +995,23 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
                 }
             }
             "declare-fun" | "declare-const" => {
-                if let Some((name, sort, inferred)) = classify_declare(head, list) {
-                    vars.insert(name, sort.unwrap_or(VarSort::Ff));
+                if let Some(d) = classify_declare(head, list) {
+                    if d.arity > 0 {
+                        // Uninterpreted function: FF args and FF
+                        // return only (a Bool-sorted UF has no
+                        // polynomial lowering).
+                        if matches!(d.sort, Some(VarSort::Bool)) || !d.args_all_ff {
+                            return Err(ParseError::Malformed(format!(
+                                "uninterpreted function '{}' must have FF arguments and an FF return sort",
+                                d.name
+                            )));
+                        }
+                        ufs.insert(d.name, d.arity);
+                    } else {
+                        vars.insert(d.name, d.sort.unwrap_or(VarSort::Ff));
+                    }
                     if prime.is_none() {
-                        if let Some(n) = inferred {
+                        if let Some(n) = d.inferred_prime {
                             prime = Some(n);
                         }
                     }
@@ -937,6 +1048,8 @@ pub fn parse_boolean(src: &str) -> Result<BooleanQuery, ParseError> {
         vars,
         macros,
         next_ite_skolem: 0,
+        ufs,
+        next_uf_skolem: 0,
         side_constraints: Vec::new(),
         builder: ConstraintSystemBuilder::new(prime),
         expansion_depth: 0,
@@ -1039,10 +1152,23 @@ pub(crate) fn parse_boolean_multi(src: &str) -> Result<Vec<BooleanQuery>, ParseE
                 }
             }
             "declare-fun" | "declare-const" => {
-                if let Some((name, _sort, inferred)) = classify_declare(head, list) {
-                    if let Some(n) = inferred {
+                if let Some(d) = classify_declare(head, list) {
+                    if d.arity > 0 {
+                        // The multi-prime path carries bare formulas
+                        // (no builder), so UF applications cannot ride
+                        // it; refuse rather than drop them silently.
+                        // Deliberately stricter than the length-1
+                        // single-prime degradation: UF inputs must use
+                        // `parse_boolean` (documented limitation of
+                        // this parked entry).
+                        return Err(ParseError::Malformed(format!(
+                            "uninterpreted function '{}' is unsupported on the multi-prime path",
+                            d.name
+                        )));
+                    }
+                    if let Some(n) = d.inferred_prime {
                         all_primes.insert(n.clone());
-                        var_primes.insert(name, n);
+                        var_primes.insert(d.name, n);
                     }
                 }
             }
@@ -1112,8 +1238,8 @@ pub(crate) fn parse_boolean_multi(src: &str) -> Result<Vec<BooleanQuery>, ParseE
                 }
             }
             "declare-fun" | "declare-const" => {
-                if let Some((_, _, inferred)) = classify_declare(head_str, list) {
-                    if let Some(n) = inferred {
+                if let Some(d) = classify_declare(head_str, list) {
+                    if let Some(n) = d.inferred_prime {
                         if let Some(lines) = subset_lines_by_prime.get_mut(&n) {
                             lines.push(sexpr_to_string(s));
                         }

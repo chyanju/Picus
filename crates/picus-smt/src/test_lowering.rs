@@ -80,6 +80,8 @@ pub(crate) fn lower_two_copy(r1cs: &R1csFile, target: usize) -> PolySystem {
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
     }
 }
 

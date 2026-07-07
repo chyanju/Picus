@@ -25,6 +25,20 @@ use std::sync::Arc;
 use num_bigint::BigUint;
 use picus_core::poly::{FfPolyRing, Poly};
 
+/// One uninterpreted-function application `result = symbol(args...)`
+/// in a [`PolySystem`]. A LOCAL mirror of the solver-side record
+/// (`picus_solver::UfApp`), deliberately not that type: this neutral IR
+/// depends only on picus-core, and the conversion happens at the
+/// native-backend lowering seam. `symbol` indexes
+/// [`PolySystem::uf_symbols`]; `args`/`result` index
+/// `ring.var_names()`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PolyUfApp {
+    pub symbol: usize,
+    pub args: Vec<usize>,
+    pub result: usize,
+}
+
 /// A use-agnostic polynomial constraint system over GF(p).
 pub struct PolySystem {
     pub ring: Arc<FfPolyRing>,
@@ -44,6 +58,15 @@ pub struct PolySystem {
     /// `prime <= 1000` (the encoder still gates on the prime size; this flag
     /// just opts in).
     pub add_field_polys: bool,
+    /// UF symbol table: `uf_symbols[id]` is the canonical name of
+    /// symbol `id`. Symbols are global to the system — the same name
+    /// always denotes the same function (producers must not
+    /// name-mangle per self-composition copy; cross-copy congruence
+    /// rests on the shared identity).
+    pub uf_symbols: Vec<String>,
+    /// UF applications (see [`PolySystem::add_uf_app`] for the verdict
+    /// semantics they induce).
+    pub uf_apps: Vec<PolyUfApp>,
 }
 
 impl PolySystem {
@@ -64,6 +87,8 @@ impl PolySystem {
             assignments: Vec::new(),
             bitsums: Vec::new(),
             add_field_polys: false,
+            uf_symbols: Vec::new(),
+            uf_apps: Vec::new(),
         }
     }
 
@@ -106,6 +131,46 @@ impl PolySystem {
     pub fn set_add_field_polys(&mut self, on: bool) -> &mut Self {
         self.add_field_polys = on;
         self
+    }
+
+    /// Intern a UF symbol name, returning its id. Repeated calls with
+    /// the same name return the same id: symbols are global to the
+    /// system, so the same name in both self-composition copies denotes
+    /// ONE function (do not name-mangle per copy — cross-copy
+    /// congruence rests on the shared identity).
+    pub fn uf_symbol(&mut self, name: &str) -> usize {
+        if let Some(pos) = self.uf_symbols.iter().position(|s| s == name) {
+            return pos;
+        }
+        self.uf_symbols.push(name.to_string());
+        self.uf_symbols.len() - 1
+    }
+
+    /// Record the UF application `result = symbol(args...)` (indices
+    /// into `ring.var_names()`; bind compound arguments to fresh
+    /// variables first). The solver assumes only congruence — equal
+    /// argument tuples imply equal results — making the query an
+    /// OVER-APPROXIMATION of any concrete circuit refined by the
+    /// symbols.
+    ///
+    /// Verdict semantics for UF-bearing queries (see
+    /// [`crate::backends::SolverBackend::solve`]): **Unsat is
+    /// unconditional** — sound for every concrete function the symbol
+    /// abstracts. **Sat is abstract** — satisfiable for SOME
+    /// congruence-consistent interpretation; the witness may be
+    /// spurious for the concrete circuit, so consumers must not report
+    /// it as a concrete counterexample without re-validation. Read
+    /// [`Self::has_uf`] off a query to know the rule applies.
+    pub fn add_uf_app(&mut self, symbol: usize, args: Vec<usize>, result: usize) -> &mut Self {
+        self.uf_apps.push(PolyUfApp { symbol, args, result });
+        self
+    }
+
+    /// True when the system carries UF applications — the marker that
+    /// the Sat-is-abstract verdict rule (see [`Self::add_uf_app`])
+    /// applies to this query.
+    pub fn has_uf(&self) -> bool {
+        !self.uf_apps.is_empty()
     }
 
     /// Build a `Poly` representing the linear polynomial `coeff * x` for

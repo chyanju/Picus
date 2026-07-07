@@ -407,6 +407,7 @@ pub(crate) fn check_full_with_atoms(
     facts: &[(Var, bool)],
     cancel: &CancelToken,
 ) -> CheckOutcome {
+    crate::metric::incr!(crate::profile::NATIVE_FF.cdclt_post_checks);
     let prime = atoms.prime().clone();
 
     let mut builder = ConstraintSystemBuilder::new(prime.clone());

@@ -88,6 +88,31 @@ fn prop_create_backend_by_name_wrong_theory_returns_none() {
     assert!(b.is_none());
 }
 
+#[cfg(any(feature = "cvc5", feature = "z3"))]
+mod preflight_uf {
+    use super::*;
+    use crate::backends::{preflight, SolverResult, UnknownReason};
+    use picus_core::timeout::CancelToken;
+
+    #[test]
+    fn preflight_refuses_uf_bearing_queries() {
+        // External backends emit no congruence axioms; lowering the
+        // polynomial fragment alone would weaken the query, so the
+        // guard must refuse rather than proceed.
+        let mut ir = crate::test_lowering::lower_two_copy(
+            &picus_r1cs::testkit::r1cs(picus_r1cs::testkit::p7(), 3, vec![0], vec![]),
+            1,
+        );
+        assert!(preflight(&ir, &CancelToken::none(), true).is_none());
+        let f = ir.uf_symbol("f");
+        ir.add_uf_app(f, vec![0], 1);
+        match preflight(&ir, &CancelToken::none(), true) {
+            Some(SolverResult::Unknown(UnknownReason::IncompleteTheory)) => {}
+            other => panic!("expected IncompleteTheory refusal, got {:?}", other),
+        }
+    }
+}
+
 // ─── Feature-gated SMT-LIB emitters ──────────────────────────────
 
 #[cfg(any(feature = "cvc5", feature = "z3"))]

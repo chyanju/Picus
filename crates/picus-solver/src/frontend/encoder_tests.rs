@@ -531,6 +531,10 @@ fn encode_impl_rejects_too_many_vars() {
         assignments: vec![],
         bitsums: vec![],
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
+        uf_care_complete: true,
+        uf_poisoned: None,
     };
     match encode_impl(&sys, true) {
         Err(e) => assert!(e.to_string().contains("too many variables")),
@@ -550,6 +554,10 @@ fn encode_impl_rejects_equality_var_out_of_range() {
         assignments: vec![],
         bitsums: vec![],
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
+        uf_care_complete: true,
+        uf_poisoned: None,
     };
     match encode_impl(&sys, true) {
         Err(e) => {
@@ -574,6 +582,10 @@ fn encode_impl_rejects_assignment_var_out_of_range() {
         assignments: vec![(3, BigUint::from(0u32))],
         bitsums: vec![],
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
+        uf_care_complete: true,
+        uf_poisoned: None,
     };
     match encode_impl(&sys, true) {
         Err(e) => {
@@ -597,6 +609,10 @@ fn encode_impl_rejects_disequality_var_out_of_range() {
         assignments: vec![],
         bitsums: vec![],
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
+        uf_care_complete: true,
+        uf_poisoned: None,
     };
     match encode_impl(&sys, true) {
         Err(e) => {
@@ -619,6 +635,10 @@ fn encode_impl_rejects_bitsum_var_out_of_range() {
         assignments: vec![],
         bitsums: vec![vec![0, 7]],
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
+        uf_care_complete: true,
+        uf_poisoned: None,
     };
     match encode_impl(&sys, true) {
         Err(e) => {

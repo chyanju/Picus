@@ -20,7 +20,7 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use picus_solver::frontend::bench_fixtures::corpus;
-use picus_solver::cdclt::solve_formula;
+use picus_solver::cdclt::{solve_formula_with_ufs, UfSection};
 use picus_solver::solve::SolveOutcome;
 use picus_solver::smt2::parse_boolean;
 use picus_core::timeout::CancelToken;
@@ -51,7 +51,22 @@ fn picus_solve(src: &str, timeout_ms: u64) -> (Verdict, Duration) {
         Err(_) => return (Verdict::Error, t0.elapsed()),
     };
     let cancel = CancelToken::with_timeout(Duration::from_millis(timeout_ms));
-    let v = match solve_formula(q.prime.clone(), q.var_names(), &q.formula, &cancel) {
+    // An ill-formed UF section (arity mismatch) is refused, mirroring
+    // the solve entries — solving a different problem would emit false
+    // differential contradictions.
+    if q.builder.uf_poisoned().is_some() {
+        return (Verdict::Unknown, t0.elapsed());
+    }
+    // UF applications ride the parsed query's builder; a bare
+    // `solve_formula` call would silently drop them (weakening the
+    // query and poisoning the differential with false contradictions).
+    let v = match solve_formula_with_ufs(
+        q.prime.clone(),
+        q.var_names(),
+        &q.formula,
+        UfSection { apps: q.builder.uf_apps(), symbols: q.builder.uf_symbols() },
+        &cancel,
+    ) {
         SolveOutcome::Sat(_) => Verdict::Sat,
         SolveOutcome::Unsat(_) => Verdict::Unsat,
         SolveOutcome::Unknown(_) => Verdict::Unknown,

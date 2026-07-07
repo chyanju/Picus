@@ -40,7 +40,11 @@ pub(crate) mod split_gb;
 // deep module breaks here first (the deep module paths remain valid).
 pub use boolean::{solve_boolean_query, BooleanQuery, Formula, Literal};
 pub use frontend::encoder::{
-    encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm,
+    encode, ConstraintSystem, ConstraintSystemBuilder, EncodedSystem, PolyTerm, UfApp,
+    UfSymbolId,
+};
+pub use frontend::uf::{
+    build_uf_table, verify_uf_congruence, UfRefusalKind, UfTable, UfViolation,
 };
 pub use gb::linsolve::eliminate_linear;
 pub use incremental_context::{digest_constraint_side, IncrementalSolverContext};

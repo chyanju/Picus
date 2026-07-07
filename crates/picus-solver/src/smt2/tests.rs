@@ -460,6 +460,8 @@ fn mk_ctx(prime: u32, vars: &[(&str, VarSort)], macros: Vec<(&str, MacroDef)>) -
         vars: vmap,
         macros: mmap,
         next_ite_skolem: 0,
+        ufs: HashMap::new(),
+        next_uf_skolem: 0,
         side_constraints: Vec::new(),
         builder: ConstraintSystemBuilder::new(prime),
         expansion_depth: 0,
@@ -511,22 +513,19 @@ fn finite_field_prime_str_matches_only_canonical_shape() {
 #[test]
 fn classify_declare_defensive_paths() {
     // list too short (< 2) => None.
-    assert_eq!(
-        classify_declare("declare-fun", &[atom("declare-fun")]),
-        None
-    );
+    assert!(classify_declare("declare-fun", &[atom("declare-fun")]).is_none());
     // name at [1] is not an atom => None.
-    assert_eq!(
-        classify_declare("declare-fun", &[atom("declare-fun"), list(vec![])]),
-        None
+    assert!(
+        classify_declare("declare-fun", &[atom("declare-fun"), list(vec![])]).is_none()
     );
     // declare-fun with no sort slot: still returns the name, but sort/prime
     // are None (classify_sort(None) => None).
     match classify_declare("declare-fun", &[atom("declare-fun"), atom("x")]) {
-        Some((name, sort, prime)) => {
-            assert_eq!(name, "x");
-            assert_eq!(sort, None);
-            assert_eq!(prime, None);
+        Some(d) => {
+            assert_eq!(d.name, "x");
+            assert_eq!(d.sort, None);
+            assert_eq!(d.inferred_prime, None);
+            assert_eq!(d.arity, 0);
         }
         None => panic!("expected Some with name but no sort"),
     }
@@ -542,10 +541,11 @@ fn classify_declare_threads_inline_prime() {
         list(vec![atom("_"), atom("FiniteField"), atom("23")]),
     ];
     match classify_declare("declare-fun", &l) {
-        Some((name, sort, prime)) => {
-            assert_eq!(name, "z");
-            assert_eq!(sort, Some(VarSort::Ff));
-            assert_eq!(prime, Some(BigUint::from(23u32)));
+        Some(d) => {
+            assert_eq!(d.name, "z");
+            assert_eq!(d.sort, Some(VarSort::Ff));
+            assert_eq!(d.inferred_prime, Some(BigUint::from(23u32)));
+            assert_eq!(d.arity, 0);
         }
         None => panic!("expected Some"),
     }
@@ -556,10 +556,11 @@ fn classify_declare_threads_inline_prime() {
         list(vec![atom("_"), atom("FiniteField"), atom("5")]),
     ];
     match classify_declare("declare-const", &lc) {
-        Some((name, sort, prime)) => {
-            assert_eq!(name, "w");
-            assert_eq!(sort, Some(VarSort::Ff));
-            assert_eq!(prime, Some(BigUint::from(5u32)));
+        Some(d) => {
+            assert_eq!(d.name, "w");
+            assert_eq!(d.sort, Some(VarSort::Ff));
+            assert_eq!(d.inferred_prime, Some(BigUint::from(5u32)));
+            assert_eq!(d.arity, 0);
         }
         None => panic!("expected Some"),
     }
@@ -1581,3 +1582,126 @@ fn audit_p2_solve_formula_multi_two_primes_both_sat() {
     );
 }
 
+
+// ─────────────── Uninterpreted functions (parse_boolean) ───────────────
+
+#[test]
+fn parse_boolean_registers_nary_declare_fun_as_uf() {
+    // Previously misparsed as a constant; now a UF signature.
+    let src = r#"
+        (set-logic QF_UFFF)
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F F) F)
+        (declare-fun x () F)
+        (declare-fun y () F)
+        (declare-fun r () F)
+        (assert (= r (f x y)))
+        (check-sat)
+    "#;
+    let q = parse_boolean(src).expect("parse");
+    assert_eq!(q.builder.uf_symbols(), &["f".to_string()]);
+    assert_eq!(q.builder.uf_apps().len(), 1);
+    assert_eq!(q.builder.uf_apps()[0].args.len(), 2);
+}
+
+#[test]
+fn parse_boolean_uf_application_arity_is_checked() {
+    let src = r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F F) F)
+        (declare-fun x () F)
+        (assert (= x (f x)))
+    "#;
+    assert!(matches!(parse_boolean(src), Err(ParseError::Malformed(_))));
+}
+
+#[test]
+fn parse_boolean_rejects_bool_sorted_uf() {
+    let src = r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun p (F) Bool)
+        (check-sat)
+    "#;
+    assert!(matches!(parse_boolean(src), Err(ParseError::Malformed(_))));
+}
+
+#[test]
+fn parse_boolean_uf_compound_args_get_skolems() {
+    let src = r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+        (declare-fun x () F)
+        (declare-fun r () F)
+        (assert (= r (f (ff.add x x))))
+    "#;
+    let q = parse_boolean(src).expect("parse");
+    assert!(q.var_names().iter().any(|n| n.starts_with("__uf_arg_")));
+    assert!(q.var_names().iter().any(|n| n.starts_with("__uf_app_")));
+}
+
+#[test]
+fn uf_congruence_end_to_end_through_parse_boolean() {
+    use crate::boolean::solve_boolean_query;
+    use crate::solve::SolveOutcome;
+    use crate::timeout::CancelToken;
+    // x = y forces f(x) = f(y); asserting distinct results is UNSAT.
+    let unsat_src = r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+        (declare-fun x () F)
+        (declare-fun y () F)
+        (declare-fun r1 () F)
+        (declare-fun r2 () F)
+        (assert (= x y))
+        (assert (= r1 (f x)))
+        (assert (= r2 (f y)))
+        (assert (not (= r1 r2)))
+    "#;
+    let q = parse_boolean(unsat_src).expect("parse");
+    assert!(matches!(
+        solve_boolean_query(&q, &CancelToken::none()),
+        SolveOutcome::Unsat(_)
+    ));
+    // Without x = y it is satisfiable.
+    let sat_src = r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+        (declare-fun x () F)
+        (declare-fun y () F)
+        (declare-fun r1 () F)
+        (declare-fun r2 () F)
+        (assert (= r1 (f x)))
+        (assert (= r2 (f y)))
+        (assert (not (= r1 r2)))
+    "#;
+    let q = parse_boolean(sat_src).expect("parse");
+    assert!(matches!(
+        solve_boolean_query(&q, &CancelToken::none()),
+        SolveOutcome::Sat(_)
+    ));
+}
+
+#[test]
+fn uf_skolems_do_not_capture_user_variables_of_the_same_name() {
+    // A user variable literally named __uf_app_0, pinned to 3; the
+    // application's result skolem must NOT alias it (that would pin
+    // f's result and flip the verdict to Unsat).
+    use crate::boolean::solve_boolean_query;
+    use crate::solve::SolveOutcome;
+    use crate::timeout::CancelToken;
+    let src = r#"
+        (define-sort F () (_ FiniteField 7))
+        (declare-fun f (F) F)
+        (declare-fun __uf_app_0 () F)
+        (declare-fun x () F)
+        (declare-fun r () F)
+        (assert (= __uf_app_0 3))
+        (assert (= r (f (ff.add x x))))
+        (assert (= r 5))
+    "#;
+    let q = parse_boolean(src).expect("parse");
+    assert!(matches!(
+        solve_boolean_query(&q, &CancelToken::none()),
+        SolveOutcome::Sat(_)
+    ));
+}

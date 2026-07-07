@@ -62,6 +62,17 @@ pub struct EncodedSystem {
     /// partition 1 (full).
     pub bitsum_polys: Vec<Poly>,
     pub var_map: HashMap<String, usize>,
+    /// UF applications in the post-compaction ring frame (args/results
+    /// index the compacted user variables, which are a prefix of the
+    /// ring). They contribute no polynomials; every Sat exit from
+    /// [`crate::solve::solve_encoded_with_cancel`] re-verifies
+    /// congruence against them.
+    pub uf_apps: Vec<UfApp>,
+    /// Symbol table parallel to `uf_apps`.
+    pub uf_symbols: Vec<String>,
+    /// See [`ConstraintSystem::uf_care_complete`]: threads the bounded-
+    /// expansion flag into the G1 failure classification.
+    pub uf_care_complete: bool,
 }
 
 
@@ -125,6 +136,7 @@ pub use bitsum_extract::*;
 ///   3. `auto_extract_bitsums`: extract bitsum chains into
 ///      `bitsum_polys`.
 pub fn encode(system: &ConstraintSystem) -> Result<EncodedSystem, EngineError> {
+    reject_uf_poison(system)?;
     let compacted = compact_used_vars(system);
     let mut rewritten = compacted;
     crate::frontend::rewriter::rewrite_system(&mut rewritten);
@@ -138,11 +150,22 @@ pub fn encode(system: &ConstraintSystem) -> Result<EncodedSystem, EngineError> {
 pub fn encode_constraint_side(
     system: &ConstraintSystem,
 ) -> Result<EncodedSystem, EngineError> {
+    reject_uf_poison(system)?;
     let compacted = compact_used_vars(system);
     let mut rewritten = compacted;
     crate::frontend::rewriter::rewrite_system(&mut rewritten);
     let extracted = auto_extract_bitsums(&rewritten);
     encode_impl(&extracted, false)
+}
+
+/// Refuse a system whose builder recorded an ill-formed UF section.
+/// Encoding it anyway would solve a different problem than the
+/// producer stated (fail-closed, never a silent drop).
+fn reject_uf_poison(system: &ConstraintSystem) -> Result<(), EngineError> {
+    match &system.uf_poisoned {
+        Some(msg) => Err(EngineError::Encoding(format!("uf arity mismatch: {}", msg))),
+        None => Ok(()),
+    }
 }
 
 /// Compact `system.var_names` to only the variables actually
@@ -174,6 +197,14 @@ fn compact_used_vars(system: &ConstraintSystem) -> ConstraintSystem {
         for &v in chain {
             used.insert(v);
         }
+    }
+    // UF applications keep their argument and result variables live:
+    // congruence relates them even when no polynomial mentions them.
+    for app in &system.uf_apps {
+        for &a in &app.args {
+            used.insert(a);
+        }
+        used.insert(app.result);
     }
     if used.len() == system.var_names.len() {
         return system.clone();
@@ -218,6 +249,15 @@ fn compact_used_vars(system: &ConstraintSystem) -> ConstraintSystem {
         .iter()
         .map(|chain| chain.iter().map(|v| input_to_compact[v]).collect())
         .collect();
+    let new_uf_apps: Vec<UfApp> = system
+        .uf_apps
+        .iter()
+        .map(|app| UfApp {
+            symbol: app.symbol,
+            args: app.args.iter().map(|v| input_to_compact[v]).collect(),
+            result: input_to_compact[&app.result],
+        })
+        .collect();
     ConstraintSystem {
         prime: system.prime.clone(),
         var_names: new_var_names,
@@ -226,6 +266,10 @@ fn compact_used_vars(system: &ConstraintSystem) -> ConstraintSystem {
         assignments: new_assignments,
         bitsums: new_bitsums,
         add_field_polys: system.add_field_polys,
+        uf_symbols: system.uf_symbols.clone(),
+        uf_apps: new_uf_apps,
+        uf_care_complete: system.uf_care_complete,
+        uf_poisoned: system.uf_poisoned.clone(),
     }
 }
 
@@ -484,6 +528,9 @@ fn encode_impl(
         n_input_equalities: system.equalities.len(),
         bitsum_polys,
         var_map,
+        uf_apps: system.uf_apps.clone(),
+        uf_symbols: system.uf_symbols.clone(),
+        uf_care_complete: system.uf_care_complete,
     })
 }
 

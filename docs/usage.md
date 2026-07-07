@@ -56,6 +56,10 @@ picus check --r1cs circuit.r1cs --dump-smt /tmp/smt/         # dump SMT queries
 | `--cdclt-multi-prime-router <on\|off>` | off | Route CDCL(T) facts through `cdclt::multi_prime::FfTheoryRouter` (single-slot when input is single-prime; multi-slot when fed by `parse_boolean_multi`) (`native`) |
 | `--cdclt-equality-engine <on\|off>` | off | Interpose `cdclt::equality_engine::EqualityEngine` before the FF theory; drops canonical-polynomial duplicate facts and surfaces precise 2-literal lemmas on polarity contradictions (`native`) |
 | `--cdclt-incremental-theory <on\|off>` | off | Route CDCL(T) through `cdclt::ff_theory_incremental::IncrementalFfTheoryState`; carries an `IncrementalGB` across SAT decisions, with model extraction via a user-namespaced facade ring (`native`) |
+| `--uf-enabled <on\|off>` | on | Uninterpreted-function (UF) support (`native`). Consulted only when a query carries UF applications; `off` refuses them with a typed Unknown instead of dropping the congruence constraints |
+| `--uf-pair-cap <N>` | 4096 | Max same-symbol UF application pairs expanded per solve (`native`). `0` = immediate Unknown; overflow of a nonzero cap continues degraded (Unsat sound; Sat requires function-table certification) |
+| `--uf-closure <on\|off>` | on | Cached-path UNSAT-only congruence-closure probe for UF-bearing queries (`native`). Never produces Sat |
+| `--uf-mode <lazy\|ackermann>` | lazy | Decision procedure on the CDCL(T) route for UF-bearing queries (`native`): congruence-closure equality hub vs eager Ackermann expansion (fallback). The DNF route always Ackermannizes |
 | `--f4-hilbert-select <on\|off>` | on | BCR Hilbert-driven F4 batch selection (`HilbertNum::add_generators_incremental` per candidate; inert when `--use-f4` is off) (`native`) |
 | `--f4-sparse-reducer-cache <on\|off>` | on | Sparse-row reducer cache inside `F4Workspace`: stores basis index only, rematerialises the reducer at hit time (inert when `--use-f4` is off) (`native`) |
 
@@ -83,7 +87,7 @@ only the keys it sets (later wins):
 key at its default value — copy it and edit. Keys are split into two tables:
 
 - `[analysis]` — `solver`, `theory`, `timeout_ms`, `selector`, `lemmas`, `dump_smt`, and the lemma toggle `aboz_emit_disjunctions`. Backend-agnostic.
-- `[engine]` — Picus's in-tree engine: the native FF Gröbner solver knobs (`gb_strategy`, `use_f4`, `dnf_enabled`, `dnf_cap`, `cdclt_iter_cap`, `cache_enabled`, `linear_elim`, `split_triangular`, `membership_fastpath`, `radical_membership`, `matrix_elim_order`, `dynamic_order`, `zech_log_small_fp`, `reducer_index_cache`, `frobenius_cache`, `branching_incremental_gb`, `cdclt_multi_prime_router`, `cdclt_equality_engine`, `cdclt_incremental_theory`, `f4_hilbert_select`, `f4_sparse_reducer_cache`) plus the IR knob that also shapes the cvc5 path (`poly_repr`) and the diagnostics (`gb_stats_enabled`, `gb_trace_enabled`, `profile_enabled`). The native-solver-only keys are unused when delegating to cvc5 / z3.
+- `[engine]` — Picus's in-tree engine: the native FF Gröbner solver knobs (`gb_strategy`, `use_f4`, `dnf_enabled`, `dnf_cap`, `cdclt_iter_cap`, `cache_enabled`, `linear_elim`, `split_triangular`, `membership_fastpath`, `radical_membership`, `matrix_elim_order`, `dynamic_order`, `zech_log_small_fp`, `reducer_index_cache`, `frobenius_cache`, `branching_incremental_gb`, `cdclt_multi_prime_router`, `cdclt_equality_engine`, `cdclt_incremental_theory`, `f4_hilbert_select`, `f4_sparse_reducer_cache`, `uf_enabled`, `uf_pair_cap`, `uf_closure`, `uf_mode`) plus the IR knob that also shapes the cvc5 path (`poly_repr`) and the diagnostics (`gb_stats_enabled`, `gb_trace_enabled`, `profile_enabled`). The native-solver-only keys are unused when delegating to cvc5 / z3.
 
 ```toml
 [analysis]

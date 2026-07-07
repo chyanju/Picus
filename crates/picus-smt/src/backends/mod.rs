@@ -82,6 +82,17 @@ pub trait SolverBackend {
     /// firing should land in `SolverResult::Unknown(UnknownReason::Timeout)`.
     /// Backends that only support one of the two should document that
     /// limitation rather than silently ignoring the other.
+    ///
+    /// Verdict contract for UF-bearing queries (`ir.has_uf()`): the
+    /// applications over-approximate whatever concrete sub-circuits
+    /// they abstract, so **Unsat is unconditional** (sound for every
+    /// concrete refinement) while **Sat is abstract** — its witness
+    /// realizes SOME congruence-consistent function and may be
+    /// spurious for the concrete circuit. Consumers must not report a
+    /// UF-Sat as a concrete counterexample without re-validating it;
+    /// see `PolySystem::add_uf_app`. Backends that cannot reason about
+    /// congruence must refuse such queries (`Unknown`), never lower
+    /// the polynomial fragment alone.
     fn solve(
         &mut self,
         ir: &PolySystem,
@@ -258,6 +269,14 @@ pub(crate) fn preflight(
     }
     let unsupported_disjunctions = !allow_disjunctions && !ir.disjunctions.is_empty();
     if unsupported_disjunctions || !ir.assignments.is_empty() || !ir.bitsums.is_empty() {
+        return Some(SolverResult::Unknown(UnknownReason::IncompleteTheory));
+    }
+    // UF applications: these backends emit no congruence axioms, so
+    // lowering the polynomial fragment alone would weaken the query
+    // (dropped congruence → spurious SAT → a false counter-example).
+    // Refuse, matching the house pattern above. Native UF support lives
+    // in the in-tree solver only.
+    if !ir.uf_apps.is_empty() {
         return Some(SolverResult::Unknown(UnknownReason::IncompleteTheory));
     }
     None

@@ -52,6 +52,8 @@ fn make_ir(
         assignments: Vec::new(),
         bitsums: Vec::new(),
         add_field_polys: false,
+        uf_symbols: Vec::new(),
+        uf_apps: Vec::new(),
     };
     UniquenessQuery {
         n_wires,

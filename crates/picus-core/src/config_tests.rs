@@ -36,6 +36,10 @@ fn apply_overlay_consumes_every_field() {
         f4_hilbert_select: Some(true),
         f4_sparse_reducer_cache: Some(true),
         cdclt_incremental_theory: Some(true),
+        uf_enabled: Some(false),
+        uf_pair_cap: Some(9),
+        uf_closure: Some(false),
+        uf_mode: Some(UfMode::Ackermann),
     };
     let expected = RuntimeConfig {
         gb_strategy: GbStrategy::ByHomog,
@@ -63,6 +67,10 @@ fn apply_overlay_consumes_every_field() {
         f4_hilbert_select: true,
         f4_sparse_reducer_cache: true,
         cdclt_incremental_theory: true,
+        uf_enabled: false,
+        uf_pair_cap: 9,
+        uf_closure: false,
+        uf_mode: UfMode::Ackermann,
     };
 
     // Every chosen value must differ from the compiled default, so a

@@ -115,6 +115,16 @@ pub fn auto_extract_bitsums(
         assignments: system.assignments.clone(),
         bitsums: new_bitsums,
         add_field_polys: system.add_field_polys,
+        // Carried verbatim: extraction never renumbers existing var
+        // indices (it only rewrites equality term lists to reference
+        // future aux slots), so app indices stay valid unchanged.
+        // Filling these with `Vec::new()` would silently strip the
+        // apps from every EncodedSystem and disable the G1 congruence
+        // gate on the DNF/stateless legs.
+        uf_symbols: system.uf_symbols.clone(),
+        uf_apps: system.uf_apps.clone(),
+        uf_care_complete: system.uf_care_complete,
+        uf_poisoned: system.uf_poisoned.clone(),
     }
 }
 
