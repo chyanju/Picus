@@ -3,7 +3,7 @@
   <h1>Picus</h1>
   <p><strong>Automated detection of under-constrained signals in zero-knowledge circuits</strong></p>
   <p>
-    <a href="https://doi.org/10.1145/3591283"><img src="https://img.shields.io/badge/PLDI-2023-blue" alt="PLDI 2023"></a>
+    <a href="https://doi.org/10.1145/3591282"><img src="https://img.shields.io/badge/PLDI-2023-blue" alt="PLDI 2023"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
     <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.85%2B-orange" alt="Rust 1.85+"></a>
   </p>
